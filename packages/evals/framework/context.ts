@@ -1,9 +1,3 @@
-/**
- * Context builders for each tier.
- *
- * - buildCoreContext(): starts a core tool surface, provides page + tool + assert + metrics
- * - buildAgentBenchContext(): full V3 init with model/agent support (wraps existing initV3)
- */
 import type { AvailableModel, ClientOptions, LLMClient } from "stagehand-v3";
 import { type V3InitResult, initV3 } from "../initV3.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
@@ -40,16 +34,9 @@ export function resolveDefaultCoreStartupProfile(
   environment: "LOCAL" | "BROWSERBASE",
 ): StartupProfile {
   rejectAgentMountOnlyCoreTool(toolSurface);
-  // Intentionally use the shared resolver for every core-runnable surface,
-  // including stagehand_code, so harnesses agree on startup defaults.
   return resolveStartupProfile(toolSurface, environment);
 }
 
-/**
- * Agent-mount-only surfaces (stagehand_facade) have no runner-driven session, so
- * `evals core` rejects them up front with guidance instead of failing later on
- * activePage(). Shared by the core context builder and the run planner.
- */
 export function rejectAgentMountOnlyCoreTool(toolSurface: ToolSurface): void {
   if (!isAgentMountOnlyToolSurface(toolSurface)) return;
   const harnesses = listBenchHarnessesForToolSurface(toolSurface);
@@ -61,12 +48,6 @@ export function rejectAgentMountOnlyCoreTool(toolSurface: ToolSurface): void {
   );
 }
 
-/**
- * Build a CoreTaskContext for deterministic (tier 1) tasks.
- *
- * Starts the selected core tool surface but does NOT wire up an LLM —
- * core tasks should never call act/extract/observe.
- */
 export async function buildCoreContext(
   options: CoreContextOptions = {},
 ): Promise<CoreContextResult> {
@@ -149,16 +130,9 @@ export interface AgentBenchContextOptions {
 
 export interface AgentBenchContextResult {
   ctx: AgentBenchTaskContext;
-  /** The V3 instance — caller is responsible for closing it. */
   v3Result: V3InitResult;
 }
 
-/**
- * Build an AgentBenchTaskContext for agent benchmark (tier 3) tasks.
- *
- * Wraps the existing initV3 logic, providing the same shape that
- * legacy EvalFunction tasks expect.
- */
 export async function buildAgentBenchContext(
   options: AgentBenchContextOptions,
 ): Promise<AgentBenchContextResult> {

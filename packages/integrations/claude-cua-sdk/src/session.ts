@@ -15,7 +15,6 @@ import {
   type CuaToolResultBlock,
 } from "./toolset.js";
 
-/** The subset of a Messages API response the loop reads. */
 export type CuaApiMessage = {
   id?: string;
   content: Array<Record<string, unknown>>;
@@ -125,7 +124,6 @@ export type ClaudeCuaSessionInput = {
 
 const DEFAULT_MAX_TOKENS = 16_000;
 const DEFAULT_KEEP_RECENT_IMAGES = 3;
-/** Consecutive `max_tokens` truncations nudged past before the session fails. */
 const MAX_TOKENS_CONTINUATIONS = 2;
 const MAX_TOKENS_NUDGE =
   "Your previous response was cut off because it reached the output token limit. Continue the task from where you left off; keep any text brief and prefer tool calls.";
@@ -228,7 +226,6 @@ export async function runClaudeCuaSession(
         );
       }
 
-      // Echo the assistant turn verbatim (thinking blocks and toolset_name included).
       messages.push({ role: "assistant", content });
       const toolUses = content.filter((block) => block.type === "tool_use");
       const text = content
@@ -305,8 +302,6 @@ export async function runClaudeCuaSession(
           type: "tool_result",
           tool_use_id: id,
           ...(isBrowserMember && { toolset_name: ANTHROPIC_BROWSER_TOOLSET_NAME }),
-          // Compression replaces blocks in this array. Keep it separate from
-          // the original screenshot evidence retained in session events.
           content: typeof result.content === "string" ? result.content : [...result.content],
           ...(result.isError && { is_error: true }),
         });

@@ -48,7 +48,6 @@ export type GeminiCuaSessionResult = {
   status: "completed" | "max_turns" | "sdk_error";
   stopReason?: string;
   tokenUsage: GeminiCuaUsage;
-  /** Whether any response supplied a finite nonnegative token counter (including real zero). */
   usageReported: boolean;
   turns: number;
   toolCalls: number;
@@ -64,8 +63,6 @@ export const GEMINI_CUA_GENERATION_CONFIG = {
 } as const;
 
 export function normalizeGeminiCuaModel(model: string): string {
-  // Strip the eval catalog alias only. Native model/resource names belong to
-  // Google, which validates support; new identifiers require no client release.
   const bare = model.startsWith("google/") ? model.slice("google/".length) : model;
   if (!bare.trim())
     throw new HarnessAdapterError("Gemini Computer Use requires a non-empty model identifier.");
@@ -302,12 +299,6 @@ function isRecord(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * Post-action observation for the model. A page mid-navigation can make the
- * facade's screenshot / url calls fail (e.g. waitForMainLoadState timeouts);
- * that is a transient page state, not a session failure, so retry once and
- * otherwise tell the model the screenshot is unavailable this turn.
- */
 async function observePage(
   facade: Pick<CuaFacadeTools, "screenshot" | "run">,
   signal?: AbortSignal,
@@ -346,7 +337,6 @@ function pause(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-/** Validate the entire response before executing any member of its call batch. */
 function validateFunctionCall(value: unknown): {
   name: string;
   args: Record<string, unknown>;

@@ -6,10 +6,6 @@ export default defineBenchTask(
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/aigrant/");
 
-      // Self-healing act(Action) replay (restored by
-      // stagehand#2427): same supplied action as the v3 twin — a
-      // "scrollTo" with arguments ["50%"], exercising the deterministic
-      // executor with variable substitution and healing.
       const { data: healed } = await stagehand.act({
         description: "the element to scroll on",
         selector: "/html/body/div/div/button",
@@ -17,9 +13,6 @@ export default defineBenchTask(
         method: "scrollTo",
       });
 
-      // Report a failed heal directly rather than letting it surface as an
-      // unchanged scroll position. Healing requires selfHeal: true at init;
-      // the server defaults it off and it cannot be set per-call.
       if (!healed.success) {
         return {
           _success: false,

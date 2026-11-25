@@ -19,7 +19,6 @@ export default defineBenchTask(
         }),
       );
 
-      // The list of records we expect to see
       const expectedRecords = [
         {
           file_name: "104-10003-10041.pdf",
@@ -65,14 +64,12 @@ export default defineBenchTask(
 
       const extractedRecords = extraction.records;
 
-      // Check that all expected records exist in the extraction
       const missingRecords = expectedRecords.filter((expected) => {
         return !extractedRecords.some(
           (r) => r.file_name === expected.file_name && r.link === expected.link,
         );
       });
 
-      // Check that the extraction array is exactly length 10
       if (extractedRecords.length !== 10) {
         return {
           _success: false,
@@ -95,7 +92,6 @@ export default defineBenchTask(
         };
       }
 
-      // If we reach here, the number of records is correct, and all are present
       return {
         _success: true,
         debugUrl,

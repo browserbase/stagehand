@@ -5,8 +5,6 @@ import { expect, it } from "vitest";
 
 const pythonPackage = new URL("../../core/python/", import.meta.url);
 
-// The npm and PyPI `stagehand-middleware` packages ship the same facade and
-// release under the same version.
 it("ships the same facade bundle as the Python package", async () => {
   // Load the built package in plain Node, as consumers do: the bundle carries
   // Function#toString sources, which a test transform would change.

@@ -239,7 +239,6 @@ function createCallbackContextFacade(context: BrowserContext): ExperimentalBatch
     }
 
     if (descriptor.get) {
-      // The facade intentionally invokes the prototype getter with the real context as `this`.
       // oxlint-disable-next-line typescript/unbound-method
       const getter = descriptor.get;
       Object.defineProperty(facade, property, {

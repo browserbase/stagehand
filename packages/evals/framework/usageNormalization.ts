@@ -23,30 +23,18 @@ export type UsageConvention =
   | "unreported";
 
 export interface NormalizedUsage {
-  /** Every prompt token billed on any input rate: uncached + cached + cache writes. */
   input_total: number;
-  /** Prompt tokens served from a prompt cache. */
   input_cached: number;
-  /** Prompt tokens written into a prompt cache (0 when the SDK does not split them out). */
   input_cache_write: number;
-  /** Prompt tokens billed at the plain input rate. */
   input_uncached: number;
-  /** Completion tokens, including reasoning when `reasoning_in_output`. */
   output: number;
-  /** Reasoning / thinking tokens the SDK reported (0 when it does not). */
   reasoning: number;
-  /** Whether `reasoning` is already counted inside `output`. */
   reasoning_in_output: boolean;
   convention: UsageConvention;
 }
 
 export interface NormalizeUsageInput {
   harness: string;
-  /**
-   * Model provider (e.g. "anthropic"). Accepted for forward compatibility; today
-   * every harness SDK reports one shape regardless of provider, so the
-   * convention is decided per harness.
-   */
   provider?: string;
   raw: ExternalHarnessUsage;
 }
@@ -82,7 +70,6 @@ const HARNESS_CONVENTIONS: Readonly<Record<string, UsageConvention>> = {
   gemini_cua: "openai_cached_subset",
 };
 
-/** Unknown harnesses get the most common SDK shape; the metric is still labelled. */
 const DEFAULT_CONVENTION: UsageConvention = "openai_cached_subset";
 
 export function usageConventionFor(harness: string): UsageConvention {
@@ -97,10 +84,6 @@ export function normalizeUsage({ harness, raw }: NormalizeUsageInput): Normalize
   const cacheWrite = nonNegative(raw.cacheCreationInputTokens);
   const output = nonNegative(raw.outputTokens);
   const reasoning = nonNegative(raw.reasoningOutputTokens);
-  // Legacy runners initialize absent telemetry to zero. Without an explicit
-  // presence flag, zeros cannot establish a free run. Nonzero component
-  // buckets remain usable for legacy records; reported:true preserves an
-  // actual zero-valued usage event. Total alone cannot price missing buckets.
   const declaredConvention = usageConventionFor(harness);
   const hasUsage =
     raw.reported === true ||
@@ -147,7 +130,6 @@ export function normalizeUsage({ harness, raw }: NormalizeUsageInput): Normalize
   }
 }
 
-/** `in=<total> (cached <n>) out=<n>` for the trace result line. */
 export function formatNormalizedUsage(usage: NormalizedUsage): string {
   if (usage.convention === "unreported") return "in=? out=? (usage unreported)";
   return `in=${usage.input_total} (cached ${usage.input_cached}) out=${usage.output}`;

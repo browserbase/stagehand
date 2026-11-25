@@ -18,9 +18,6 @@ it("keeps the content script's bindings out of the page a new tab opens on", asy
     const browser = await localBrowser.connect({ cdpUrl: chrome.cdpUrl });
     const stagehand = await Stagehand.create({ browser, logging: { level: "off" } });
     try {
-      // The extension's blank page loads the content script into the page's own world, where
-      // user init scripts and page.evaluate code also run. Short names are the ones a minifier
-      // picks.
       await browser.context.addInitScript({ content: "let e = 1; const t = 2; var n = 'user';" });
       const page = await browser.context.newPage();
 

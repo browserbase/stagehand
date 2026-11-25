@@ -14,7 +14,6 @@ describe("mark", () => {
     const ink = MARK.map((r) => [r.indexOf("W"), r.lastIndexOf("W")]).filter(([a]) => a >= 0);
     const left = Math.min(...ink.map(([a]) => a));
     const right = Math.max(...ink.map(([, b]) => b));
-    // a slit row reaches only one edge of the S block
     const fromRight = ink.some(([a, b]) => a === left && b < right - 3);
     const fromLeft = ink.some(([a, b]) => a > left + 3 && b === right);
     expect(fromRight && fromLeft).toBe(true);

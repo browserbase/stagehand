@@ -28,7 +28,6 @@ expectTypeOf<LocatorNthStep>().toEqualTypeOf<{ type: "nth"; index: number }>();
 expectTypeOf<LocatorStep>().toEqualTypeOf<LocatorQueryStep | LocatorFrameStep | LocatorNthStep>();
 expectTypeOf<LocatorChain["steps"]>().toEqualTypeOf<[LocatorQueryStep, ...LocatorStep[]]>();
 
-// Position and frame steps are allowed after, but never instead of, the first query.
 expectTypeOf<{ steps: [] }>().not.toExtend<LocatorChain>();
 expectTypeOf<{ steps: [LocatorNthStep] }>().not.toExtend<LocatorChain>();
 expectTypeOf<{ steps: [LocatorFrameStep, LocatorQueryStep] }>().not.toExtend<LocatorChain>();

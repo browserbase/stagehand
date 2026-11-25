@@ -1,12 +1,3 @@
-/**
- * `evals setup` — get this machine ready to run agent benchmarks.
- *
- * Detects what's already present (a provider key, a browser), asks only for
- * what's missing, writes it to packages/evals/.env, re-detects, and offers to
- * run the first real case. Keys are entered masked and never echoed back.
- * Off-TTY it prints the static checklist instead of prompting.
- */
-
 import fs from "node:fs";
 import path from "node:path";
 import * as clack from "@clack/prompts";
@@ -36,7 +27,6 @@ const KEY_VAR: Record<Provider, string> = {
   openai: "OPENAI_API_KEY",
 };
 
-/** Upsert `KEY=value` lines in a dotenv file body; other lines are preserved. */
 export function upsertEnv(body: string, entries: Record<string, string>): string {
   const lines = body.length ? body.split("\n") : [];
   const seen = new Set<string>();
@@ -58,13 +48,10 @@ function writeEnv(entries: Record<string, string>): string {
   const existing = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf8") : "";
   fs.writeFileSync(envPath, upsertEnv(existing, entries), { mode: 0o600 });
   fs.chmodSync(envPath, 0o600); // `mode` only applies to new files
-  // Make the new values visible to detection in this process (the package
-  // .env is read once and cached).
   for (const [k, v] of Object.entries(entries)) process.env[k] = v;
   return envPath;
 }
 
-/** Browserbase variables still unset (both, one, or none). */
 function missingBrowserbase(m: Machine): string[] {
   const missing: string[] = [];
   if (m.keys.browserbase.apiKey !== "set") missing.push("BROWSERBASE_API_KEY");
@@ -148,8 +135,6 @@ export async function handleSetup(args: string[], ctx?: CommandContext): Promise
 
     const entries: Record<string, string> = {};
 
-    // 1. A provider key (the provider picks the harness). Only when neither
-    // harness-capable key is present — a missing browser alone shouldn't re-ask.
     if (!m.providers.includes("anthropic") && !m.providers.includes("openai")) {
       const provider = await clack.select<Provider>({
         message: "Which model provider will run the agent?",
@@ -172,7 +157,6 @@ export async function handleSetup(args: string[], ctx?: CommandContext): Promise
       entries[KEY_VAR[provider]] = key.trim();
     }
 
-    // 2. A browser.
     if (!m.chrome && !m.browserbase) {
       const browser = await clack.select<"browserbase" | "chrome">({
         message: "No browser found. How should the agent drive one?",
@@ -192,7 +176,6 @@ export async function handleSetup(args: string[], ctx?: CommandContext): Promise
       });
       if (clack.isCancel(browser)) return cancel();
       if (browser === "browserbase") {
-        // Ask only for the half that's missing.
         if (m.keys.browserbase.apiKey !== "set") {
           const apiKey = await clack.password({
             message: "BROWSERBASE_API_KEY",
@@ -214,7 +197,6 @@ export async function handleSetup(args: string[], ctx?: CommandContext): Promise
       }
     }
 
-    // 3. Persist, re-detect, show the result.
     if (Object.keys(entries).length) {
       const envPath = writeEnv(entries);
       saved = true;
@@ -223,7 +205,6 @@ export async function handleSetup(args: string[], ctx?: CommandContext): Promise
       clack.note(status(m).join("\n"), "Now");
     }
 
-    // 4. Offer the first real run.
     if (m.plan.kind === "real") {
       const cmd = firstRunCommand(m.plan);
       const go = await clack.confirm({
@@ -236,15 +217,12 @@ export async function handleSetup(args: string[], ctx?: CommandContext): Promise
     } else {
       clack.outro(`Install Chrome, then run ${cyan("evals setup")} again.`);
     }
-    // Completed (not cancelled): this counts as first use.
     if (ctx) markFirstRunComplete(ctx.entryDir);
   } finally {
     restore();
   }
 
   if (!runNext || !ctx) return;
-  // "Enter to run it" means run it — in the REPL too. Pop any nested REPL
-  // context first so the command resolves from the root of the tree.
   ctx.setContextPath?.([]);
   const { buildCommandTree, dispatch, tokenize } = await import("../commandTree.js");
   await dispatch(buildCommandTree(), tokenize(runNext), ctx);

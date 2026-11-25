@@ -9,23 +9,6 @@ import {
   normalizeAgentModelEntries,
 } from "../utils.js";
 
-/**
- * Build OdysseysBench testcases.
- *
- * OdysseysBench (https://odysseysbench.com) is a 200-task web-agent benchmark
- * spanning easy/medium/hard difficulty. Every task ships a weighted rubric
- * (baked into `precomputed_rubric` by scripts/build-odysseysbench-dataset.ts),
- * so the verifier scores against the published criteria directly rather than
- * generating its own.
- *
- * Env knobs:
- *   - EVAL_MAX_K / EVAL_ODYSSEYSBENCH_LIMIT — cap the number of tasks (default 25).
- *   - EVAL_ODYSSEYSBENCH_SAMPLE — random sample size (overrides the limit cap).
- *   - EVAL_ODYSSEYSBENCH_LEVEL — comma-separated difficulty filter (easy,medium,hard).
- *   - EVAL_ODYSSEYSBENCH_IDS — comma-separated task_ids to run exactly, in order
- *     (ignores sampling / limit / level knobs).
- */
-/** Parse an env var to a positive integer; undefined for unset/non-numeric. */
 function parsePositiveIntEnv(value: string | undefined): number | undefined {
   if (!value) return undefined;
   const n = Number(value);
@@ -38,9 +21,6 @@ export const buildOdysseysBenchTestcases = (models: string[] | AgentModelEntry[]
 
   const lines = readJsonlFile(odysseysbenchFilePath);
 
-  // Ignore unset / non-numeric env values rather than letting Number("foo")
-  // become NaN, which would slip past applySampling's `>= maxCases` cap and
-  // silently fan out the full 200-task dataset.
   const maxCases =
     parsePositiveIntEnv(process.env.EVAL_MAX_K) ??
     parsePositiveIntEnv(process.env.EVAL_ODYSSEYSBENCH_LIMIT) ??
@@ -54,10 +34,6 @@ export const buildOdysseysBenchTestcases = (models: string[] | AgentModelEntry[]
     level?: "easy" | "medium" | "hard";
     reference_length?: number;
     categories?: string[];
-    /**
-     * Per-task weighted rubric in verifier `{ items: [...] }` shape, produced
-     * from the published rubrics by scripts/build-odysseysbench-dataset.ts.
-     */
     precomputed_rubric?: unknown;
     [key: string]: unknown;
   };
@@ -70,8 +46,6 @@ export const buildOdysseysBenchTestcases = (models: string[] | AgentModelEntry[]
 
   const candidates = parseJsonlRows(lines, isOdysseysBenchRow);
 
-  // EVAL_ODYSSEYSBENCH_IDS restricts the suite to exactly those task IDs,
-  // preserving the order given and ignoring sampling / limit / level knobs.
   const explicitIds = process.env.EVAL_ODYSSEYSBENCH_IDS
     ? process.env.EVAL_ODYSSEYSBENCH_IDS.split(",")
         .map((s) => s.trim())
@@ -83,7 +57,6 @@ export const buildOdysseysBenchTestcases = (models: string[] | AgentModelEntry[]
     const byId = new Map(candidates.map((r) => [r.task_id, r]));
     rows = explicitIds.map((id) => byId.get(id)).filter((r): r is OdysseysBenchRow => Boolean(r));
   } else {
-    // Optional difficulty filter, applied before sampling.
     const levelFilter = process.env.EVAL_ODYSSEYSBENCH_LEVEL
       ? new Set(
           process.env.EVAL_ODYSSEYSBENCH_LEVEL.split(",")

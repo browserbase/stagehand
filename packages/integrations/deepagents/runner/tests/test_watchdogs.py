@@ -98,7 +98,6 @@ async def test_shorter_deadline_wins_when_both_guards_are_enabled(
     result = await asyncio.wait_for(
         runner.run(config(), build_agent=lambda *_: Agent(), emit=events.append), 1,
     )
-    # Stream failures use the typed error event; the process still drains final/usage.
     assert result == 0
     assert closed
     assert [event["kind"] for event in events if event["type"] == "error"] == [expected]
@@ -127,8 +126,6 @@ async def test_real_mcp_session_closes_in_its_owning_task(
             outgoing_send, outgoing_receive = anyio.create_memory_object_stream(1)
             try:
                 try:
-                    # This opens the real MCP/AnyIO receive task group, without
-                    # initializing a server or sending any network requests.
                     async with ClientSession(incoming_receive, outgoing_send) as session:
                         yield session
                     closed = True
@@ -188,14 +185,12 @@ async def test_stream_context_keeps_task_ownership_across_chunks_and_close(
                         else:
                             yield {"agent": {"messages": [AIMessage(content="complete")]}}
                     except GeneratorExit:
-                        # Closing a well-behaved stream exits its group normally.
                         pass
                 closed = True
             except Exception as error:
                 close_errors.append(error)
                 raise
             finally:
-                # GeneratorExit on the step cap still exits its task group.
                 if not close_errors:
                     closed = True
 

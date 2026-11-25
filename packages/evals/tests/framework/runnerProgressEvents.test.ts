@@ -5,13 +5,6 @@ import { reportRowPhase } from "../../framework/rowContext.js";
 import { EvalLogger } from "../../logger.js";
 import fs from "node:fs";
 
-/**
- * The live board keys rows by the runner's progress events. Suite testcases
- * all share `input.name` (`agent/hardbenchmark`), so these tests drive the
- * Braintrust task function directly with suite-shaped inputs and check that
- * every event carries the case, the trial and a unique row key.
- */
-
 vi.mock("playwright", () => ({ chromium: {} }));
 
 type TaskFn = (input: unknown, hooks?: { trialIndex?: number }) => Promise<TaskResult>;
@@ -23,7 +16,6 @@ vi.mock("../../framework/braintrust.js", () => ({
   hasBraintrustApiKey: () => false,
   resolveBraintrustProjectName: () => "stagehand-dev",
   loadBraintrust: async () => ({
-    // Hold Eval open until the test has called the task function itself.
     Eval: async (
       _name: string,
       options: { task: TaskFn; data: () => Array<{ input: { modelName: string } }> },
@@ -145,7 +137,6 @@ describe("runner progress events carry row identity", () => {
     const events: RunProgressEvent[] = [];
     const { run, task } = await startRun(events);
     const { executeBenchTask } = await import("../../framework/benchRunner.js");
-    // Two rows interleave their phases; each report must land on its own row.
     vi.mocked(executeBenchTask).mockImplementation(async (input) => {
       const web = String((input.params as { web: string }).web);
       reportRowPhase("session");
@@ -182,7 +173,6 @@ describe("runner progress events carry row identity", () => {
     const { executeBenchTask } = await import("../../framework/benchRunner.js");
     vi.mocked(executeBenchTask).mockImplementation(async (input) => {
       const web = String((input.params as { web: string }).web);
-      // echo=true: only the row routing keeps this line off the console.
       new EvalLogger(true).log({ category: "codex", message: `navigating ${web}`, level: 1 });
       console.log(`raw console from ${web}`);
       return { _success: web === "a.com" };
@@ -223,7 +213,6 @@ describe("runner progress events carry row identity", () => {
       expect(text).toContain(`[codex] navigating ${domain}`);
       expect(text).not.toContain(domain === "a.com" ? "b.com" : "a.com");
     }
-    // EvalLogger lines inside a row never reach the console.
     expect(log.mock.calls.flat().join("\n")).not.toContain("navigating");
     log.mockRestore();
   });
@@ -242,7 +231,6 @@ describe("runner progress events carry row identity", () => {
       const first = task(input("aaaaaaaa00000000aaaaaaaa00000000", "a.com"), { trialIndex: 0 });
       const second = task(input("bbbbbbbb00000000bbbbbbbb00000000", "b.com"), { trialIndex: 0 });
       await vi.waitFor(() => expect(events.filter((e) => e.type === "started")).toHaveLength(1));
-      // The second row is queued behind openai=1: it must not show as started.
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(events.filter((e) => e.type === "started").map((e) => e.case?.domain)).toEqual([
         "a.com",
@@ -270,8 +258,6 @@ describe("runner progress events carry row identity", () => {
       await run;
       const providers = (capturedData ?? []).map((row) => row.input.modelName.split("/")[0]);
       expect(new Set(providers)).toEqual(new Set(["openai", "anthropic"]));
-      // Model by model would put every openai row first; interleaved, each
-      // round takes one provider width (default 3) from every provider.
       expect(providers.indexOf("anthropic")).toBeLessThanOrEqual(3);
     } finally {
       if (saved === undefined) delete process.env.EVAL_CODEX_MODELS;

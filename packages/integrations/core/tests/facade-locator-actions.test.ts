@@ -30,7 +30,6 @@ async function fixture({
     waitForTimeout: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
     locator: () => ({ click, count: async () => (Date.now() >= appearedAt ? 1 : 0) }),
   };
-  // Errors and timeout helpers must survive the callback serialization boundary.
   const create = new Function(
     `return (${createPlaywrightCompatRuntime.toString()})`,
   )() as typeof createPlaywrightCompatRuntime;

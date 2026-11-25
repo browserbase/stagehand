@@ -2,8 +2,6 @@ import camelcaseKeys from "camelcase-keys";
 import snakecaseKeys from "snakecase-keys";
 import { z } from "zod/v4";
 
-// Values under these keys are user-controlled maps or JSON, so casing conversion
-// must rename the container but preserve every key inside it.
 const defaultOpaqueKeys = new Set([
   "headers",
   "variables",

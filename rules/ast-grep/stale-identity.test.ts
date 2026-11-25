@@ -4,8 +4,6 @@ import { describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
 
-// The Python build removes artifacts produced before the distribution was
-// renamed. These exact legacy cleanup patterns are data, not public identities.
 const legacyDistributionName = ["stagehand", "v4"].join("_");
 const allowedLegacyCleanupMatches = new Set([
   `packages/sdk-python/scripts/build.py:"${legacyDistributionName}-*.whl",`,

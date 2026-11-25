@@ -149,7 +149,6 @@ describe("driver commands", () => {
           server.listen(getSocketPath(session), resolve);
         });
         const selection = await resolveDriverSession(session, flags);
-        // Make disappearance deterministic on both Unix sockets and Windows pipes.
         await closed;
         await expect(
           runDriverCommand(session, selection, "open", { url: "about:blank" }),

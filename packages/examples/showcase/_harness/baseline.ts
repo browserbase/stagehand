@@ -15,8 +15,6 @@ function playwrightMcpCli(): string {
   return join(dirname(require.resolve("@playwright/mcp/package.json")), "cli.js");
 }
 
-// The baseline is an LLM agent driving the stock Playwright MCP server over
-// CDP, on the same model and the same kind of Browserbase session as Stagehand.
 export async function runPlaywrightMcp<Schema extends z.ZodType>(
   workflow: Workflow<Schema>,
   task: ShowcaseTask<Schema>,

@@ -24,7 +24,6 @@ import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
-/** Replaces URL strings with numeric DOM IDs until extraction has resolved the page's URL map. */
 export function transformUrlStringsToNumericIds<Schema extends z.ZodType>(
   schema: Schema,
 ): [z.ZodType, ZodPathSegments[]] {
@@ -80,8 +79,6 @@ async function extractWithProgress(
 ): Promise<ExtractResult> {
   const { instruction, options } = params;
 
-  // Cache keys contain DOM state, not screenshot pixels. Do not serve a
-  // visual extraction from a cache entry that cannot represent its image.
   if (options?.screenshot) {
     return (await runExtraction()).result;
   }

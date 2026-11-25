@@ -27,8 +27,6 @@ export type StagehandRun = {
   steps: Array<TimelineStep & { startedAt: number }>;
 };
 
-// Records each act/extract/observe call so the website can draw a timeline
-// that seeks the recording, without the cookbook code knowing about it.
 function trace(stagehand: Stagehand, steps: StagehandRun["steps"], origin: number): Stagehand {
   return new Proxy(stagehand, {
     get(target, prop, receiver) {

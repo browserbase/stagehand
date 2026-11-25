@@ -7,8 +7,6 @@ export type ModelPrice = {
   checkedOn: string;
 };
 
-// USD per million tokens. Snapshotted into every results.json so published
-// costs stay tied to the prices in effect when the run happened.
 export const PRICES: Record<string, ModelPrice> = {
   "anthropic/claude-sonnet-5": {
     inputPerMTok: 2,

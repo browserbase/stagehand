@@ -74,7 +74,6 @@ describe("computeListCost", () => {
         totalTokens: 1_100_000,
       },
     });
-    // 400k·1 + 600k·0.1 + 100k·4 = 0.4 + 0.06 + 0.4
     expect(compute(usage, "openai/gpt-5.4-mini")).toBe(0.86);
   });
 
@@ -89,7 +88,6 @@ describe("computeListCost", () => {
         totalTokens: 1_350_000,
       },
     });
-    // 100k·3 + 1M·0.3 + 200k·3.75 + 50k·15 = 0.3 + 0.3 + 0.75 + 0.75
     expect(compute(usage, "anthropic/claude-sonnet-4-6")).toBe(2.1);
   });
 
@@ -254,7 +252,6 @@ describe("resolveBilledCost", () => {
         priceMap,
       }).billing_channel,
     ).toBe("fx_gateway");
-    // A reported figure wins even for a priced model on a direct-API harness.
     expect(
       resolveBilledCost({
         harness: "pi",
@@ -330,7 +327,6 @@ describe("resolveBilledCost", () => {
         priceMap,
       }),
     ).toEqual({ cost_source: "unavailable", billing_channel: "openai_api" });
-    // A non-finite report is no report.
     expect(
       resolveBilledCost({
         harness: "pi",
