@@ -545,12 +545,12 @@ async function buildHarnessRow(
       );
       break;
     case "eve":
-      binary = resolvePackage("@browserbasehq/stagehand-integrations-eve-sdk")
+      binary = resolvePackage("@browserbasehq/stagehand-integrations-eve-harness")
         ? { status: "ok", label: "sdk" }
         : {
             status: "fail",
             label: "sdk missing",
-            detail: "@browserbasehq/stagehand-integrations-eve-sdk not resolvable.",
+            detail: "@browserbasehq/stagehand-integrations-eve-harness not resolvable.",
             fix: "pnpm install",
           };
       break;

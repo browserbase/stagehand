@@ -102,7 +102,9 @@ expectTypeOf<z.output<typeof StagehandMethods.pageWaitForSelector.result>>().toE
   matched: boolean;
 }>();
 expectTypeOf(StagehandMethods.locatorSelectOption.name).toEqualTypeOf<"locator.select_option">();
-expectTypeOf<z.input<typeof StagehandMethods.locatorSelectOption.params>>().toEqualTypeOf<{
+expectTypeOf<
+  Extract<z.input<typeof StagehandMethods.locatorSelectOption.params>, { selector: string }>
+>().toEqualTypeOf<{
   pageId: string;
   selector: string;
   nth?: number;
@@ -113,7 +115,9 @@ expectTypeOf<z.output<typeof StagehandMethods.locatorSelectOption.result>>().toE
   string[]
 >();
 expectTypeOf(StagehandMethods.locatorSetInputFiles.name).toEqualTypeOf<"locator.set_input_files">();
-expectTypeOf<z.input<typeof StagehandMethods.locatorSetInputFiles.params>>().toEqualTypeOf<{
+expectTypeOf<
+  Extract<z.input<typeof StagehandMethods.locatorSetInputFiles.params>, { selector: string }>
+>().toEqualTypeOf<{
   pageId: string;
   selector: string;
   nth?: number;

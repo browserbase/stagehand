@@ -1,0 +1,45 @@
+{
+  "valid": [
+    {
+      "kind": "role",
+      "value": "button",
+      "name": "Save >> now",
+      "exact": true,
+      "pressed": "mixed",
+      "expanded": false,
+      "disabled": false
+    },
+    { "kind": "role", "value": "checkbox", "checked": "mixed" },
+    { "kind": "role", "value": "treeitem", "checked": "mixed", "selected": false, "level": 2 },
+    { "kind": "role", "value": "option", "checked": true },
+    { "kind": "role", "value": "columnheader", "selected": true },
+    { "kind": "role", "value": "heading", "name": "", "level": 3 },
+    { "kind": "role", "value": "img", "name": "Diagram" },
+    { "kind": "role", "value": "comment" },
+    { "kind": "role", "value": "mark" },
+    { "kind": "role", "value": "suggestion" }
+  ],
+  "invalid": [
+    { "kind": "role", "value": "unknown" },
+    { "kind": "role", "value": "Button" },
+    { "kind": "role", "value": "button", "name": null },
+    { "kind": "role", "value": "button", "name": { "pattern": "Save" } },
+    { "kind": "role", "value": "button", "exact": "true" },
+    { "kind": "role", "value": "button", "exact": null },
+    { "kind": "role", "value": "button", "checked": true },
+    { "kind": "role", "value": "radio", "checked": "mixed" },
+    { "kind": "role", "value": "switch", "checked": "mixed" },
+    { "kind": "role", "value": "menuitemradio", "checked": "mixed" },
+    { "kind": "role", "value": "checkbox", "pressed": false },
+    { "kind": "role", "value": "img", "expanded": true },
+    { "kind": "role", "value": "button", "selected": false },
+    { "kind": "role", "value": "button", "disabled": 0 },
+    { "kind": "role", "value": "heading", "level": true },
+    { "kind": "role", "value": "heading", "level": 0 },
+    { "kind": "role", "value": "heading", "level": 1.5 },
+    { "kind": "role", "value": "button", "level": 1 },
+    { "kind": "role", "value": "button", "includeHidden": false },
+    { "kind": "role", "value": "button", "include_hidden": false },
+    { "kind": "role", "value": "button", "unexpected": true }
+  ]
+}

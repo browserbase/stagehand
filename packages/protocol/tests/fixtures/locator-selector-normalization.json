@@ -1,0 +1,46 @@
+[
+  { "selector": " .card ", "steps": [["query", "css", ".card"]] },
+  { "selector": "CSS=button", "steps": [["query", "css", "button"]] },
+  { "selector": "xpath=.//button", "steps": [["query", "xpath", ".//button"]] },
+  { "selector": "XPATH=.//button", "steps": [["query", "xpath", ".//button"]] },
+  { "selector": "(//button)[2]", "steps": [["query", "xpath", "(//button)[2]"]] },
+  { "selector": "text= 'Save' ", "steps": [["query", "text", "Save"]] },
+  {
+    "selector": " iframe >> css=section >> text=Save ",
+    "steps": [
+      ["query", "css", "iframe"],
+      ["frame", "css", "section"],
+      ["frame", "text", "Save"]
+    ]
+  },
+  {
+    "selector": "/html/body/iframe[2]/html/body/button",
+    "steps": [
+      ["query", "xpath", "/html/body/iframe[2]"],
+      ["frame", "xpath", "/html/body/button"]
+    ]
+  },
+  {
+    "selector": "xpath=//iframe//frame/button",
+    "steps": [
+      ["query", "xpath", "//iframe"],
+      ["frame", "xpath", "//frame"],
+      ["frame", "xpath", "/button"]
+    ]
+  },
+  { "selector": "//iframe", "steps": [["query", "xpath", "//iframe"]] },
+  {
+    "selector": "iframe >> >> button",
+    "steps": [
+      ["query", "css", "iframe"],
+      ["frame", "css", "button"]
+    ]
+  },
+  {
+    "selector": "text=\"a >> b\"",
+    "steps": [
+      ["query", "text", "\"a"],
+      ["frame", "css", "b\""]
+    ]
+  }
+]

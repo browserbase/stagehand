@@ -14,6 +14,7 @@ import { getCliVersion, resolveInstallId, toMetadataValue } from "../../../lib/i
 import { BrowseCommand } from "../../../base.js";
 
 const REGIONS = ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"] as const;
+const BROWSER_SIZES = ["regular", "large", "xlarge"] as const;
 
 interface SessionCreateFlagInputs {
   proxies?: boolean;
@@ -22,6 +23,7 @@ interface SessionCreateFlagInputs {
   "solve-captchas"?: boolean;
   "block-ads"?: boolean;
   region?: string;
+  size?: string;
   "keep-alive"?: boolean;
   timeout?: number;
   "context-id"?: string;
@@ -44,6 +46,7 @@ function buildSessionCreateBody(flags: SessionCreateFlagInputs): Record<string, 
 
   if (flags.verified || flags["advanced-stealth"]) browserSettings.verified = true;
   if (flags["block-ads"]) browserSettings.blockAds = true;
+  if (flags.size) browserSettings.size = flags.size;
 
   if (flags["solve-captchas"] !== undefined) {
     browserSettings.solveCaptchas = flags["solve-captchas"];
@@ -127,6 +130,7 @@ export default class SessionsCreate extends BrowseCommand {
   static override examples = [
     "browse cloud sessions create --proxies --verified",
     "browse cloud sessions create --region us-east-1 --timeout 300",
+    "browse cloud sessions create --size large",
     "browse cloud sessions create --solve-captchas --context-id ctx_abc --persist",
     `browse cloud sessions create --body '{"keepAlive":true}'`,
     `echo '{"keepAlive":true,"proxies":true}' | browse cloud sessions create --stdin`,
@@ -161,6 +165,11 @@ export default class SessionsCreate extends BrowseCommand {
       description: `Session region. (choices: ${REGIONS.map((r) => `"${r}"`).join(", ")})`,
       options: [...REGIONS],
       helpValue: "<region>",
+    }),
+    size: Flags.string({
+      description: `Size of the browser. Larger sizes provide more resources to improve performance for intensive tasks. Defaults to regular. (choices: ${BROWSER_SIZES.map((size) => `"${size}"`).join(", ")})`,
+      options: [...BROWSER_SIZES],
+      helpValue: "<size>",
     }),
     "keep-alive": Flags.boolean({
       description: "Keep session alive after disconnection.",

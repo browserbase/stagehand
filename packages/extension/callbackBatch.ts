@@ -12,8 +12,8 @@ import type {
   StagehandRpcNotification,
 } from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
-import type { ExperimentalBatchBrowserContext } from "../sdk-ts/src/batch.js";
-import { BrowserContext } from "../sdk-ts/src/browserContext.js";
+import type { ExperimentalBatchBrowserContext } from "@browserbasehq/stagehand-browser-api/batch";
+import { BrowserContext } from "@browserbasehq/stagehand-browser-api/browserContext";
 import {
   StagehandClientActOptionsSchema,
   StagehandClientExtractOptionsSchema,
@@ -21,10 +21,11 @@ import {
   type StagehandClientActOptions,
   type StagehandClientExtractOptions,
   type StagehandClientObserveOptions,
-} from "../sdk-ts/src/clientSchemas.js";
-import { serializeClientLocatorOptions } from "../sdk-ts/src/clientLocatorOptions.js";
-import type { StagehandCommandClient } from "../sdk-ts/src/commandClient.js";
-import { Page } from "../sdk-ts/src/page.js";
+} from "@browserbasehq/stagehand-browser-api/schemas";
+import { serializeClientLocatorOptions } from "@browserbasehq/stagehand-browser-api/clientLocatorOptions";
+import type { StagehandCommandClient } from "@browserbasehq/stagehand-browser-api/commandClient";
+import { Page } from "@browserbasehq/stagehand-browser-api/page";
+import { browserPlatform } from "@browserbasehq/stagehand-browser-api/platform";
 import type { HandlerContext, RPCRouter } from "./rpcRouter.js";
 
 export type CallbackBatchFunction = (batch: CallbackStagehand, input: unknown) => unknown;
@@ -34,6 +35,8 @@ export type CallbackBatchRuntimeAttachments = {
 };
 
 class InProcessCommandClient implements StagehandCommandClient {
+  readonly platform = browserPlatform;
+
   #nextRequestId = 1;
 
   constructor(
