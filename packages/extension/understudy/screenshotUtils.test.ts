@@ -4,10 +4,75 @@ import { CdpConnection } from "./cdp.js";
 import { Frame } from "./frame.js";
 import { StagehandLogger } from "../logger.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { withScreenshotLock } from "./screenshotUtils.js";
+import { applyMaskOverlays, runScreenshotCleanups, withScreenshotLock } from "./screenshotUtils.js";
+import { ChainLocatorDelegate } from "./chainLocator.js";
+import { Locator } from "./locator.js";
 import { Progress, runWithProgress } from "./progress.js";
 
 const captureCommands = ["Page.enable", "Page.bringToFront", "Page.captureScreenshot"];
+
+describe("chain screenshot masks", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it.each([false, true])("handles a failed target with stopped progress = %s", async (stopped) => {
+    vi.useFakeTimers();
+    const session = connection();
+    const frame = new Frame(
+      session,
+      "frame",
+      "page",
+      false,
+      new StagehandLogger({ tracer: trace.getTracer("mask-test") }, () => {}),
+    );
+    const chain = new ChainLocatorDelegate({ mainFrame: () => frame } as Page, {
+      steps: [{ type: "query", selector: { kind: "css", value: "button" } }],
+    });
+    const stale = new Locator(frame, "#stale");
+    const valid = new Locator(frame, "#valid");
+    vi.spyOn(chain, "all").mockResolvedValue([stale, valid]);
+    vi.spyOn(stale, "resolveNodesForMask").mockImplementation(async () => {
+      if (stopped) vi.spyOn(performance, "now").mockReturnValue(10);
+      throw new Error("Target no longer exists");
+    });
+    const release = vi.fn(async () => {});
+    const resolveValid = vi.spyOn(valid, "resolveNodesForMask").mockResolvedValue({
+      nodes: [{ objectId: "valid", nodeId: null }],
+      release,
+    });
+    const rect = { x: 10, y: 20, width: 30, height: 40 };
+    session.send.mockResolvedValue({ result: { value: rect } });
+    const evaluate = vi.spyOn(frame, "evaluate").mockResolvedValue(undefined);
+    const progress = new Progress("mask", 10);
+    vi.spyOn(progress, "delay").mockResolvedValue(undefined);
+    const cleanups: (() => Promise<void>)[] = [];
+    try {
+      const masking = applyMaskOverlays([chain], "black", progress, cleanups);
+      if (stopped) {
+        await expect(masking).rejects.toThrow(/mask.*timed out/i);
+        expect(resolveValid).not.toHaveBeenCalled();
+        expect(evaluate).not.toHaveBeenCalled();
+      } else {
+        await masking;
+        expect(resolveValid).toHaveBeenCalledOnce();
+        expect(release).toHaveBeenCalledOnce();
+        expect(evaluate).toHaveBeenCalledWith(
+          expect.any(Function),
+          expect.objectContaining({
+            rects: [expect.objectContaining(rect)],
+            color: "black",
+          }),
+          progress,
+        );
+      }
+    } finally {
+      progress.dispose();
+      await runScreenshotCleanups(cleanups);
+    }
+  });
+});
 
 function connection() {
   return { send: vi.fn(), on: vi.fn(), off: vi.fn(), close: vi.fn(), id: null };

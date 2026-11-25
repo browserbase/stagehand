@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import spawn from "cross-spawn";
 import { constants } from "node:fs";
 import { access, mkdir, mkdtemp, rm, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -6,6 +6,7 @@ import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { fail } from "../errors.js";
+import { terminateChild } from "../child-process.js";
 import { setRunTelemetryCompletion } from "../run-telemetry.js";
 import { defaultSkillsApiBaseUrl, isRecord, responseDetail } from "./shared.js";
 
@@ -491,19 +492,6 @@ interface SpawnPassthroughResult {
   timedOut: boolean;
 }
 
-// Quotes a single token for the command line Node hands to cmd.exe when
-// `shell: true`. Node joins command+args UNQUOTED into `cmd.exe /d /s /c
-// "..."`, so an unquoted `C:\Program Files\nodejs\npx.cmd` splits at the
-// space and cmd runs `C:\Program`. Wrapping tokens that contain whitespace,
-// quotes, or cmd metacharacters in double quotes (with embedded quotes
-// doubled) keeps them intact; `/s` makes cmd strip only the outer quotes.
-export function quoteForCmdShell(token: string): string {
-  if (token === "") {
-    return '""';
-  }
-  return /[\s"^&|<>]/.test(token) ? `"${token.replaceAll('"', '""')}"` : token;
-}
-
 // Like `stdio: "inherit"` for the human watching, but the child's stdout/stderr
 // are also buffered (tail only) so a nonzero exit can surface a real reason to
 // telemetry instead of a bare exit code. The child is killed after `timeoutMs`
@@ -514,21 +502,18 @@ export async function spawnPassthrough(
   args: string[],
   timeoutMs = installTimeoutMs(),
 ): Promise<SpawnPassthroughResult> {
-  const useWindowsShell = shouldUseWindowsShell(command);
-  const spawnCommand = useWindowsShell ? quoteForCmdShell(command) : command;
-  const spawnArgs = useWindowsShell ? args.map(quoteForCmdShell) : args;
   return await new Promise<SpawnPassthroughResult>((resolvePromise) => {
-    const child = spawn(spawnCommand, spawnArgs, {
+    const child = spawn(command, args, {
       stdio: ["inherit", "pipe", "pipe"],
-      shell: useWindowsShell,
+      windowsHide: true,
     });
 
     let timedOut = false;
     let killTimer: NodeJS.Timeout | undefined;
     const deadline = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGTERM");
-      killTimer = setTimeout(() => child.kill("SIGKILL"), 5_000);
+      terminateChild(child);
+      killTimer = setTimeout(() => terminateChild(child, "SIGKILL"), 5_000);
     }, timeoutMs);
     const clearTimers = (): void => {
       clearTimeout(deadline);
@@ -573,8 +558,4 @@ export async function spawnPassthrough(
       });
     });
   });
-}
-
-export function shouldUseWindowsShell(command: string, platform = process.platform): boolean {
-  return platform === "win32" && /\.(?:bat|cmd)$/i.test(command);
 }

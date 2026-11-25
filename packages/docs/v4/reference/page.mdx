@@ -334,13 +334,13 @@ const title = await page.evaluate(() => document.title);
   The operation result.
 </ResponseField>
 
-## on()
+## onConsole()
 
 Subscribe to console messages from this page and its page-owned sessions. Stagehand
 delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
 
 ```typescript
-const subscription = await page.on("console", (event) => {
+const subscription = await page.onConsole((event) => {
   console.log(event.method, event.params);
 });
 
@@ -348,11 +348,7 @@ await page.evaluate(() => console.log("ready"));
 await subscription.unsubscribe();
 ```
 
-<ParamField path="event" type="PageEventName">
-  The console event name. Currently, the only supported value is `"console"`.
-</ParamField>
-
-<ParamField path="listener" type="PageEventListener">
+<ParamField path="listener" type="ConsoleListener">
   A callback that receives the event method, raw parameters, session ID, target ID,
   and page ID. Async callbacks may overlap and are not awaited by later page calls.
 </ParamField>
@@ -366,6 +362,57 @@ await subscription.unsubscribe();
 `unsubscribe(): Promise<void>` removes the listener locally and from the Stagehand runtime.
 Repeated calls share the completed cleanup. A failed runtime request can be retried by calling
 `unsubscribe()` again.
+
+## on()
+
+<Warning>
+  Deprecated: use [`page.onConsole(listener)`](#onconsole) instead.
+  `page.on("console", listener)` remains available for backward compatibility, with
+  the same callback payload, behavior, and subscription handle.
+</Warning>
+
+```typescript
+const subscription = await page.on("console", (event) => {
+  console.log(event.method, event.params);
+});
+await subscription.unsubscribe();
+```
+
+<ParamField path="event" type="PageEventName">
+  The console event name. Currently, the only supported value is `"console"`.
+</ParamField>
+
+<ParamField path="listener" type="PageEventListener">
+  The same callback accepted by [`onConsole()`](#onconsole).
+</ParamField>
+
+<ResponseField name="result" type="Promise<CDPSubscription>">
+  A subscription handle whose `unsubscribe()` method stops delivery.
+</ResponseField>
+
+## onResponse()
+
+Subscribe to future network responses from this page and its child frames. The callback
+receives a [Response](/v4/reference/response) when status and headers arrive. Body methods
+wait for completion automatically. Subscriptions remain active across navigation and do
+not replay earlier responses. Async callbacks may overlap.
+
+```typescript
+const subscription = await page.onResponse(async (response) => {
+  if (response.url().includes("/api/orders") && response.ok()) {
+    console.log(await response.json());
+  }
+});
+await subscription.unsubscribe();
+```
+
+<ParamField path="listener" type="ResponseListener">
+  A callback with the signature `(response: Response) => unknown`.
+</ParamField>
+<ResponseField name="result" type="Promise<CDPSubscription>">
+  A subscription handle whose `unsubscribe()` method stops future callbacks. Responses
+  already delivered can still be read while their handles remain available.
+</ResponseField>
 
 ## onToolsAdded()
 
@@ -388,7 +435,7 @@ await subscription.unsubscribe();
 <ParamField path="listener" type="ToolsAddedListener">
   A callback with the signature `(tools: WebMCPTool[]) => unknown`. Each call receives
   an array of added tools. Each tool exposes `name`, `description`, `frameId`, optional
-  `inputSchema`, `annotations`, and `backendNodeId`, and an `invoke()` method. See the
+  `toolId`, `inputSchema`, `annotations`, and `backendNodeId`, and an `invoke()` method. See the
   [WebMCP reference](/v4/reference/webmcp) for property types and invocation options.
   Async callbacks may overlap and are not awaited by later page calls.
 </ParamField>
@@ -398,8 +445,9 @@ await subscription.unsubscribe();
   [CDPSubscription](#cdpsubscription) for cleanup behavior.
 </ResponseField>
 
-Tools are identified by `frameId` and `name`. A tool is also reported when its descriptor
-changes; an identical descriptor is not reported again.
+Chrome supplies a new `toolId` for each registration, including when a page reuses a name.
+On older Chrome versions, Stagehand identifies tools by `frameId` and `name`. Stagehand
+reports descriptor changes and suppresses duplicate events.
 
 ## onToolsRemoved()
 
@@ -422,8 +470,8 @@ await subscription.unsubscribe();
 
 <ParamField path="listener" type="ToolsRemovedListener">
   A callback with the signature `(tools: WebMCPToolIdentity[]) => unknown`. Each call
-  receives an array of removed tool identities containing `name` and `frameId`, both
-  strings. These identities have no `invoke()` method. Async callbacks may overlap
+  receives an array of removed tool identities containing `name`, `frameId`, and an optional
+  `toolId`. These identities have no `invoke()` method. Async callbacks may overlap
   and are not awaited by later page calls.
 </ParamField>
 
@@ -889,7 +937,7 @@ await page.close();
 
 ## locator()
 
-Create a locator for a CSS selector on this page.
+Create a locator for a CSS, XPath or `text=` selector on this page. Chain `.locator()` to search within elements or iframe documents; see the [locator reference](/v4/reference/locator).
 
 ```typescript
 const locator = page.locator("button[type=submit]");
@@ -901,6 +949,86 @@ const locator = page.locator("button[type=submit]");
 
 <ResponseField name="result" type="Locator">
   The operation result.
+</ResponseField>
+
+## getByRole()
+
+Find elements by their computed accessible role and name in the current document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
+
+```typescript
+await page.getByRole("button", { name: "Save", exact: true }).click();
+await page.locator("iframe#checkout").getByRole("button", { name: "Pay" }).click();
+```
+
+Roles and names come from Chromium’s accessibility tree. Names can come from labels, ARIA attributes, or element contents; hidden labels may contribute to an exposed control’s name. Name matching removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and name, including exact matches.
+
+Only exposed, non-ignored accessibility elements are returned. Hidden and inert controls are excluded; disabled, transparent, or offscreen controls can still match. The `includeHidden` option is not supported. State filters use the browser’s computed values; an absent state does not match false, except for disabled, whose absent value means enabled. Unsupported role/state combinations are rejected.
+
+Results retain DOM scope and order even when accessibility ownership differs. Chain through an iframe locator to enter its document. Closed shadow-root traversal requires an `http:` or `https:` page; it is unavailable on `about:blank` and `data:` pages.
+
+<ParamField path="role" type="AriaRole">
+  The accessible role to match, such as `button`, `checkbox`, `heading`, or `textbox`.
+</ParamField>
+
+<ParamField path="options" type="GetByRoleOptions" optional>
+  <ParamField path="options.name" type="string" optional>
+    Accessible name to match. Strings only; regular expressions are not supported. Omit to match any name.
+  </ParamField>
+  <ParamField path="options.exact" type="boolean" optional>
+    Use case-sensitive whole-name matching. Defaults to `false` for case-insensitive substring matching.
+  </ParamField>
+  <ParamField path="options.checked" type="boolean | 'mixed'" optional>
+    Match the native checked state. Supported for checkbox, menuitemcheckbox, menuitemradio, option, radio, switch, and treeitem roles. Mixed is not supported for radio, menuitemradio, or switch.
+  </ParamField>
+  <ParamField path="options.pressed" type="boolean | 'mixed'" optional>
+    Match the pressed state of a button. A button without a pressed state does not match false.
+  </ParamField>
+  <ParamField path="options.selected" type="boolean" optional>
+    Match selection for columnheader, gridcell, option, row, rowheader, tab, or treeitem.
+  </ParamField>
+  <ParamField path="options.expanded" type="boolean" optional>
+    Match expansion for application, button, checkbox, columnheader, combobox, gridcell, link, listbox, menuitem, menuitemcheckbox, menuitemradio, row, rowheader, switch, tab, or treeitem.
+  </ParamField>
+  <ParamField path="options.disabled" type="boolean" optional>
+    Match the native disabled state. False includes controls whose disabled property is omitted by the browser.
+  </ParamField>
+  <ParamField path="options.level" type="number" optional>
+    Match a positive integer hierarchy level for heading, listitem, row, or treeitem.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new role locator.
+</ResponseField>
+
+## getByText()
+
+Find the smallest elements matching text in the current document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
+
+To query closed shadow roots, first navigate to an `http:` or `https:` URL. The matcher cannot access closed roots on `about:blank` or `data:` pages.
+
+```typescript
+await page.getByText("Save", { exact: true }).click();
+```
+
+`getByText()` removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and DOM text, including exact matches. It combines descendant text, including across block elements, without inserting separators; whitespace must come from the DOM. It uses button, submit, and reset input values. It excludes script, style, head, template, and noscript content. It does not require visibility and does not enter iframe documents automatically.
+
+Text aggregation follows DOM order, with a host’s light-DOM text before its shadow-root text. It does not expand slot assignments into rendered order, and it includes slot fallback text even when the slot has assigned content.
+
+Matching descendants take precedence over their ancestors. If no smaller element matches, the result can be `<body>` or `<html>`. A matching shadow root’s combined text also suppresses its host, even when that text has no element wrapper to return. An empty substring matches any normalized text; an exact empty string matches only normalized empty text. These queries use the same descendant and shadow-root selection rules. This method preserves existing `locator("text=...")` behavior.
+
+<ParamField path="text" type="string">
+  Text to match. This method accepts strings only; it rejects regular expressions and matcher objects.
+</ParamField>
+
+<ParamField path="options" type="GetByTextOptions" optional>
+  <ParamField path="options.exact" type="boolean" optional>
+    Use case-sensitive whole-text matching. Defaults to `false`, for case-insensitive substring matching.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new text locator.
 </ResponseField>
 
 </Tab>
@@ -1215,7 +1343,7 @@ title = await page.evaluate("document.title", result_type=str)
   The operation result.
 </ResponseField>
 
-## on()
+## on_console()
 
 Subscribe to console messages from this page and its page-owned sessions. Stagehand
 delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
@@ -1224,16 +1352,12 @@ delivers each message using the underlying `"Runtime.consoleAPICalled"` event en
 async def handle_console(event: PageCDPEvent) -> None:
     print(event.method, event.params)
 
-subscription = await page.on("console", handle_console)
+subscription = await page.on_console(handle_console)
 await page.evaluate('console.log("ready")')
 await subscription.unsubscribe()
 ```
 
-<ParamField path="event" type="PageEventName">
-  The console event name. Currently, the only supported value is `"console"`.
-</ParamField>
-
-<ParamField path="listener" type="PageEventListener">
+<ParamField path="listener" type="ConsoleListener">
   A sync or async callback that receives the event method, raw parameters, session
   ID, target ID, and page ID. Async callbacks may overlap and are not awaited by
   later page calls.
@@ -1248,6 +1372,56 @@ await subscription.unsubscribe()
 `await subscription.unsubscribe()` removes the listener locally and from the Stagehand runtime.
 Repeated calls await the same successful cleanup. Failed cleanup can be retried. If the caller is
 cancelled while awaiting cleanup, the shared cleanup task continues in the background.
+
+## on()
+
+<Warning>
+  Deprecated: use [`page.on_console(listener)`](#on_console) instead.
+  `page.on("console", listener)` remains available for backward compatibility, with
+  the same callback payload, behavior, and subscription handle.
+</Warning>
+
+```python
+async def handle_console(event: PageCDPEvent) -> None:
+    print(event.method, event.params)
+
+subscription = await page.on("console", handle_console)
+await subscription.unsubscribe()
+```
+
+<ParamField path="event" type="PageEventName">
+  The console event name. Currently, the only supported value is `"console"`.
+</ParamField>
+
+<ParamField path="listener" type="PageEventListener">
+  The same synchronous or asynchronous callback accepted by [`on_console()`](#on_console).
+</ParamField>
+
+<ResponseField name="result" type="CDPSubscription">
+  A subscription handle whose `unsubscribe()` method stops delivery.
+</ResponseField>
+
+## on_response()
+
+Subscribe to future response headers from this page and its child frames. The callback
+receives a [Response](/v4/reference/response); body methods await completion. Subscriptions
+remain active across navigation and do not replay previous responses.
+
+```python
+async def handle_response(response):
+    if "/api/orders" in response.url and response.ok:
+        print(await response.json())
+
+subscription = await page.on_response(handle_response)
+await subscription.unsubscribe()
+```
+
+<ParamField path="listener" type="ResponseListener">
+  A synchronous or asynchronous callback accepting a `Response`.
+</ParamField>
+<ResponseField name="result" type="CDPSubscription">
+  A subscription whose `unsubscribe()` method stops future callbacks.
+</ResponseField>
 
 ## on_tools_added()
 
@@ -1268,8 +1442,8 @@ await subscription.unsubscribe()
 
 <ParamField path="listener" type="ToolsAddedListener">
   A sync or async callback that receives a `list[WebMCPTool]` of added tools. Each tool
-  exposes `name`, `description`, `frame_id`, optional `input_schema`, `annotations`, and
-  `backend_node_id`, and an `invoke()` method. See the
+  exposes `name`, `description`, `frame_id`, optional `tool_id`, `input_schema`, `annotations`,
+  and `backend_node_id`, and an `invoke()` method. See the
   [WebMCP reference](/v4/reference/webmcp) for property types and invocation options.
   Async callbacks may overlap and are not awaited by later page calls.
 </ParamField>
@@ -1280,8 +1454,9 @@ await subscription.unsubscribe()
   failed cleanup can be retried.
 </ResponseField>
 
-Tools are identified by `frame_id` and `name`. A tool is also reported when its descriptor
-changes; an identical descriptor is not reported again.
+Chrome supplies a new `tool_id` for each registration, including when a page reuses a name.
+On older Chrome versions, Stagehand identifies tools by `frame_id` and `name`. Stagehand
+reports descriptor changes and suppresses duplicate events.
 
 ## on_tools_removed()
 
@@ -1304,8 +1479,8 @@ await subscription.unsubscribe()
 
 <ParamField path="listener" type="ToolsRemovedListener">
   A sync or async callback that receives a `list[WebMCPToolIdentity]` of removed tool
-  identities containing `name` and `frame_id`, both strings. These identities have no
-  `invoke()` method. Async callbacks may overlap and are not awaited by later page calls.
+  identities containing `name`, `frame_id`, and an optional `tool_id`. These identities have
+  no `invoke()` method. Async callbacks may overlap and are not awaited by later page calls.
 </ParamField>
 
 <ResponseField name="result" type="CDPSubscription">
@@ -1739,7 +1914,7 @@ await page.close()
 
 ## locator()
 
-Create a locator for a CSS selector on this page.
+Create a locator for a CSS, XPath or `text=` selector on this page. Chain `.locator()` to search within elements or iframe documents; see the [locator reference](/v4/reference/locator).
 
 ```python
 locator = page.locator("button[type=submit]")
@@ -1751,6 +1926,84 @@ locator = page.locator("button[type=submit]")
 
 <ResponseField name="result" type="Locator">
   The operation result.
+</ResponseField>
+
+## get_by_role()
+
+Find elements by their computed accessible role and name in the current document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
+
+```python
+await page.get_by_role("button", name="Save", exact=True).click()
+await page.locator("iframe#checkout").get_by_role("button", name="Pay").click()
+```
+
+Roles and names come from Chromium’s accessibility tree. Names can come from labels, ARIA attributes, or element contents; hidden labels may contribute to an exposed control’s name. Name matching removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and name, including exact matches.
+
+Only exposed, non-ignored accessibility elements are returned. Hidden and inert controls are excluded; disabled, transparent, or offscreen controls can still match. The `include_hidden` option is not supported. State filters use the browser’s computed values; an absent state does not match false, except for disabled, whose absent value means enabled. Unsupported role/state combinations are rejected.
+
+Results retain DOM scope and order even when accessibility ownership differs. Chain through an iframe locator to enter its document. Closed shadow-root traversal requires an `http:` or `https:` page; it is unavailable on `about:blank` and `data:` pages.
+
+Use `None` to omit a name or state filter; `exact` must be a `bool`.
+
+<ParamField path="role" type="AriaRole">
+  The accessible role to match, such as `button`, `checkbox`, `heading`, or `textbox`.
+</ParamField>
+
+<ParamField path="name" type="str | None" optional>
+  Accessible name to match. Strings only; regular expressions are not supported. Omit to match any name.
+</ParamField>
+<ParamField path="exact" type="bool" optional>
+  Use case-sensitive whole-name matching. Defaults to `False` for case-insensitive substring matching.
+</ParamField>
+<ParamField path="checked" type="bool | Literal['mixed'] | None" optional>
+  Match the native checked state. Supported for checkbox, menuitemcheckbox, menuitemradio, option, radio, switch, and treeitem roles. Mixed is not supported for radio, menuitemradio, or switch.
+</ParamField>
+<ParamField path="pressed" type="bool | Literal['mixed'] | None" optional>
+  Match the pressed state of a button. A button without a pressed state does not match false.
+</ParamField>
+<ParamField path="selected" type="bool | None" optional>
+  Match selection for columnheader, gridcell, option, row, rowheader, tab, or treeitem.
+</ParamField>
+<ParamField path="expanded" type="bool | None" optional>
+  Match expansion for application, button, checkbox, columnheader, combobox, gridcell, link, listbox, menuitem, menuitemcheckbox, menuitemradio, row, rowheader, switch, tab, or treeitem.
+</ParamField>
+<ParamField path="disabled" type="bool | None" optional>
+  Match the native disabled state. False includes controls whose disabled property is omitted by the browser.
+</ParamField>
+<ParamField path="level" type="int | None" optional>
+  Match a positive integer hierarchy level for heading, listitem, row, or treeitem.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new role locator.
+</ResponseField>
+
+## get_by_text()
+
+Find the smallest elements matching text in the current document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
+
+To query closed shadow roots, first navigate to an `http:` or `https:` URL. The matcher cannot access closed roots on `about:blank` or `data:` pages.
+
+```python
+await page.get_by_text("Save", exact=True).click()
+```
+
+`get_by_text()` removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and DOM text, including exact matches. It combines descendant text, including across block elements, without inserting separators; whitespace must come from the DOM. It uses button, submit, and reset input values. It excludes script, style, head, template, and noscript content. It does not require visibility and does not enter iframe documents automatically.
+
+Text aggregation follows DOM order, with a host’s light-DOM text before its shadow-root text. It does not expand slot assignments into rendered order, and it includes slot fallback text even when the slot has assigned content.
+
+Matching descendants take precedence over their ancestors. If no smaller element matches, the result can be `<body>` or `<html>`. A matching shadow root’s combined text also suppresses its host, even when that text has no element wrapper to return. An empty substring matches any normalized text; an exact empty string matches only normalized empty text. These queries use the same descendant and shadow-root selection rules. This method preserves existing `locator("text=...")` behavior.
+
+<ParamField path="text" type="str">
+  Text to match. This method accepts strings only; it rejects regular expressions and matcher objects.
+</ParamField>
+
+<ParamField path="exact" type="bool" optional>
+  Use case-sensitive whole-text matching. Defaults to `False`, for case-insensitive substring matching.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new text locator.
 </ResponseField>
 
 </Tab>

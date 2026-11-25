@@ -1,3 +1,4 @@
+import { DriverError } from "./errors.js";
 import { resolveWsTargetFromPort } from "./local-cdp-discovery.js";
 
 interface ResolveWsTargetOptions {
@@ -28,14 +29,18 @@ export async function resolveWsTarget(
         signal: controller.signal,
       });
       if (!response.ok) {
-        throw new Error(`Unable to resolve CDP endpoint from ${input}: HTTP ${response.status}`);
+        throw new DriverError(
+          `Unable to resolve CDP endpoint from ${input}: HTTP ${response.status}`,
+          { code: "cdp_unreachable" },
+        );
       }
       const payload = (await response.json()) as {
         webSocketDebuggerUrl?: string;
       };
       if (!payload.webSocketDebuggerUrl) {
-        throw new Error(
+        throw new DriverError(
           `Unable to resolve CDP endpoint from ${input}: missing webSocketDebuggerUrl`,
+          { code: "cdp_unreachable" },
         );
       }
       return payload.webSocketDebuggerUrl;

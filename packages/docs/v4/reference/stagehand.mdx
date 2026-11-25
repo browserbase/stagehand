@@ -70,7 +70,7 @@ const stagehand = await Stagehand.create({ browser });
 </ParamField>
 
 <ParamField path="cache" type="Caching" optional>
-  Instance-level server-side cache setting for `act()`, `observe()`, and `extract()`.
+  Instance-level server-side cache setting for `act()`, `observe()`, and `extract()`. Browserbase must also [enable server-side caching for your project](/v4/best-practices/caching#enable-caching-for-your-project).
 </ParamField>
 
 <ParamField path="logging" type="StagehandClientLoggingConfig" optional>
@@ -414,11 +414,11 @@ const result = await stagehand.act("Click the sign in button");
   </ParamField>
 
   <ParamField path="options.ignoreLocators" type="Locator[]" optional>
-    Page-created locators to exclude from instruction-planning context. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
+    Page-created locators to exclude from instruction-planning context. Create each with `page.locator("...")`; chained locators exclude every final match, or use `.nth(index)` to exclude one match.
   </ParamField>
 
   <ParamField path="options.locator" type="Locator" optional>
-    The page locator that identifies the action target. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
+    The page locator that identifies the action target. Create it with `page.locator("...")`; chain `.locator()` to search within elements or iframe documents & use `.nth(index)` to select a match.
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
@@ -585,11 +585,11 @@ const actions = await stagehand.observe("Find the sign in button");
   </ParamField>
 
 <ParamField path="options.ignoreLocators" type="Locator[]" optional>
-  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for observe snapshot scoping.
+  Page-created locators to exclude from consideration. Create each with `page.locator("...")`; chained locators exclude every final match, or use `.nth(index)` to exclude one match. `text=` queries are supported within chains; unchained `text=` selectors are not supported for snapshot scoping.
 </ParamField>
 
   <ParamField path="options.locator" type="Locator" optional>
-    A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for observe snapshot scoping.
+    A page-created locator that scopes the operation to its first final match. Create it with `page.locator("...")`; chain `.locator()` to search within elements or iframe documents & use `.nth(index)` to select a match. `text=` queries are supported within chains; unchained `text=` selectors are not supported for snapshot scoping.
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
@@ -744,11 +744,11 @@ console.log(product.data, product.metadata.cache.status);
   </ParamField>
 
 <ParamField path="options.ignoreLocators" type="Locator[]" optional>
-  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for extract snapshot scoping.
+  Page-created locators to exclude from consideration. Create each with `page.locator("...")`; chained locators exclude every final match, or use `.nth(index)` to exclude one match. `text=` queries are supported within chains; unchained `text=` selectors are not supported for snapshot scoping.
 </ParamField>
 
   <ParamField path="options.locator" type="Locator" optional>
-    A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for extract snapshot scoping.
+    A page-created locator that scopes the operation to its first final match. Create it with `page.locator("...")`; chain `.locator()` to search within elements or iframe documents & use `.nth(index)` to select a match. `text=` queries are supported within chains; unchained `text=` selectors are not supported for snapshot scoping.
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
@@ -927,7 +927,7 @@ stagehand = await Stagehand.create(browser=browser)
 </ParamField>
 
 <ParamField path="cache" type="Cache" optional>
-  Instance-level server-side cache setting for `act()`, `observe()`, and `extract()`.
+  Instance-level server-side cache setting for `act()`, `observe()`, and `extract()`. Browserbase must also [enable server-side caching for your project](/v4/best-practices/caching#enable-caching-for-your-project).
 </ParamField>
 
 <ParamField path="logging" type="StagehandClientLoggingConfig" optional>
@@ -1239,11 +1239,11 @@ result = await stagehand.act("Click the sign in button")
 </ParamField>
 
 <ParamField path="locator" type="Locator | None" optional>
-  The page locator that identifies the action target. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
+  The page locator that identifies the action target. Create it with `page.locator("...")`; chain `.locator()` to search within elements or iframe documents & use `.nth(index)` to select a match.
 </ParamField>
 
 <ParamField path="ignore_locators" type="list[Locator] | None" optional>
-  Page-created locators to exclude from instruction-planning context. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
+  Page-created locators to exclude from instruction-planning context. Create each with `page.locator("...")`; chained locators exclude every final match, or use `.nth(index)` to exclude one match.
 </ParamField>
 
 <ParamField path="cache" type="bool | CacheOptions | None" optional>
@@ -1408,11 +1408,11 @@ actions = await stagehand.observe("Find the sign in button")
 </ParamField>
 
 <ParamField path="locator" type="Locator | None" optional>
-  A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for observe snapshot scoping.
+  A page-created locator that scopes the operation to its first final match. Create it with `page.locator("...")`; chain `.locator()` to search within elements or iframe documents & use `.nth(index)` to select a match. `text=` queries are supported within chains; unchained `text=` selectors are not supported for snapshot scoping.
 </ParamField>
 
 <ParamField path="ignore_locators" type="list[Locator] | None" optional>
-  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for observe snapshot scoping.
+  Page-created locators to exclude from consideration. Create each with `page.locator("...")`; chained locators exclude every final match, or use `.nth(index)` to exclude one match. `text=` queries are supported within chains; unchained `text=` selectors are not supported for snapshot scoping.
 </ParamField>
 
 <ParamField path="cache" type="bool | CacheOptions | None" optional>
@@ -1560,7 +1560,7 @@ print(product.data, product.metadata.cache.status)
 </ParamField>
 
 <ParamField path="locator" type="Locator | None" optional>
-  A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for extract snapshot scoping.
+  A page-created locator that scopes the operation to its first final match. Create it with `page.locator("...")`; chain `.locator()` to search within elements or iframe documents & use `.nth(index)` to select a match. `text=` queries are supported within chains; unchained `text=` selectors are not supported for snapshot scoping.
 </ParamField>
 
 <ParamField path="screenshot" type="bool | None" optional>
@@ -1568,7 +1568,7 @@ print(product.data, product.metadata.cache.status)
 </ParamField>
 
 <ParamField path="ignore_locators" type="list[Locator] | None" optional>
-  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for extract snapshot scoping.
+  Page-created locators to exclude from consideration. Create each with `page.locator("...")`; chained locators exclude every final match, or use `.nth(index)` to exclude one match. `text=` queries are supported within chains; unchained `text=` selectors are not supported for snapshot scoping.
 </ParamField>
 
 <ParamField path="cache" type="bool | CacheOptions | None" optional>
@@ -1744,7 +1744,7 @@ func Create(ctx context.Context, options CreateOptions) (*Stagehand, error)
 </ParamField>
 
 <ParamField path="options.Cache" type="*Caching" optional>
-  Instance-level server-side cache setting for `Act()`, `Observe()`, and `Extract()`.
+  Instance-level server-side cache setting for `Act()`, `Observe()`, and `Extract()`. Browserbase must also [enable server-side caching for your project](/v4/best-practices/caching#enable-caching-for-your-project).
 </ParamField>
 
 <ParamField path="options.Logging" type="*StagehandClientLoggingConfig" optional>

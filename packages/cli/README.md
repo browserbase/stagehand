@@ -47,6 +47,10 @@ browse stop
 
 `browse` runs a lightweight per-session daemon. The first command starts it, and subsequent commands reuse the same browser — so cookies, tabs, and snapshot refs persist between invocations. Run multiple isolated browsers at once with `--session <name>` (or the `BROWSE_SESSION` env var), and shut a session down with `browse stop`.
 
+Commands without target flags reuse the running session's browser, including its headed mode, custom Chrome arguments, or remote settings. Passing only `--local` or `--remote` also reuses a session in that mode. Explicit launch options must match the running session; use `browse stop --session <name>` before changing them.
+
+If a daemon disappears after a command selects it, that command fails instead of starting a replacement from the daemon's reported settings. To start a new session, run `browse open <url> --session <name>` with your desired target and launch flags again. When no daemon is running, Browse uses the current command's flags and environment defaults; previous launch settings are not saved.
+
 On Unix, custom `BROWSE_DAEMON_DIR` locations must be owned by you and have trusted parents owned by you or root. Shared writable parents need sticky-bit protection, as standard `/tmp` provides. These checks also apply when `TMPDIR` changes the default location.
 
 ### Browser targets
@@ -224,6 +228,7 @@ browse cloud projects usage <project-id>
 browse cloud sessions list                       # --limit, --status, --json
 browse cloud sessions get <session-id>
 browse cloud sessions create                     # --proxies, --verified, --region, --solve-captchas…
+browse cloud sessions create --size large        # regular (default), large, xlarge
 browse cloud sessions update <session-id> --status REQUEST_RELEASE
 browse cloud sessions debug <session-id>         # live debugger URLs
 browse cloud sessions logs <session-id>
@@ -233,7 +238,6 @@ browse cloud sessions uploads create <session-id> ./file.pdf
 # Contexts
 browse cloud contexts create
 browse cloud contexts get <context-id>
-browse cloud contexts update <context-id>        # refresh the upload URL
 browse cloud contexts delete <context-id>
 
 # Extensions
@@ -301,10 +305,36 @@ auto-loading with no warning.
 | `BROWSE_SESSION`      | Default session name (alternative to `-s, --session`)                                                                                        |
 | `BROWSE_LOAD_DOTENV`  | Controls `.env` auto-loading: unset = load + warn once (default, deprecated), `0`/`false`/`no` = skip loading, anything else = load silently |
 
+## Developing Browse
+
+Browse uses the exact published Stagehand version pinned in its `package.json`.
+From the repository root, run `pnpm install`, then
+`pnpm exec turbo run build --filter=browse`. This builds Browse without building
+the workspace SDK. Run `pnpm --filter browse test:cli` for contracts and
+`pnpm --filter browse test:smoke` for a quick Chrome smoke against the local build.
+Run `pnpm --filter browse test:smoke:package` to pack Browse, install it outside the
+repository, and run the same Chrome scenario through the installed executable.
+The Browse Chrome smoke CI jobs run this packed test on Linux and Windows.
+Both commands require Chrome.
+
+For an SDK upgrade, publish the SDK first, change Browse's exact dependency
+version, run `pnpm install`, and verify the build and tests. Commit the manifest
+and lockfile together.
+
+To experiment with unreleased SDK changes, temporarily change only Browse's
+`@browserbasehq/stagehand` dependency to `workspace:*` and run `pnpm install`.
+Build the local SDK with
+`pnpm exec turbo run build --filter=@browserbasehq/stagehand`, then build and test
+Browse. Keep this override and its lockfile changes uncommitted. When finished,
+restore the published version in Browse's manifest and run `pnpm install` again.
+Rebuild and rerun the tests against the published SDK before submitting changes.
+Release checks reject the local override.
+
 ## Links
 
 - [browse.sh](https://browse.sh) — open web skills catalog
 - [Browserbase docs](https://docs.browserbase.com)
+- [Discord](https://discord.gg/stagehand) — join the Stagehand community
 - [GitHub](https://github.com/browserbase/stagehand/tree/main/packages/cli) · [Issues](https://github.com/browserbase/stagehand/issues)
 
 ## License

@@ -4,27 +4,32 @@ export {
   type Cookie,
   type CookieParam,
   type DomainPolicy,
-} from "./browserContext.js";
+} from "@browserbasehq/stagehand-browser-api/browserContext";
 export {
   BrowserClipboard,
   type ClipboardOptions,
   type ClipboardPasteOptions,
-} from "./browserClipboard.js";
+} from "@browserbasehq/stagehand-browser-api/browserClipboard";
 export {
   Locator,
   type LocatorOptions,
+  type GetByTextOptions,
+  type GetByRoleOptions,
+  type AriaRole,
   type LocatorClickOptions,
   type LocatorHighlightOptions,
   type LocatorSendClickEventOptions,
   type LocatorTypeOptions,
-} from "./locator.js";
-export type { FileInput, FilePayload } from "./fileUpload.js";
+} from "@browserbasehq/stagehand-browser-api/locator";
+export type { FileInput, FilePayload } from "@browserbasehq/stagehand-browser-api/fileUpload";
 export {
   CDPSubscription,
   Page,
   type PageClickOptions,
   type PageDragAndDropOptions,
+  type ConsoleListener,
   type PageEventListener,
+  type ResponseListener,
   type ToolsAddedListener,
   type ToolsRemovedListener,
   type PageKeyPressOptions,
@@ -35,17 +40,17 @@ export {
   type PageWaitForSelectorOptions,
   type PageWaitForFunctionOptions,
   type ScreenshotOptions,
-} from "./page.js";
+} from "@browserbasehq/stagehand-browser-api/page";
 export {
   Response,
   type ResponseHeader,
   type ResponseSecurityDetails,
   type ResponseServerAddr,
-} from "./response.js";
-export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
+} from "@browserbasehq/stagehand-browser-api/response";
+export { WebMCPInvocation, WebMCPTool } from "@browserbasehq/stagehand-browser-api/webmcp";
 export { CDPConnectionClosedError } from "./cdpClient.js";
 export { RPCResponseTimeoutError } from "./rpcErrors.js";
-export type { InitScriptSource } from "./pageScripts.js";
+export type { InitScriptSource } from "@browserbasehq/stagehand-browser-api/pageScripts";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
 export { StagehandRuntimeIncompatibleError } from "./cdpClient.js";
 export type {

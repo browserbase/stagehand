@@ -30,6 +30,8 @@ export interface PageSummary {
 
 export interface DriverStatus extends BrowserbaseIdentity {
   browserConnected: boolean;
+  /** Why the most recent browser start failed, while that failure is still cached. */
+  initError?: string;
   initialized: boolean;
   mode: ConnectionTarget["kind"];
   pages: PageSummary[];

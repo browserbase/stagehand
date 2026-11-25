@@ -312,7 +312,7 @@ describe("decisions act pipeline", () => {
       tool_best: choice("add_to_cart"),
       tool_strict: choice("add_to_cart"),
     };
-    stubDecisions({ ...answers, tool_names_control: noul(0.97) });
+    const calls = stubDecisions({ ...answers, tool_names_control: noul(0.97) });
     const { value, takeAction } = deps(
       tree,
       { "0-2": "/html/body/button[1]", "0-3": "/html/body/button[2]" },
@@ -320,6 +320,10 @@ describe("decisions act pipeline", () => {
     );
 
     expect((await runDecisionsAct(config, value)).kind).toBe("done");
+    expect(calls[0]!.questions).toMatchObject({
+      tool_strict: { criteria: { add_to_cart: expect.anything() } },
+      tool_names_control: { type: "noul" },
+    });
     expect(invokeWebMCPTool).not.toHaveBeenCalled();
     expect(takeAction).toHaveBeenCalledWith(
       expect.objectContaining({ selector: "xpath=/html/body/button[1]", method: "click" }),
