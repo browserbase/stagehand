@@ -983,4 +983,105 @@ describe("CDP multiplexer and BrowserWebSocketTransport properties", () => {
       { seed: 20260421, numRuns: 60 },
     );
   });
+
+  it("rejects matching sessionDispatchWaiter when _sendViaSession throws synchronously", async () => {
+    const transport = new ProgrammableCdpTransport();
+    const connection = new CdpConnection(transport, discardLogger);
+
+    transport.emitMessage(
+      JSON.stringify({
+        method: "Target.attachedToTarget",
+        params: {
+          sessionId: "sess-sync-throw",
+          targetInfo: {
+            targetId: "target-sync-throw",
+            type: "page",
+            title: "",
+            url: "about:blank",
+            attached: true,
+            canAccessOpener: false,
+          },
+          waitingForDebugger: false,
+        },
+      }),
+    );
+    await drainQueue(connection);
+
+    const session = connection.getSession("sess-sync-throw")!;
+    const matchingWaiter = connection
+      .waitForSessionDispatch("sess-sync-throw", "Runtime.evaluate")
+      .catch((error: unknown) => error);
+    const nonMatchingWaiter = connection
+      .waitForSessionDispatch("sess-sync-throw", "Runtime.releaseObject")
+      .catch((error: unknown) => error);
+
+    transport.throwOnNextSend = true;
+    await expect(
+      Promise.resolve().then(() => session.send("Runtime.evaluate", { expression: "1" })),
+    ).rejects.toThrow("transport send failure");
+    const matchingError = await matchingWaiter;
+    expect(matchingError).toBeInstanceOf(Error);
+    expect((matchingError as Error).message).toContain("transport send failure");
+    expect(connection.inflight.size).toBe(0);
+    expect(connection.sessionDispatchWaiters.size).toBe(1);
+
+    await connection.close();
+    expect(await nonMatchingWaiter).toBeInstanceOf(Error);
+    expect(connection.sessionDispatchWaiters.size).toBe(0);
+  });
+
+  it("suppresses in-flight BrowserWebSocketTransport message and error handlers after close", async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.constantFrom("localClose" as const, "remoteClose" as const),
+        fc.constantFrom("message" as const, "decodeError" as const),
+        async (closeSource, frameOutcome) => {
+          ControllableWebSocket.instances = [];
+          vi.stubGlobal("WebSocket", ControllableWebSocket);
+          try {
+            const transport = await browserWebSocketFactory("ws://cdp.prop.test");
+            const socket = ControllableWebSocket.instances.at(-1)!;
+            const received: string[] = [];
+            const errors: Error[] = [];
+            transport.onMessage((data) => received.push(data));
+            transport.onError((err) => errors.push(err));
+
+            let releaseDecode!: () => void;
+            const decodeGate = new Promise<void>((resolve) => {
+              releaseDecode = resolve;
+            });
+
+            class GatedBlob extends Blob {
+              override async text(): Promise<string> {
+                await decodeGate;
+                if (frameOutcome === "decodeError") {
+                  throw new Error("late decode failure");
+                }
+                return "late-frame";
+              }
+            }
+
+            socket.receive(new GatedBlob(["late-frame"]));
+            await Promise.resolve();
+
+            if (closeSource === "localClose") {
+              await transport.close();
+            } else {
+              socket.close();
+            }
+
+            releaseDecode();
+            await (transport as unknown as { messageQueue: Promise<void> }).messageQueue;
+            for (let i = 0; i < 4; i++) await Promise.resolve();
+
+            expect(received).toStrictEqual([]);
+            expect(errors).toStrictEqual([]);
+          } finally {
+            vi.unstubAllGlobals();
+          }
+        },
+      ),
+      { seed: 20260424, numRuns: 20 },
+    );
+  });
 });

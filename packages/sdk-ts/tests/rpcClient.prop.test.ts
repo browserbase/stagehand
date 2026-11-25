@@ -49,10 +49,9 @@ type TrackedSignal = {
   activeListeners: () => number;
 };
 
-function createTrackedSignal(): TrackedSignal {
-  const controller = new AbortController();
-  const signal = controller.signal;
+function instrumentSignal(signal: AbortSignal): () => number {
   const listeners = new Map<EventListenerOrEventListenerObject, number>();
+  const listenerMap = new WeakMap<EventListenerOrEventListenerObject, EventListener>();
   const origAdd = signal.addEventListener.bind(signal);
   const origRemove = signal.removeEventListener.bind(signal);
 
@@ -79,8 +78,6 @@ function createTrackedSignal(): TrackedSignal {
     origAdd(type, listener, options);
   };
 
-  const listenerMap = new WeakMap<EventListenerOrEventListenerObject, EventListener>();
-
   signal.removeEventListener = (
     type: string,
     listener: EventListenerOrEventListenerObject | null,
@@ -97,14 +94,22 @@ function createTrackedSignal(): TrackedSignal {
     origRemove(type, listener, options);
   };
 
+  return () => {
+    let total = 0;
+    for (const count of listeners.values()) total += count;
+    return total;
+  };
+}
+
+function createTrackedSignal(): TrackedSignal {
+  const controller = new AbortController();
+  const signal = controller.signal;
+  const activeListeners = instrumentSignal(signal);
+
   return {
     controller,
     signal,
-    activeListeners: () => {
-      let total = 0;
-      for (const count of listeners.values()) total += count;
-      return total;
-    },
+    activeListeners,
   };
 }
 
@@ -719,6 +724,8 @@ describe("sdk-ts RPCClient, abort, timeout, batch, and Browserbase transport pro
               parents.length === 1
                 ? parents[0]!.signal
                 : AbortSignal.any(parents.map((p) => p.signal));
+            const composedActiveListeners =
+              parents.length === 1 ? parents[0]!.activeListeners : instrumentSignal(composed);
             const targetParent = parents[abortParentIdx % parents.length]!;
             const triggerAbort = () => {
               if (reasonKind === "error") targetParent.controller.abort(new Error("abort-err"));
@@ -778,6 +785,7 @@ describe("sdk-ts RPCClient, abort, timeout, batch, and Browserbase transport pro
             for (const parent of parents) {
               expect(parent.activeListeners()).toBe(0);
             }
+            expect(composedActiveListeners()).toBe(0);
           },
         ),
         { seed: 20260402, numRuns: 80 },

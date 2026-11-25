@@ -468,6 +468,14 @@ export class CdpConnection implements CDPSessionLike {
       this.transport.send(JSON.stringify(payload));
     } catch (error) {
       this.inflight.delete(id);
+      const rejection = error instanceof Error ? error : new Error(String(error));
+      for (const waiter of Array.from(this.sessionDispatchWaiters)) {
+        if (waiter.sessionId !== sessionId) continue;
+        if (waiter.method !== method) continue;
+        if (waiter.match && !waiter.match(params)) continue;
+        waiter.reject(rejection);
+        break;
+      }
       throw error;
     }
     for (const waiter of Array.from(this.sessionDispatchWaiters)) {

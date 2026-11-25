@@ -7,6 +7,9 @@ class BrowserWebSocketTransport implements CdpWebSocketTransport {
   private terminated = false;
 
   constructor(readonly socket: WebSocket) {
+    this.socket.addEventListener("close", () => {
+      this.terminated = true;
+    });
     this.socket.addEventListener("message", (event) => {
       this.messageQueue = this.messageQueue
         .then(async () => {
@@ -16,6 +19,7 @@ class BrowserWebSocketTransport implements CdpWebSocketTransport {
           for (const handler of Array.from(this.messageHandlers)) handler(data);
         })
         .catch((error: unknown) => {
+          if (this.terminated) return;
           this.terminated = true;
           const reason =
             error instanceof Error ? error : new Error("Failed to decode CDP websocket message");
@@ -34,6 +38,7 @@ class BrowserWebSocketTransport implements CdpWebSocketTransport {
   }
 
   async close(): Promise<void> {
+    this.terminated = true;
     if (this.socket.readyState === WebSocket.CLOSED) return;
 
     await new Promise<void>((resolve) => {
