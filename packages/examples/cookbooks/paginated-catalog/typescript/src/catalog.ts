@@ -63,7 +63,6 @@ export async function exportCatalog(
   )
     throw new Error("Checkpoint contains a cycle or an unapproved origin");
   if (!state.complete) {
-    // The last saved page is revisited only to discover Next, never to repeat extraction.
     const saved = state.pages.at(-1);
     await driver.goto(saved?.url ?? source);
     let revisit = Boolean(saved);

@@ -242,8 +242,6 @@ describe("locator resolution deadlines", () => {
         }
         if (method === command) {
           const value = await gate.promise;
-          // Model handles created after the first release has already completed.
-          // The Chrome lifetime test separately verifies real group inheritance.
           liveGroups.add(objectGroup);
           return value;
         }
@@ -374,7 +372,6 @@ describe("locator resolution deadlines", () => {
           liveGroups.add(allocatedGroup);
         }
         if (method === "Runtime.releaseObjectGroup") {
-          // Check ownership, not just the number of release commands.
           expect((params as { objectGroup: string }).objectGroup).toBe(allocatedGroup);
           liveGroups.delete((params as { objectGroup: string }).objectGroup);
           if (failure === "closed") throw closed;
@@ -537,7 +534,6 @@ describe("locator resolution deadlines", () => {
         });
       await vi.advanceTimersByTimeAsync(50);
       const earlyFailure = failure;
-      // Drain the finite deadline even if the regression keeps retrying.
       await vi.advanceTimersByTimeAsync(50);
       await done;
       expect(earlyFailure).toBe(closed);

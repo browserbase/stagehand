@@ -4,26 +4,9 @@ import { dirname, join } from "node:path";
 
 import { resolveConfigDir } from "../identity.js";
 
-/**
- * Local name -> Browserbase context-id map.
- *
- * Browserbase contexts are identified only by an opaque id and the platform has
- * no server-side list endpoint, so to give contexts memorable names (e.g.
- * `github`, `gmail`) we keep a small map on the local device. It lives next to
- * the CLI's other state at `(XDG_CONFIG_HOME||~/.config)/browserbase/contexts.json`
- * (honoring `BROWSERBASE_CONFIG_DIR`). This is purely a client-side convenience:
- * the ids it stores are the same ids the API already returns, and a missing or
- * corrupt file degrades to "no saved contexts" rather than an error.
- */
-
 const STORE_VERSION = 1;
 const MAX_NAME_LENGTH = 64;
-// A name must start with an alphanumeric and may then contain letters, digits,
-// dots, dashes, and underscores. Keeps names shell- and filename-friendly and
-// unambiguous against opaque context ids.
 const NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
-// Browserbase context ids are UUIDs. A name must not be UUID-shaped, otherwise a
-// saved alias could shadow a real id and break raw-id passthrough in resolution.
 const CONTEXT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface ContextAlias {
@@ -47,7 +30,6 @@ export function isValidContextName(name: string): boolean {
     name.length > 0 &&
     name.length <= MAX_NAME_LENGTH &&
     NAME_PATTERN.test(name) &&
-    // Disallow id-shaped names so a name can never shadow a raw context id.
     !looksLikeContextId(name)
   );
 }
@@ -61,8 +43,6 @@ export function contextsStorePath(env: NodeJS.ProcessEnv = process.env): string 
 }
 
 function emptyStore(): ContextsStoreFile {
-  // Null-prototype map so a ref like "toString" or "constructor" can never read
-  // an inherited Object.prototype member as if it were a saved alias.
   return {
     version: STORE_VERSION,
     contexts: Object.create(null) as Record<string, ContextAlias>,
@@ -92,26 +72,16 @@ async function readStore(env: NodeJS.ProcessEnv = process.env): Promise<Contexts
       contexts: sanitizeContexts(parsed.contexts),
     };
   } catch {
-    // Corrupt file: treat as empty rather than crashing the command.
     return emptyStore();
   }
 }
 
-/**
- * Keep only well-formed entries so a hand-edited or partially-written
- * `contexts.json` degrades gracefully (a malformed entry is dropped rather than
- * trusted as a `ContextAlias` and breaking resolution or cleanup).
- */
 function sanitizeContexts(raw: unknown): Record<string, ContextAlias> {
-  // Null-prototype so prototype keys can't be read back as aliases (see emptyStore).
   const result: Record<string, ContextAlias> = Object.create(null);
   if (!raw || typeof raw !== "object") {
     return result;
   }
   for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
-    // Validate the key too: a hand-edited file could carry an id-shaped or
-    // otherwise invalid name that would shadow a raw id, so hold disk entries to
-    // the same rule as `create --name`.
     if (!isValidContextName(name)) {
       continue;
     }
@@ -190,11 +160,6 @@ export async function removeContextAlias(
   return true;
 }
 
-/**
- * Drop any saved aliases that point at a given context id. Used after a delete
- * so the local map never references a context that no longer exists, regardless
- * of whether the user deleted it by name or by raw id. Returns the names pruned.
- */
 export async function removeContextAliasesById(
   id: string,
   env: NodeJS.ProcessEnv = process.env,
@@ -213,12 +178,6 @@ export async function removeContextAliasesById(
   return removed;
 }
 
-/**
- * Resolve a context reference that may be a locally-saved name or a raw
- * Browserbase context id. If `ref` matches a saved name, returns its id;
- * otherwise returns `ref` unchanged (assumed to already be a context id). Never
- * throws — an unknown ref simply passes through to the API.
- */
 export async function resolveContextRef(
   ref: string,
   env: NodeJS.ProcessEnv = process.env,
@@ -228,19 +187,10 @@ export async function resolveContextRef(
 }
 
 export interface ContextRefResolution {
-  /** The resolved context id, or null when `ref` is an unknown name. */
   id: string | null;
-  /** Saved names closest to `ref`, for a "did you mean?" hint. */
   suggestions: string[];
 }
 
-/**
- * Like `resolveContextRef`, but distinguishes "this is an unknown name" from a
- * real id so callers can show a friendly error instead of letting a typo'd name
- * hit the API as a bogus id. A ref resolves when it matches a saved name or is
- * shaped like a context id (UUID); anything else returns `id: null` plus the
- * closest saved names.
- */
 export async function resolveContextRefDetailed(
   ref: string,
   env: NodeJS.ProcessEnv = process.env,
@@ -259,11 +209,6 @@ export async function resolveContextRefDetailed(
   };
 }
 
-/**
- * Saved names within a small edit distance of `ref`, nearest first, for typo
- * hints. The threshold scales with name length so short names aren't matched too
- * loosely.
- */
 export function closeContextNameMatches(ref: string, names: string[], limit = 3): string[] {
   return names
     .map((name) => ({ name, d: distance(ref, name) }))

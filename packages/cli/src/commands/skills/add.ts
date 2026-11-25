@@ -13,8 +13,6 @@ export default class SkillsAdd extends BrowseCommand {
   ];
 
   static override args = {
-    // Intentionally optional so we can emit actionable guidance instead of
-    // oclif's bare "Missing 1 required arg" error.
     skill: Args.string({
       required: false,
       description: "Skill id in the form <domain>/<task>.",

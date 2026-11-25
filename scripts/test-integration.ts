@@ -1,4 +1,3 @@
-/** Discover or run the v4 extension-backed integration tests. */
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
@@ -23,8 +22,6 @@ export interface IntegrationCliArgs {
   args: string[];
 }
 
-// Every integration test file must appear in exactly one semantic group. Discovery
-// throws when this map and packages/sdk-ts/tests/integration fall out of sync.
 export const integrationTestGroups = {
   "local/browser-lifecycle": [
     "cdpSessionDetached",

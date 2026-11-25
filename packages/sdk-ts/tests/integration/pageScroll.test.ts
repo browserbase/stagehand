@@ -29,11 +29,9 @@ describe("Page.scroll() - mouse wheel scrolling", () => {
         ),
     );
 
-    // Get initial scroll position
     const scrollY = await page.evaluate(() => window.scrollY);
     expect(scrollY).toBe(0);
 
-    // Scroll down (positive deltaY)
     await page.scroll(640, 400, 0, 300);
 
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
@@ -58,7 +56,6 @@ describe("Page.scroll() - mouse wheel scrolling", () => {
     const scrollX = await page.evaluate(() => window.scrollX);
     expect(scrollX).toBe(0);
 
-    // Scroll right (positive deltaX)
     await page.scroll(640, 400, 300, 0);
 
     await expect.poll(() => page.evaluate(() => window.scrollX)).toBeGreaterThan(0);
@@ -78,7 +75,6 @@ describe("Page.scroll() - mouse wheel scrolling", () => {
         ),
     );
 
-    // Scroll both horizontally and vertically
     await page.scroll(640, 400, 200, 200);
 
     await expect
@@ -107,7 +103,6 @@ describe("Page.scroll() - mouse wheel scrolling", () => {
         ),
     );
 
-    // Scroll from specific coordinates
     await page.scroll(640, 400, 0, 400);
 
     await expect
@@ -134,7 +129,6 @@ describe("Page.scroll() - mouse wheel scrolling", () => {
         ),
     );
 
-    // Scroll with large delta
     await page.scroll(640, 400, 0, 1000);
 
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
@@ -155,14 +149,12 @@ describe("Page.scroll() - mouse wheel scrolling", () => {
         ),
     );
 
-    // First scroll down
     await page.scroll(640, 400, 0, 500);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
     const scrollY = await page.evaluate(() => window.scrollY);
     const scrolledDown = scrollY;
     expect(scrolledDown).toBeGreaterThan(0);
 
-    // Now scroll up (negative delta)
     await page.scroll(640, 400, 0, -300);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(scrolledDown);
   });
@@ -182,12 +174,10 @@ describe("Page.scroll() - mouse wheel scrolling", () => {
         ),
     );
 
-    // First scroll
     await page.scroll(640, 400, 0, 200);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
     const after1 = await page.evaluate(() => window.scrollY);
 
-    // Second scroll
     await page.scroll(640, 400, 0, 200);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(after1);
   });

@@ -33,8 +33,6 @@ function describeCall(input: unknown): string {
   return JSON.stringify(input ?? {}).slice(0, 160);
 }
 
-// One loop for every agent lane, so the Playwright MCP agent and the Stagehand
-// code-mode agent differ only in the MCP server and its instructions.
 export async function runAgent<Schema extends z.ZodType>(
   workflow: Workflow<Schema>,
   task: ShowcaseTask<Schema>,
@@ -73,7 +71,6 @@ export async function runAgent<Schema extends z.ZodType>(
       stopWhen: stepCountIs(MAX_STEPS),
       instructions: `${toolInstructions}\n\n${OUTPUT_INSTRUCTIONS}`,
       prompt: `Start at ${task.startUrl}.\n\nTask: ${task.goal}\n\nJSON Schema:\n${schema}`,
-      // Accumulated per step so tokens spent before a failure still count.
       onStepEnd: ({ usage: step, toolCalls }) => {
         llmCalls += 1;
         const stepUsage = {

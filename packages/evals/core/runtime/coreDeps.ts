@@ -35,8 +35,6 @@ type WsModule = {
   OPEN?: number;
 };
 
-// Resolve from this package's own dependency tree. Lazy requires keep these
-// CommonJS dependencies out of surfaces that never touch Browserbase or raw CDP.
 const evalsRequire = createRequire(import.meta.url);
 
 export function resolveStagehandExtensionArchivePath(): string {

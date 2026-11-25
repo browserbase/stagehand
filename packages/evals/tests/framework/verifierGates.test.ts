@@ -12,9 +12,7 @@ import {
 
 type StepInit = {
   action?: string;
-  /** probeEvidence.url after the step. */
   url?: string;
-  /** actionArgs.code (a facade `run` call); URLs inside are used as hints. */
   code?: string;
   output?: unknown;
   ok?: boolean;
@@ -423,11 +421,6 @@ describe("resolveRequireGrounding", () => {
   });
 });
 
-/**
- * Minimal excerpts of the audited HardBench rows (2026-08-31, gpt-5.6-luna).
- * Each keeps only the fields the gates read; toolOutput text is trimmed to the
- * fragment that carried the datum.
- */
 describe("evidence rows from the 2026-08-31 audit", () => {
   it("deepagents 7e6993f2 (imgur meme): pass with status=error and no answer is gated", () => {
     const evaluation: EvaluationResult = {
@@ -536,11 +529,7 @@ describe("evidence rows from the 2026-08-31 audit", () => {
     const ungrounded = gates.grounding?.ungrounded.filter((d) => d.kind === "currency");
     expect(ungrounded?.map((d) => d.text)).toEqual(["SGD 5", "SGD 10"]);
     expect(ungrounded?.every((d) => d.onlyInSearchEngine)).toBe(true);
-    // "2026" and "24"/"27" are grounded on airasia.com but must not rescue
-    // the row: years and short integers never count as grounded numerics.
     expect(gates.grounding?.groundedNumeric).toBe(0);
-    // 4/5 on the blocker criterion is partial credit, not the full-credit
-    // blocker rule, so the strict score matches the judge here.
     expect(gates.processScoreStrict).toBeCloseTo(11 / 12);
     expect(gates.processScoreLenient).toBeCloseTo(11 / 12);
   });
@@ -587,8 +576,6 @@ describe("evidence rows from the 2026-08-31 audit", () => {
       requireGrounding: true,
       rubricItemCount: 6,
     });
-    // Constraint leaks (gluten-free never verified) are the judge's job; the
-    // deterministic gates have nothing to say about this row.
     expect(gates.outcomeSuccess).toBe(true);
     expect(gates.outcomeGates).toEqual([]);
     expect(gates.grounding?.groundedNumeric).toBeGreaterThan(0);

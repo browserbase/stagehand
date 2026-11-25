@@ -333,7 +333,6 @@ export class Page {
     } catch (error) {
       removeNotificationListener();
       try {
-        // A failed response does not mean the runtime stopped registering.
         await this.rpcClient.send(StagehandMethods.pageOff, { subscriptionId });
         this.eventSubscriptions.delete(subscription);
       } catch (cleanupError) {
