@@ -37,6 +37,7 @@ def test_invalid_chains_are_rejected(fixture: dict[str, object]) -> None:
     [
         {"type": "frame", "selector": {"kind": "css", "value": "button"}},
         {"type": "nth", "index": 0},
+        {"type": "filter", "has_text": "Billing"},
     ],
 )
 @pytest.mark.parametrize("parsed", [False, True])
@@ -52,6 +53,14 @@ def test_query_first_tuples_are_accepted(parsed: bool) -> None:
     step = models.LocatorStep.model_validate(first) if parsed else first
     chain = models.LocatorChain.model_validate({"steps": (step,)})
     assert chain.model_dump() == {"steps": [first]}
+
+
+@pytest.mark.parametrize("field", ["has_text", "has_not_text"])
+def test_filter_assignment_rejects_null(field: str) -> None:
+    step = models.LocatorFilterStep(type="filter")
+    with pytest.raises(ValidationError, match="text filters cannot be null"):
+        setattr(step, field, None)
+    assert step.model_dump(exclude_unset=True) == {"type": "filter"}
 
 
 @pytest.mark.parametrize("extra", [{"selector": "button"}, {"nth": 0}, {"unexpected": True}])

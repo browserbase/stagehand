@@ -170,7 +170,7 @@ describe("public locator chaining", () => {
   it.each(fixtures)("normalizes $selector with the legacy routing rules", ({ selector, steps }) => {
     expect(
       locatorSteps(selector).map((step) => {
-        if (step.type === "nth") throw new Error("Unexpected position");
+        if (step.type !== "query" && step.type !== "frame") throw new Error("Unexpected step");
         return [step.type, step.selector.kind, step.selector.value];
       }),
     ).toEqual(steps);

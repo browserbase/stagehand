@@ -4,6 +4,7 @@ import type {
   RoleSelectorQuery,
   LocatorFrameStep,
   LocatorNthStep,
+  LocatorFilterStep,
   LocatorQuerySelector,
   LocatorQueryStep,
   LocatorStep,
@@ -25,11 +26,19 @@ expectTypeOf<LocatorFrameStep>().toEqualTypeOf<{
   selector: LocatorQuerySelector;
 }>();
 expectTypeOf<LocatorNthStep>().toEqualTypeOf<{ type: "nth"; index: number }>();
-expectTypeOf<LocatorStep>().toEqualTypeOf<LocatorQueryStep | LocatorFrameStep | LocatorNthStep>();
+expectTypeOf<LocatorFilterStep>().toEqualTypeOf<{
+  type: "filter";
+  hasText?: string;
+  hasNotText?: string;
+}>();
+expectTypeOf<LocatorStep>().toEqualTypeOf<
+  LocatorQueryStep | LocatorFrameStep | LocatorNthStep | LocatorFilterStep
+>();
 expectTypeOf<LocatorChain["steps"]>().toEqualTypeOf<[LocatorQueryStep, ...LocatorStep[]]>();
 
 expectTypeOf<{ steps: [] }>().not.toExtend<LocatorChain>();
 expectTypeOf<{ steps: [LocatorNthStep] }>().not.toExtend<LocatorChain>();
+expectTypeOf<{ steps: [LocatorFilterStep] }>().not.toExtend<LocatorChain>();
 expectTypeOf<{ steps: [LocatorFrameStep, LocatorQueryStep] }>().not.toExtend<LocatorChain>();
 expectTypeOf<{
   steps: [LocatorQueryStep, LocatorNthStep, LocatorFrameStep, LocatorQueryStep, LocatorNthStep];

@@ -1,6 +1,10 @@
-import type { LocatorQuerySelector } from "@browserbasehq/stagehand-protocol/types";
+import type {
+  LocatorFilterStep,
+  LocatorQuerySelector,
+} from "@browserbasehq/stagehand-protocol/types";
 import { queryAll } from "./queryAll.js";
 import { captureRoleCandidates } from "./roleCandidates.js";
+import { filterTextMatches } from "./textQuery.js";
 
 export type FrameChainMatch = { id: number; isFrame: boolean };
 
@@ -32,6 +36,9 @@ export function createFrameChainScope() {
           .filter((node) => node instanceof Element)
           .map(register),
       );
+    },
+    filter(options: LocatorFilterStep, selected: number[]): number[] {
+      return filterTextMatches(this.elements(selected), options).map((node) => ids.get(node)!);
     },
     roleCandidates(scopes: number[]): Element[] | null {
       roleCapture = captureRoleCandidates(scopes.map(scopeFor));

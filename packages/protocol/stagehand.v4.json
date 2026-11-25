@@ -2020,6 +2020,9 @@
         },
         {
           "$ref": "#/$defs/LocatorNthStep"
+        },
+        {
+          "$ref": "#/$defs/LocatorFilterStep"
         }
       ]
     },
@@ -2051,6 +2054,23 @@
         }
       },
       "required": ["type", "index"],
+      "additionalProperties": false
+    },
+    "LocatorFilterStep": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "filter"
+        },
+        "has_text": {
+          "type": "string"
+        },
+        "has_not_text": {
+          "type": "string"
+        }
+      },
+      "required": ["type"],
       "additionalProperties": false
     },
     "ActResult": {

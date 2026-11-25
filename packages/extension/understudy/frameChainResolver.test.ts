@@ -145,6 +145,69 @@ describe("frame chain deadlines & ownership", () => {
     };
   }
 
+  it("filters iframe elements in their owning document without entering them", async () => {
+    const { resolver, main, child } = setup();
+    main.send.mockImplementation(async (method, params) => {
+      if (
+        method === "Runtime.callFunctionOn" &&
+        (params as { functionDeclaration: string }).functionDeclaration.includes("this.filter(")
+      ) {
+        expect((params as { arguments: unknown[] }).arguments).toEqual([
+          { value: { type: "filter", hasNotText: "Archived" } },
+          { value: [1] },
+        ]);
+        return { result: { value: [1] } };
+      }
+      return main.respond(method, params);
+    });
+    expect(
+      await resolver.resolve(
+        { steps: [chain.steps[0], { type: "filter", hasNotText: "Archived" }] },
+        { mode: "count" },
+      ),
+    ).toEqual({ mode: "count", count: 1 });
+    expect(child.send).not.toHaveBeenCalled();
+    expect(main.send.mock.calls.some(([method]) => method === "DOM.describeNode")).toBe(false);
+    expect(main.live.size).toBe(0);
+  });
+
+  it.each([true, false])(
+    "preserves filter/index order with filter first: %s",
+    async (filterFirst) => {
+      const { resolver, child, main } = setup();
+      child.send.mockImplementation(async (method, params) => {
+        const p = params as { functionDeclaration?: string; arguments: { value: unknown }[] };
+        if (
+          method === "Runtime.callFunctionOn" &&
+          p.functionDeclaration?.includes("this.filter(")
+        ) {
+          const ids = p.arguments[1].value as number[];
+          expect(ids).toEqual(filterFirst ? [1, 2] : [2]);
+          return { result: { value: ids.filter((id) => id === 2) } };
+        }
+        return child.respond(method, params);
+      });
+      const filter = { type: "filter" as const, hasText: "Billing" };
+      const nth = { type: "nth" as const, index: 1 };
+      expect(
+        await resolver.resolve(
+          { steps: [...chain.steps, ...(filterFirst ? [filter, nth] : [nth, filter])] },
+          { mode: "count" },
+        ),
+      ).toEqual({ mode: "count", count: filterFirst ? 0 : 1 });
+      expect(
+        child.send.mock.calls.filter(
+          ([method, params]) =>
+            method === "Runtime.callFunctionOn" &&
+            (params as { functionDeclaration: string }).functionDeclaration.includes(
+              "this.filter(",
+            ),
+        ),
+      ).toHaveLength(1);
+      expect(main.live.size + child.live.size).toBe(0);
+    },
+  );
+
   it("retries discovery when a sibling is registered before the selected frame", async () => {
     const state = setup();
     state.registry.onFrameDetached("child");

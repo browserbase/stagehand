@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Page } from "@browserbasehq/stagehand-browser-api/page";
 import type {
   LocatorChain,
+  LocatorFilterStep,
   LocatorNthStep,
   LocatorQueryStep,
 } from "@browserbasehq/stagehand-protocol/types";
@@ -93,6 +94,39 @@ describe("element chain resolution in the browser", () => {
     expect(await resolve(css(".card"), css("button"), nth(2), nth(0))).toEqual(["b"]);
     expect(await resolve(css(".card"), nth(0), css(".nested"), css("button"))).toEqual(["a-deep"]);
     expect(await resolve(css(".card"), css("button"))).toEqual(["a", "a-deep", "b"]);
+  });
+
+  describe("text filter steps", () => {
+    it.each<{ options: Omit<LocatorFilterStep, "type">; expected: string[] }>([
+      { options: {}, expected: ["card-a", "card-b"] },
+      { options: { hasText: "  SAVE\u200b\u00ad \n now " }, expected: ["card-a"] },
+      { options: { hasNotText: "now" }, expected: ["card-b"] },
+      { options: { hasText: "save", hasNotText: "now" }, expected: ["card-b"] },
+      { options: { hasText: "missing" }, expected: [] },
+      { options: { hasText: "save", hasNotText: "save" }, expected: [] },
+      { options: { hasText: "" }, expected: ["card-a", "card-b"] },
+      { options: { hasNotText: "" }, expected: [] },
+    ])("retains original candidates for $options", async ({ options, expected }) => {
+      const filter: LocatorFilterStep = { type: "filter", ...options };
+      expect(await resolve(css(".card"), filter)).toEqual(expected);
+      expect(
+        await evaluate(`
+        const scope = scripts.createFrameChainScope();
+        const matches = scope.query({kind: 'css', value: '.card'}, [0])[0];
+        const selected = scope.filter(${JSON.stringify(filter)}, matches.map(match => match.id));
+        return ids(scope.elements(selected));
+      `),
+      ).toEqual(expected);
+    });
+
+    it("preserves filter/index order, deduplication & following queries", async () => {
+      const filter: LocatorFilterStep = { type: "filter", hasNotText: "now" };
+      expect(await resolve(css("button"), nth(1), filter)).toEqual([]);
+      expect(await resolve(css("button"), filter, nth(1))).toEqual(["b"]);
+      expect(await resolve(css(".card, .nested"), css("button"), filter)).toEqual(["a", "b"]);
+      expect(await resolve(css(".card"), filter, css("button"))).toEqual(["b"]);
+      expect(await resolve(css(".missing"), filter)).toEqual([]);
+    });
   });
 
   describe("normalized text queries", () => {

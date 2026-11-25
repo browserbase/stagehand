@@ -535,6 +535,12 @@ class LocatorFillResult(TypedDict):
     filled: Literal[True]
 
 
+class LocatorFilterStep(TypedDict):
+    type: Literal["filter"]
+    has_text: NotRequired[str]
+    has_not_text: NotRequired[str]
+
+
 class LocatorHighlightResult(TypedDict):
     highlighted: Literal[True]
 
@@ -1133,7 +1139,7 @@ class LocatorQueryStep(TypedDict):
     selector: LocatorQuerySelector
 
 
-LocatorStep: TypeAlias = LocatorQueryStep | LocatorFrameStep | LocatorNthStep
+LocatorStep: TypeAlias = LocatorQueryStep | LocatorFrameStep | LocatorNthStep | LocatorFilterStep
 
 
 class LocatorChain(TypedDict):

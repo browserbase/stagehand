@@ -32,7 +32,7 @@ def test_legacy_selector_normalization(fixture: SelectorFixture) -> None:
     assert [
         [step["type"], step["selector"]["kind"], step["selector"]["value"]]
         for step in locator_steps(fixture["selector"])
-        if step["type"] != "nth"
+        if step["type"] == "query" or step["type"] == "frame"
     ] == fixture["steps"]
 
 
