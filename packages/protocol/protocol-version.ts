@@ -1,7 +1,6 @@
 import { z } from "zod/v4";
 import protocolPackageJson from "./package.json" with { type: "json" };
 
-// SemVer 2.0.0, adapted from the expression published at semver.org.
 export const STAGEHAND_SEMVER_PATTERN =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/u;
 
@@ -16,6 +15,7 @@ export const STAGEHAND_PROTOCOL_VERSION = StagehandProtocolVersionSchema.parse(
 type ParsedProtocolVersion = {
   major: bigint;
   minor: bigint;
+  patch: bigint;
   prerelease?: string;
 };
 
@@ -34,8 +34,9 @@ export type ProtocolCompatibility =
 
 /**
  * Stable protocol releases are compatible when their majors match and the
- * server minor is at least the client minor. Patch differences are compatible.
- * Prerelease protocol versions must match exactly.
+ * server minor is at least the client minor. Patch and build metadata
+ * differences are compatible. Prerelease protocol versions must match on
+ * major, minor, patch, and prerelease identifiers (ignoring build metadata).
  */
 export function checkProtocolCompatibility(
   clientVersion: string,
@@ -49,7 +50,10 @@ export function checkProtocolCompatibility(
   }
 
   if (client.prerelease !== undefined || server.prerelease !== undefined) {
-    return clientVersion === serverVersion
+    return client.major === server.major &&
+      client.minor === server.minor &&
+      client.patch === server.patch &&
+      client.prerelease === server.prerelease
       ? { compatible: true }
       : { compatible: false, reason: "protocol-prerelease-mismatch" };
   }
@@ -63,11 +67,13 @@ export function checkProtocolCompatibility(
 }
 
 function parseProtocolVersion(version: string): ParsedProtocolVersion | undefined {
+  if (typeof version !== "string") return undefined;
   const match = STAGEHAND_SEMVER_PATTERN.exec(version);
   if (!match) return undefined;
   return {
     major: BigInt(match[1]),
     minor: BigInt(match[2]),
+    patch: BigInt(match[3]),
     ...(match[4] === undefined ? {} : { prerelease: match[4] }),
   };
 }
