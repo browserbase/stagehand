@@ -95,7 +95,6 @@ describe("Page.waitForFunction", () => {
         timeout: 100,
       }),
     ).rejects.toThrow(/waitForFunction timed out/);
-    // Cleanup is best-effort and may complete just after the timeout is returned.
     await page.waitForTimeout(50);
     const count = await page.evaluate<number>("window.pollCount");
     expect(count).toBeGreaterThan(0);

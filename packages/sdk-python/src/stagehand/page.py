@@ -13,6 +13,7 @@ from uuid import uuid4
 from pydantic import JsonValue, TypeAdapter
 
 from ._generated.input_types import (
+    AriaRole,
     PageDragAndDropRoutePoint,
     PageEventName,
     PagePDFMargin,
@@ -88,6 +89,7 @@ from ._generated.models import (
 from ._generated.models import (
     Type as ScreenshotType,
 )
+from ._locator_selectors import role_query_step
 from .locator import Locator
 from .response import Response
 from .rpc_client import RPCClient
@@ -101,7 +103,6 @@ ToolsAddedListener = Callable[[list[WebMCPTool]], object | Awaitable[object]]
 ToolsRemovedListener = Callable[[list[WebMCPToolIdentity]], object | Awaitable[object]]
 NotificationT = TypeVar("NotificationT", PageCDPEventNotification, PageEventNotification)
 
-# Distinguishes an omitted wait_for_function ``arg`` from an explicit JSON null.
 _UNSET_ARG = object()
 
 
@@ -780,3 +781,32 @@ class Page:
 
     def get_by_text(self, text: str, *, exact: bool = False) -> Locator:
         return Locator._from_text(self._rpc_client, self.page_id, text, exact)
+
+    def get_by_role(
+        self,
+        role: AriaRole,
+        *,
+        name: str | None = None,
+        exact: bool = False,
+        checked: bool | Literal["mixed"] | None = None,
+        pressed: bool | Literal["mixed"] | None = None,
+        selected: bool | None = None,
+        expanded: bool | None = None,
+        disabled: bool | None = None,
+        level: int | None = None,
+    ) -> Locator:
+        return Locator._from_query(
+            self._rpc_client,
+            self.page_id,
+            role_query_step(
+                role,
+                name=name,
+                exact=exact,
+                checked=checked,
+                pressed=pressed,
+                selected=selected,
+                expanded=expanded,
+                disabled=disabled,
+                level=level,
+            ),
+        )

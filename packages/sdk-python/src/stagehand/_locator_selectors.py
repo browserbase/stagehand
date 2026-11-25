@@ -1,11 +1,14 @@
 import re
+from typing import cast
 
 from ._generated.input_types import (
+    AriaRole,
     LocatorFrameStep,
     LocatorQuerySelector,
     LocatorQueryStep,
     LocatorStep,
 )
+from ._generated.models import RoleSelectorQuery
 
 
 def text_query_step(text: str, exact: bool = False) -> LocatorQueryStep:
@@ -14,6 +17,18 @@ def text_query_step(text: str, exact: bool = False) -> LocatorQueryStep:
     if not isinstance(exact, bool):
         raise TypeError("exact must be a boolean")
     return {"type": "query", "selector": {"kind": "textMatch", "value": text, "exact": exact}}
+
+
+def role_query_step(role: AriaRole, **options: object) -> LocatorQueryStep:
+    selector = RoleSelectorQuery.model_validate({
+        "kind": "role",
+        "value": role,
+        **{key: value for key, value in options.items() if value is not None or key == "exact"},
+    })
+    return cast(
+        LocatorQueryStep,
+        {"type": "query", "selector": selector.model_dump(mode="json", exclude_unset=True)},
+    )
 
 
 def _query(raw: str) -> LocatorQuerySelector:
@@ -45,8 +60,6 @@ def _frame_selectors(raw: str) -> list[str]:
     if not selector.startswith(("xpath=", "/")):
         return [selector]
 
-    # Match the generated-path tokenizer used by the legacy extension resolver,
-    # including its handling of slash literals and lowercase routing prefixes.
     path = selector.removeprefix("xpath=").strip()
     if not path.startswith("/"):
         path = "/" + path

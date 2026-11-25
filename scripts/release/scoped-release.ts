@@ -11,7 +11,6 @@ import { belongsToScope, parseReleaseScope, scopedChangesets } from "./release-s
 import type { ReleaseScope } from "./release-scope.ts";
 
 export async function versionScope(repositoryRoot: string, scope: ReleaseScope, snapshot = false) {
-  // Shared prerelease state cannot safely describe two independent release schedules.
   try {
     await access(path.join(repositoryRoot, ".changeset/pre.json"));
   } catch (error) {
@@ -64,8 +63,6 @@ export async function assertPublishedCliDependencies(
   const browse = packages.packages.find((pkg) => pkg.packageJson.name === "browse");
   if (!browse) throw new Error("Missing browse package");
   for (const [name, range] of Object.entries(browse.packageJson.dependencies ?? {})) {
-    // Browse consumes published versions even when the package also lives here.
-    // Reject local overrides and ranges so the release uses the SDK tested in CI.
     if (!packages.packages.some((pkg) => pkg.packageJson.name === name)) continue;
     if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(range)) {
       throw new Error(`Browse must pin ${name} to an exact published version (received ${range})`);
@@ -121,8 +118,6 @@ export async function assertCliAlphaVersion(repositoryRoot: string): Promise<voi
   }
 }
 
-// Published by hand from a release commit, never by the Release workflow. They are
-// also in the Changesets ignore list, so release PRs never version them.
 export const MANUALLY_PUBLISHED_PACKAGES = new Set(["stagehand-middleware"]);
 
 // Changesets 2.x publish does not honor config.ignore. Give each package exactly
@@ -167,8 +162,6 @@ async function main(): Promise<void> {
       );
     }
   } else if (command === "wait-dependencies" && scope === "cli") {
-    // An SDK release may be publishing concurrently. Gate only on the actual
-    // dependency, so unrelated SDK checks cannot block a CLI release.
     await assertPublishedCliDependencies(repositoryRoot, undefined, 15 * 60_000);
   } else if (command === "version") {
     if (flags.some((flag) => flag !== "--snapshot")) throw new Error("Unknown version flag");
@@ -177,8 +170,6 @@ async function main(): Promise<void> {
   } else if (command === "publish") {
     if (flags.some((flag) => flag !== "--alpha")) throw new Error("Unknown publish flag");
     const cliAlpha = scope === "cli" && flags.includes("--alpha");
-    // Path-based CLI alphas retain the notes for the next stable release.
-    // Validate the temporary version before bypassing the pending-notes guard.
     if (cliAlpha) await assertCliAlphaVersion(repositoryRoot);
     else if ((await scopedChangesets(repositoryRoot, scope)).length > 0) {
       throw new Error(`Version pending ${scope} changesets before publishing`);

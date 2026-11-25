@@ -26,7 +26,6 @@ def _get_json(url: str) -> object:
 async def test_disconnect_leaves_a_connected_chrome_running_with_its_pages() -> None:
     # Bounded like the TypeScript test; pytest has no default per-test timeout.
     async with asyncio.timeout(60):
-        # Started outside Stagehand's browser factories, like a long-lived user browser.
         chrome = await _launch_local_browser(
             LocalBrowserLaunchOptions.model_validate({"headless": True})
         )
@@ -65,7 +64,6 @@ async def test_disconnect_closes_the_attached_stagehand_so_a_new_connection_can_
             handles.append(browser)
             stagehand = await Stagehand.create(browser=browser)
 
-            # No stagehand.close(): disconnect() must close the instance and the worker's loopback.
             await browser.disconnect()
             assert stagehand.initialized is False
             await stagehand.close()

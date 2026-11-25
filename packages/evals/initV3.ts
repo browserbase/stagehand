@@ -1,9 +1,3 @@
-/**
- * Initializes a V3 instance for use in evaluations without modifying
- * the existing Stagehand-based init flow. Tasks can gradually migrate
- * to consume `v3` directly.
- */
-
 import type {
   AvailableCuaModel,
   AvailableModel,
@@ -23,21 +17,20 @@ import { EvalLogger } from "./logger.js";
 type InitV3Args = {
   llmClient?: LLMClient;
   modelClientOptions?: ClientOptions;
-  domSettleTimeoutMs?: number; // retained for parity; v3 handlers accept timeouts per-call
+  domSettleTimeoutMs?: number;
   logger: EvalLogger;
-  createAgent?: boolean; // only create an agent for agent tasks
+  createAgent?: boolean;
   agentMode?: AgentToolMode;
   isCUA?: boolean;
   configOverrides?: {
     env?: "LOCAL" | "BROWSERBASE";
     localBrowserLaunchOptions?: Partial<LocalBrowserLaunchOptions>;
-    // Back-compat alias for args
     chromeFlags?: string[];
     browserbaseSessionCreateParams?: V3Options["browserbaseSessionCreateParams"];
     browserbaseSessionID?: V3Options["browserbaseSessionID"];
     experimental?: boolean;
   };
-  actTimeoutMs?: number; // retained for parity (v3 agent tools don't use this globally)
+  actTimeoutMs?: number;
   modelName: AvailableModel;
   verbose?: boolean;
 };
@@ -62,7 +55,6 @@ export async function initV3({
   isCUA,
   verbose = false,
 }: InitV3Args): Promise<V3InitResult> {
-  // If CUA, choose a safe internal AISDK model for V3 handlers based on available API keys
   let internalModel: AvailableModel = modelName;
   const resolvedAgentMode: AgentToolMode | undefined = agentMode ?? (isCUA ? "cua" : undefined);
   const isCuaMode = resolvedAgentMode === "cua";
@@ -99,14 +91,14 @@ export async function initV3({
     model: resolvedModelConfig,
     experimental:
       typeof configOverrides?.experimental === "boolean"
-        ? configOverrides.experimental && process.env.USE_API !== "true" // experimental only when not using API
+        ? configOverrides.experimental && process.env.USE_API !== "true"
         : false,
     verbose: verbose ? 2 : 0,
     browserbaseSessionCreateParams: configOverrides?.browserbaseSessionCreateParams,
     browserbaseSessionID: configOverrides?.browserbaseSessionID,
     selfHeal: true,
     disablePino: true,
-    disableAPI: process.env.USE_API !== "true", // Negate: USE_API=true → disableAPI=false
+    disableAPI: process.env.USE_API !== "true",
     serverCache: false,
     logger: logger.log.bind(logger),
   };
@@ -117,7 +109,6 @@ export async function initV3({
 
   const v3 = new V3(v3Options);
 
-  // Associate the logger with the V3 instance
   logger.init(v3);
   await v3.init();
 

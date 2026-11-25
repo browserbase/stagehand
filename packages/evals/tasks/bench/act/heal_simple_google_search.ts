@@ -6,9 +6,6 @@ export default defineBenchTask(
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/google/");
 
-      // Self-healing act(Action) replay (restored by
-      // stagehand#2427): same intentionally invalid selector as the v3
-      // twin — healing must re-locate "The search bar" and fill it.
       const { data: healed } = await stagehand.act({
         description: "The search bar",
         selector: "/html/not-the-search-bar",
@@ -16,11 +13,6 @@ export default defineBenchTask(
         method: "fill",
       });
 
-      // Without this the task presses Enter on an empty field and reports a
-      // URL mismatch, hiding why healing did not happen. Note that healing
-      // only runs when the client was initialized with selfHeal: true — the
-      // server defaults it to false (actService.ts), and it cannot be set
-      // per-call, so a failure here usually means an init-level difference.
       if (!healed.success) {
         return {
           _success: false,

@@ -1,12 +1,3 @@
-"""Checks run code the way `AsyncFunction(params, code)` does in the TypeScript facade.
-
-The bundle's run callback is `runPrelude + code + runEpilogue`, so code that is not
-an async function body on its own could close the callback early and run outside
-it. Python has no JavaScript engine to ask, so this parses with tree-sitter and
-rejects the few constructs V8 reads differently. It does not report V8's early
-errors (such as a redeclared `let`); the executor rejects those.
-"""
-
 from __future__ import annotations
 
 import tree_sitter_javascript
@@ -28,8 +19,6 @@ _DYNAMIC_FUNCTION_TAIL = "\n})"
 
 
 def check_run_syntax(code: str) -> None:
-    """Fail like `AsyncFunction(params, code)` would when ``code`` is not an async
-    function body on its own, so it cannot close the run callback early."""
     encoded = (_DYNAMIC_FUNCTION_HEAD + code + _DYNAMIC_FUNCTION_TAIL).encode()
     start = len(_DYNAMIC_FUNCTION_HEAD.encode())
     end = len(encoded) - len(_DYNAMIC_FUNCTION_TAIL.encode())
@@ -38,7 +27,6 @@ def check_run_syntax(code: str) -> None:
         node = _first_error(root)
         offset = min(max(node.start_byte if node else end, start), end)
         raise SyntaxError(f"Invalid JavaScript in run code at {_position(encoded, start, offset)}.")
-    # Without errors the code can still have closed the function and opened another.
     node = root
     for expected in ("expression_statement", "parenthesized_expression", "function_expression"):
         children = [child for child in node.named_children if "comment" not in child.type]

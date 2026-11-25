@@ -12,7 +12,6 @@ export function sessionSettings(task: { proxies?: boolean }) {
   };
 }
 
-// Both sides always run the same model. Override with SHOWCASE_MODEL.
 export const MODEL = (process.env.SHOWCASE_MODEL ?? "anthropic/claude-sonnet-5") as
   | "anthropic/claude-sonnet-5"
   | "openai/gpt-5.4-mini";

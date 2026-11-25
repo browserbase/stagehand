@@ -14,10 +14,8 @@ export type RunMetrics = {
 };
 
 export type TimelineStep = {
-  // Seconds from the start of the recording.
   t: number;
   durationMs: number;
-  // act/extract/observe for the script lane; MCP tool names for agent lanes.
   kind: string;
   instruction: string;
   inputTokens: number;
@@ -29,15 +27,12 @@ export type TimelineStep = {
 };
 
 export type RunSummary = {
-  // Median over successful runs; over all runs only when none succeeded.
   median: Omit<RunMetrics, "success" | "error">;
   medianOf: "successful" | "all";
   successRate: number;
   runs: RunMetrics[];
 };
 
-// Consumed by stagehand.dev/showcase through its sync script. Bump
-// schemaVersion on any breaking change so the website can reject stale files.
 export type ShowcaseResults = {
   schemaVersion: 2;
   slug: string;

@@ -1,8 +1,5 @@
 import { defineRule, type ESTree } from "@oxlint/plugins";
 
-// Keep the CLI's former no-restricted-syntax selectors and
-// security/detect-eval-with-expression behavior, including shadowed identifiers.
-// Native no-eval/no-new-func rules additionally check actual global references.
 export const noDynamicCode = defineRule({
   meta: {
     type: "problem",

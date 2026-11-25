@@ -31,12 +31,10 @@ function createChildResponseGate(): { ready: Promise<void>; release: () => void 
 }
 
 async function createDelayedIframeFixture(options: {
-  /** Absolute iframe src written into the parent HTML. */
   childSrc: (child: FixtureServer) => string;
   childDelayMs: number;
   childResponseGate?: Promise<void>;
   nested?: boolean;
-  /** URL passed to page.goto (may use a mapped hostname). */
   parentGotoUrl: (parent: FixtureServer) => string;
 }): Promise<IframeFixture> {
   let clickCount = 0;
@@ -171,7 +169,6 @@ describe("iframe locator readiness", () => {
           settled = true;
         },
       );
-      // The previous frame readiness cap was 1,200 ms.
       await new Promise((resolve) => setTimeout(resolve, 1_600));
       const settledBeforeRelease = settled;
       gate.release();
@@ -192,7 +189,6 @@ describe("iframe locator readiness", () => {
       await new Promise((resolve) => setTimeout(resolve, 900));
       gate.release();
       await rejected;
-      // A fresh action budget after readiness would allow about 2,700 ms.
       expect(performance.now() - started).toBeLessThan(2_400);
       const value = await input.inputValue({ timeout: 5_000 });
       expect(value.length).toBeGreaterThan(0);
@@ -243,7 +239,6 @@ describe("iframe locator readiness", () => {
     await waitForIframeElement(page);
 
     expect(fixture.childServed()).toBe(0);
-    // Start the action while the child response is held, then allow brief initialization.
     const click = page.locator(XPATH_INNER).click();
     gate.release();
     await click;
@@ -361,7 +356,6 @@ describe("iframe locator readiness", () => {
     await waitForIframeElement(page);
 
     expect(childServed).toBe(0);
-    // Start the action while the child response is held, then allow brief initialization.
     const click = page.locator(XPATH_INNER).click();
     gate.release();
     await click;

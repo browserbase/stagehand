@@ -22,8 +22,6 @@ export default class ContextsList extends BrowseCommand {
     const contexts = await listContextAliases();
 
     if (resolveOutputFormat(flags) === "json") {
-      // Wrap in a named key to match `templates list` / `skills list` so the
-      // JSON shape is consistent and machine-readable across list commands.
       outputJson({ contexts });
       return;
     }

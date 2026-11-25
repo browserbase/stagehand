@@ -332,7 +332,6 @@ async def test_close_leaves_a_local_browser_alone_once_the_connection_is_lost(
     cdp = fake_cdp.instances[-1]
     cdp.closed = True
 
-    # Lost, not closed: close() still runs, and does nothing for a local browser.
     assert handle.connected is False
     assert handle.closed is False
     await handle.close()
@@ -2178,7 +2177,6 @@ async def test_disconnect_stops_waiting_for_a_busy_stagehand_instance(
     cdp = fake_cdp.instances[-1]
 
     async def busy() -> None:
-        # e.g. stagehand.close() waiting on an in-flight act().
         await asyncio.Event().wait()
 
     _claim_browser(handle)

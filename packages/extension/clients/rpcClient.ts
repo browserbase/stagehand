@@ -108,7 +108,6 @@ export class RPCClient {
         let aborted = false;
         const notifyAbort = () => {
           if (this.closed) return;
-          // Notification failure must not prolong or replace local cancellation.
           try {
             void Promise.resolve(options.onAbort?.(id, signal?.reason)).catch(() => {});
           } catch {}
@@ -171,7 +170,6 @@ export class RPCClient {
     this.runtime.close();
   }
 
-  /** Fail reverse RPCs whose client disappeared, allowing instance disposal to drain. */
   releaseClient(): void {
     this.clientConnected = false;
     for (const [id] of this.pending) {

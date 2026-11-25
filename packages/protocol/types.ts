@@ -91,6 +91,9 @@ import type {
   ChainLocatorSchema,
   LocatorOptionsSchema,
   GetByTextOptionsSchema,
+  GetByRoleOptionsSchema,
+  AriaRoleSchema,
+  RoleSelectorQuerySchema,
   LocatorParamsSchema,
   LocatorFillParamsSchema,
   LocatorFillResultSchema,
@@ -273,6 +276,9 @@ export type VariableValue = z.infer<typeof VariableValueSchema>;
 export type Variables = z.infer<typeof VariablesSchema>;
 export type PageLocator = z.infer<typeof PageLocatorSchema>;
 export type Locator = z.infer<typeof LocatorSchema>;
+export type AriaRole = z.infer<typeof AriaRoleSchema>;
+export type GetByRoleOptions = z.infer<typeof GetByRoleOptionsSchema>;
+export type RoleSelectorQuery = z.infer<typeof RoleSelectorQuerySchema>;
 export type LocatorQuerySelector = z.infer<typeof LocatorQuerySelectorSchema>;
 export type LocatorQueryStep = z.infer<typeof LocatorQueryStepSchema>;
 export type LocatorFrameStep = z.infer<typeof LocatorFrameStepSchema>;

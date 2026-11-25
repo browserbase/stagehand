@@ -72,9 +72,6 @@ export async function leadingBlackSeconds(video: string): Promise<number> {
   return first && Number(first[1]) < 0.1 ? Number(first[2]) : 0;
 }
 
-// Browserbase MP4s run ~2 MB per 10 s. Screen recordings survive a low frame
-// rate and a high CRF well, which gets a 100 s run near 1 MB for the website.
-// Cuts the startup black; returns how many seconds were cut.
 export async function compressRecording(input: string, output: string): Promise<number> {
   if (!ffmpeg) throw new Error("ffmpeg-static has no binary for this platform");
   const trimmed = await leadingBlackSeconds(input);
@@ -105,7 +102,6 @@ export async function compressRecording(input: string, output: string): Promise<
   return trimmed;
 }
 
-// The last frame shows where the run ended, which makes the most useful poster.
 export async function extractPoster(video: string, output: string): Promise<void> {
   if (!ffmpeg) throw new Error("ffmpeg-static has no binary for this platform");
   await promisify(execFile)(ffmpeg, [

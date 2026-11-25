@@ -10,7 +10,6 @@ import {
   normalizeAgentModelEntries,
 } from "../utils.js";
 
-/** Core is the default; extended includes all shipped tasks. */
 export const buildHardBenchmarkTestcases = (models: string[] | AgentModelEntry[]): Testcase[] => {
   const datasetPath = getPackageRootDir() + "/datasets/hardbenchmark/HardBenchmark_data.jsonl";
 

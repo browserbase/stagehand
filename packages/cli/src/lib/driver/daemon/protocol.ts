@@ -4,8 +4,6 @@ import { DriverCommandNameSchema } from "../commands/types.js";
 
 const RequestBaseSchema = z.object({
   id: z.string().min(1),
-  // Env vars forwarded from the caller's env so a key set after the daemon
-  // started is still honored. See ./forwarded-env.ts.
   forwardedEnv: z.record(z.string(), z.string()).optional(),
 });
 

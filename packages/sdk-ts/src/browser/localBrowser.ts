@@ -609,7 +609,6 @@ async function runTaskkill(pid: number, force: boolean): Promise<void> {
   });
 }
 
-/** @internal */
 export function createLocalBrowserLauncherForTest(
   overrides: Partial<LocalBrowserLauncherDependencies>,
 ): LocalBrowserLauncher {

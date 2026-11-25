@@ -76,7 +76,6 @@ async def test_browserbase_routing_in_chromium(
 ) -> None:
     origin, state = routing_server
     browser = await local_browser.launch(headless=True)
-    # Session acquisition is a fixture; Chrome, the worker, RPC, and HTTP are real.
     browser._attachment = replace(
         browser._attachment,
         worker_init_metadata=_WorkerInitMetadata(
@@ -135,7 +134,6 @@ async def test_browserbase_routing_in_chromium(
                 "Extract the answer", Answer, model={"model_name": "anthropic/claude-sonnet-4-6"}
             )
             assert override.data.answer == 42 and calls == before
-            # The same override is accepted inside the batch callback.
             source = _FIXTURE["batchSource"].removesuffix(")") + (
                 ', {model: {modelName: "anthropic/claude-sonnet-4-6"}})'
             )

@@ -79,24 +79,9 @@ export interface BenchHarness {
   harness: Harness;
   supportedTaskKinds: BenchTaskKind[];
   supportsApi: boolean;
-  /**
-   * Tool surfaces this harness can mount for the agent, in display order; the
-   * facade is preferred when --tool is omitted, otherwise the first entry. An empty list means the
-   * harness does not mount tool surfaces and the planner passes the requested
-   * surface/profile through unchanged as row metadata (stagehand harness).
-   */
   supportedToolSurfaces: ToolSurface[];
-  /**
-   * Default model ids for rows planned on this harness when --model is omitted.
-   * Overridable at runtime with EVAL_<HARNESS_UPPER>_MODELS (comma separated).
-   * Harnesses without a list fall back to the category model list (getModelList).
-   */
   defaultModels?: AvailableModel[];
   execute?(input: BenchHarnessExecuteInput): Promise<TaskResult>;
-  /**
-   * A harness with neither execute nor start is registered for planning/dry-run
-   * only and is rejected by the CLI before execution.
-   */
   start?(input: BenchHarnessStartInput): Promise<StartedBenchHarness>;
 }
 
@@ -117,10 +102,8 @@ export interface ExternalHarnessRunInput<TAdapter> {
   verifier: ExternalHarnessVerifierConfig;
 }
 
-/** What every prepared external-harness adapter must expose to the shared lifecycle. */
 export interface ExternalHarnessAdapterBase {
   cleanup: () => Promise<void>;
-  /** Browser behind the mounted surface; logged before the agent starts. */
   browserSession?: BrowserSessionInfo;
 }
 
@@ -128,16 +111,11 @@ export interface ExternalHarnessDefinition<TAdapter extends ExternalHarnessAdapt
   harness: string;
   supportedToolSurfaces: ToolSurface[];
   defaultModels: AvailableModel[];
-  /** Defaults to ["agent", "suite"]. */
   supportedTaskKinds?: BenchTaskKind[];
   prepareToolAdapter: (input: ExternalHarnessPrepareInput) => Promise<TAdapter>;
   runAgent: (input: ExternalHarnessRunInput<TAdapter>) => Promise<TaskResult>;
 }
 
-/**
- * Define the lifecycle common to external agent harnesses without registering
- * it; registry ownership stays explicit so list order remains deterministic.
- */
 export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBase>(
   definition: ExternalHarnessDefinition<TAdapter>,
 ): BenchHarness {
@@ -162,9 +140,6 @@ export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBas
         );
       }
       const plan = buildExternalHarnessTaskPlan(input);
-      // Everything past carrier construction runs inside one try/finally so a
-      // failure at any point — adapter preparation included — cleans up both
-      // the adapter and the carrier.
       const carrierV3 = buildVerifierCarrierV3(logger);
       let toolAdapter: TAdapter | undefined;
       let browserSession: BrowserSessionInfo = {
@@ -219,9 +194,6 @@ export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBas
         try {
           await toolAdapter?.cleanup();
         } finally {
-          // Deregister the never-init()-ed carrier (instance registry, event
-          // store, logger binding) so long matrix runs don't accumulate one
-          // V3 object graph per task.
           await carrierV3.close().catch(() => {});
         }
       }
@@ -229,15 +201,6 @@ export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBas
   };
 }
 
-/**
- * Build a verifier-carrier V3 instance. Used only as the LLM-client carrier
- * for V3Evaluator.verify() — never `init()`-ed, never drives a browser.
- * The instance's logger is what V3Evaluator uses to construct its LLMProvider.
- *
- * The model is deliberately left at V3's default: the harness model can be a
- * runner-only alias (e.g. "codex/default") that V3's provider map rejects at
- * construction, and V3Evaluator selects its own verifier model regardless.
- */
 function buildVerifierCarrierV3(logger: EvalLogger): V3 {
   return new V3({
     env: "LOCAL",
@@ -245,8 +208,6 @@ function buildVerifierCarrierV3(logger: EvalLogger): V3 {
     disablePino: true,
     disableAPI: true,
     experimental: true,
-    // verbose 2 surfaces the judge's LLM request/response lines (level 2),
-    // which verifierAdapter routes to scores/verifier-trace.jsonl.
     verbose: verifierTraceEnabled() ? 2 : 0,
   });
 }
@@ -255,10 +216,6 @@ function buildExternalHarnessTaskSpec(
   plan: ReturnType<typeof buildExternalHarnessTaskPlan>,
   input: EvalInput,
 ): TaskSpec {
-  // Datasets that ship curated rubrics (WebTailBench) carry them in
-  // params.precomputed_rubric — thread them through so external-harness runs
-  // grade against the same rubric as the stagehand harness instead of
-  // LLM-generating a divergent one.
   const precomputedRubric = normalizeRubric(input.params?.precomputed_rubric);
   return {
     id: plan.taskId ?? input.name,

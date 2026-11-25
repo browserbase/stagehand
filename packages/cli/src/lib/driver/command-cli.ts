@@ -87,8 +87,6 @@ export async function resolveDriverSession(
     } else if (hasExplicitTarget && !targetMatchesRequestedMode(status.target, flags)) {
       assertCompatibleTarget(session, status, await resolveConnectionTarget(flags));
     }
-    // A status reply describes a running session; it must never supply the
-    // launch options for a replacement if that daemon subsequently disappears.
     return { kind: "existing" };
   }
 

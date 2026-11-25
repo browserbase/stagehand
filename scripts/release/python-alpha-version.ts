@@ -8,7 +8,6 @@ import { updatePythonProjectVersion } from "./python-version.ts";
 
 const execFileAsync = promisify(execFile);
 
-// Produced by `changeset version --snapshot` with the `alpha-{commit}` template.
 const snapshotVersionPattern =
   /^(?<base>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))-alpha-[0-9a-f]+$/u;
 
@@ -51,12 +50,6 @@ async function commitCount(repositoryRoot: string): Promise<number> {
   return Number.parseInt(stdout.trim(), 10);
 }
 
-/**
- * Expects `changeset version --snapshot` to have run already. When the Python
- * proxy package received a snapshot version there is something unreleased to
- * publish, so pyproject.toml is rewritten to the matching PEP 440 version.
- * Otherwise nothing is touched and no alpha should be published.
- */
 export async function applyPythonAlphaVersion({
   checkOnly = false,
   repositoryRoot = path.resolve(import.meta.dirname, "../.."),

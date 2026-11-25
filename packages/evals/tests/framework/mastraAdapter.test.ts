@@ -43,8 +43,6 @@ describe("Mastra trajectory adapter", () => {
       },
       TASK_SPEC,
     );
-    // Fragments of one block join directly; only the reasoning → text block
-    // boundary gets a newline.
     expect(trajectory.steps[0]?.reasoning).toBe("I will click checkout\nProceeding now");
   });
 

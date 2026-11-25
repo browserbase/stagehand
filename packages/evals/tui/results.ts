@@ -1,7 +1,3 @@
-/**
- * Formatted results table for post-run display.
- */
-
 import {
   bold,
   green,
@@ -19,7 +15,6 @@ import {
 import type { SummaryResult } from "../types/evals.js";
 import type { CellSummary, FailureRow } from "../framework/runSummary.js";
 
-/** How many failures the human summary lists before pointing at `--json`. */
 export const DEFAULT_FAILURE_LIMIT = 10;
 
 function padLeft(value: string, width: number): string {
@@ -31,12 +26,6 @@ function passRateColor(pct: number): (s: string) => string {
   return pct >= 80 ? green : pct >= 50 ? cyan : red;
 }
 
-/**
- * Per-cell table (harness × tool × model), always printed for bench runs:
- *
- *   cell                                   pass        max_turns  sdk_error  gated  ungraded  retried
- *   claude_code × stagehand_facade × …     72% 33/46   2          0          1      0         0
- */
 export function printCellTable(cells: CellSummary[]): void {
   if (cells.length === 0) return;
   const columns = ["max_turns", "sdk_error", "gated", "ungraded", "retried"] as const;
@@ -45,8 +34,6 @@ export function printCellTable(cells: CellSummary[]): void {
   const numericWidth = columns.reduce((sum, column) => sum + column.length + 2, 0);
   const longestCell = Math.max(...cells.map((cell) => visibleLength(cell.cell)), 4);
   const available = width - 4 - passWidth - numericWidth - 1;
-  // The cell name is the row's identity; when the terminal cannot fit it next
-  // to the counts, the name gets its own line instead of being truncated.
   const stacked = longestCell > available;
   const cellWidth = stacked ? 0 : longestCell;
   const indent = stacked ? "    " : `  ${" ".repeat(cellWidth)} `;
@@ -67,7 +54,6 @@ export function printCellTable(cells: CellSummary[]): void {
       if (count === 0) return dim(text);
       return columns[index] === "gated" || columns[index] === "ungraded" ? yellow(text) : text;
     });
-    // padRight strips ANSI; pad the colored pass cell by hand.
     const passPadded = `${passCell}${" ".repeat(Math.max(0, passWidth - visibleLength(passCell)))}`;
     if (stacked) {
       console.log(`  ${cell.cell}`);
@@ -87,11 +73,6 @@ const FAILURE_ICON: Record<FailureRow["kind"], string> = {
   fail: red("✗"),
 };
 
-/**
- * Failures, infra first (sdk_error → max_turns → ungraded → gated), one line
- * each with the reason and session URL. Rubric fails — the expected kind of
- * failure — are listed by case id on one line; `--json` has their reasons.
- */
 export function printFailures(failures: FailureRow[], limit = DEFAULT_FAILURE_LIMIT): void {
   if (failures.length === 0) return;
   const infra = failures.filter((failure) => failure.kind !== "fail");
@@ -103,7 +84,6 @@ export function printFailures(failures: FailureRow[], limit = DEFAULT_FAILURE_LI
   );
 
   const width = getTerminalWidth();
-  // A harness column only earns its space when the run spans several.
   const showHarness = new Set(failures.map((failure) => failure.harness)).size > 1;
   const harnessWidth = showHarness
     ? Math.max(...shown.map((failure) => failure.harness.length), 6)
@@ -113,15 +93,12 @@ export function printFailures(failures: FailureRow[], limit = DEFAULT_FAILURE_LI
   for (const failure of shown) {
     const harness = showHarness ? `${padRight(failure.harness, harnessWidth)} ` : "";
     const fixed = 4 + (showHarness ? harnessWidth + 1 : 0) + taskWidth + 1 + kindWidth + 1;
-    // The URL shares the line when a readable reason still fits beside it;
-    // on a narrow terminal it moves to its own line instead of wrapping.
     const urlInline =
       failure.sessionUrl !== undefined && width - fixed - failure.sessionUrl.length - 1 >= 12;
     const reasonWidth = Math.max(
       12,
       width - fixed - (urlInline ? failure.sessionUrl!.length + 1 : 0),
     );
-    // Multi-line SDK errors would break the row; one line, whitespace collapsed.
     const reasonText = failure.reason?.replace(/\s+/g, " ").trim();
     const reason = reasonText ? gray(truncateText(reasonText, reasonWidth)) : "";
     console.log(
@@ -148,7 +125,6 @@ export function printResultsTable(results: SummaryResult[]): void {
     return;
   }
 
-  // Group by task name
   const byTask = new Map<string, SummaryResult[]>();
   for (const r of results) {
     const existing = byTask.get(r.name) ?? [];
