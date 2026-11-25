@@ -72,8 +72,6 @@ export class RPCRouter {
     request: StagehandRpcRequest,
     runtimeAttachments?: CallbackBatchRuntimeAttachments,
   ): Promise<unknown> {
-    // The RPC client validates the complete request before routing; the generated
-    // request union does not currently narrow params from the method name.
     const initParams: StagehandInitParams | undefined =
       request.method === StagehandMethods.stagehandInit.name
         ? (request.params as StagehandInitParams)

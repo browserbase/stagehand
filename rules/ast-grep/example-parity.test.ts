@@ -150,7 +150,6 @@ await client.close()`,
           missing === language && part === "operation"
             ? fixtures[language].replace(/^await page\..+$/mu, "")
             : fixtures[language];
-        // Different spellings exercise filename normalization as well as discovery.
         const file = language === "typescript" ? "freshFeature.ts" : "fresh_feature.py";
         await writeFile(new URL(file, directories[language]), source);
       }

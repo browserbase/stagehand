@@ -11,14 +11,8 @@ const CLI_PATH = path.join(repoRoot, "packages", "evals", "cli.ts");
 const SOURCE_CONFIG = path.join(repoRoot, "packages", "evals", "evals.config.json");
 const CLI_CHILD_TIMEOUT_MS = 15_000;
 const CLI_TEST_TIMEOUT_MS = CLI_CHILD_TIMEOUT_MS + 2_000;
-// Every write the CLI makes (config set, first-run marker) lands here; the
-// tracked file is never touched.
 const LOCAL_CONFIG = path.join(repoRoot, "packages", "evals", "evals.config.local.json");
 
-// File-level snapshot/restore: any `evals run …` invocation through the
-// real CLI writes `_meta.firstRunCompletedAt` into the local config
-// (because the test runs in source mode). Restore at the end so the
-// developer's own overrides survive the test run.
 let __fileLevelConfigSnapshot: string;
 let __fileLevelLocalSnapshot: string | undefined;
 beforeAll(async () => {
@@ -26,8 +20,6 @@ beforeAll(async () => {
   __fileLevelLocalSnapshot = fs.existsSync(LOCAL_CONFIG)
     ? fs.readFileSync(LOCAL_CONFIG, "utf-8")
     : undefined;
-  // Warm tsx's compile cache once so the first test doesn't pay the whole
-  // cold start against the 10s per-test budget (it sat at ~10.0s on CI).
   await runCli(["--help"]);
 }, 40_000);
 afterAll(() => {
@@ -52,8 +44,6 @@ async function runCli(args: string[]): Promise<{ stdout: string; stderr: string;
       killSignal: "SIGKILL",
       env: { ...process.env, NODE_NO_WARNINGS: "1" },
     });
-    // A test timeout must also stop its own CLI child. SIGTERM enters the
-    // CLI's async cleanup path, which is not a bounded subprocess deadline.
     onTestFinished(() => {
       if (execution.child.exitCode === null && execution.child.signalCode === null) {
         execution.child.kill("SIGKILL");
@@ -116,14 +106,12 @@ describe("CLI entrypoint", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
     expect(code).toBe(0);
     expect(stdout).toContain("evals doctor");
     expect(stdout).toContain("--json");
-    // --probe is a public flag since the harness probe matrix landed.
     expect(stdout).toContain("--probe");
     expect(stdout).toContain("--harness");
   });
 
   it("doctor --json emits a parseable report", async () => {
     const { stdout, code } = await runCli(["doctor", "--json"]);
-    // --json always exits 0 regardless of verdict
     expect(code).toBe(0);
     const payload = JSON.parse(stdout);
     expect(payload).toHaveProperty("verdict");
@@ -147,9 +135,6 @@ describe("CLI entrypoint", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
     expect(stdout).toContain("--out");
   });
 
-  // Help is reachable three ways at every level: `--help`, `-h`, and the
-  // bare word `help` as the first positional after the verb. Each row pairs
-  // an argv with a substring that must appear in the resulting help output.
   const helpCases: Array<{ args: string[]; contains: string }> = [
     { args: ["help"], contains: "Commands:" },
     { args: ["--help"], contains: "Commands:" },
@@ -236,9 +221,6 @@ describe("CLI entrypoint", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
     2 * CLI_CHILD_TIMEOUT_MS + 2_000,
   );
 
-  // Regression: help interception must not reach into value positions.
-  // `config set <key> <value>` must surface a parse/value error, not silently
-  // print help — otherwise `--help` would be a magical sentinel anywhere.
   it("does not swallow `--help` as a value in `config set`", async () => {
     const { stdout, stderr, code } = await runCli(["config", "set", "trials", "--help"]);
     expect(code).toBe(1);
@@ -271,14 +253,12 @@ describe("CLI entrypoint", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
     const { stdout, code } = await runCli(["run", "act", "--preview"]);
     expect(code).toBe(0);
 
-    // Header + sections — strip ANSI before substring checks.
     // eslint-disable-next-line no-control-regex
     const plain = stdout.replace(/\[[0-9;]*m/g, "");
     expect(plain).toMatch(/Target:\s+act/);
     expect(plain).toMatch(/Combinations \(/);
     expect(plain).toMatch(/Tasks \(/);
     expect(plain).toMatch(/Total:\s+\d+ run/);
-    // Should NOT be JSON.
     expect(() => JSON.parse(stdout)).toThrow();
   });
 
@@ -337,8 +317,6 @@ describe("CLI entrypoint", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
   );
 
   it("strips a leading `evals` sigil token (no-op at root)", async () => {
-    // From a shell, `evals evals run act --dry-run` should resolve like
-    // `evals run act --dry-run` — the leading `evals` arg is the sigil.
     const { stdout, code } = await runCli(["evals", "run", "act", "--dry-run"]);
     expect(code).toBe(0);
     const payload = JSON.parse(stdout);
@@ -347,9 +325,6 @@ describe("CLI entrypoint", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
 });
 
 describe.sequential("core config", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
-  // Tests mutate packages/evals/evals.config.local.json (the tracked file is
-  // read-only for the CLI). Each test starts without a local file; the
-  // file-level afterAll restores the developer's own.
   function resetConfig(): void {
     fs.rmSync(LOCAL_CONFIG, { force: true });
   }
@@ -370,7 +345,6 @@ describe.sequential("core config", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
 
     const saved = readLocalConfig();
     expect(saved.core?.tool).toBe("understudy_code");
-    // The tracked file is never written by `config set`.
     expect(JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8")).core).toBeUndefined();
   });
 
@@ -418,7 +392,6 @@ describe.sequential("core config", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
     "rejects startup unsupported by the chosen tool",
     async () => {
       resetConfig();
-      // cdp_code does not support tool_create_browserbase.
       await runCli(["config", "core", "set", "tool", "cdp_code"]);
       const { stdout, stderr, code } = await runCli([
         "config",
@@ -437,7 +410,6 @@ describe.sequential("core config", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
     "auto-resets startup when a tool change invalidates it",
     async () => {
       resetConfig();
-      // cdp_code supports tool_attach_local_cdp; browse_cli does not.
       await runCli(["config", "core", "set", "tool", "cdp_code"]);
       await runCli(["config", "core", "set", "startup", "tool_attach_local_cdp"]);
       const { stdout, code } = await runCli(["config", "core", "set", "tool", "browse_cli"]);

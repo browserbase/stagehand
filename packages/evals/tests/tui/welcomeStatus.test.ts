@@ -86,9 +86,6 @@ describe("snapshotEnv", () => {
   });
 
   it("does NOT flag viaAlias when canonical + alias are mixed (one of each)", () => {
-    // viaAlias should mean "all present BB values are alias-only". If the
-    // user set BROWSERBASE_API_KEY (canonical) AND BB_PROJECT_ID (alias),
-    // the dim "(via BB_API_KEY)" hint would be misleading — suppress it.
     process.env.BROWSERBASE_API_KEY = "bb-key";
     process.env.BB_PROJECT_ID = "bb-proj";
     const s = snapshotEnv();
@@ -99,7 +96,6 @@ describe("snapshotEnv", () => {
 
   it("flags viaAlias when only one BB var is present and it came via alias", () => {
     process.env.BB_API_KEY = "bb-key";
-    // BROWSERBASE_PROJECT_ID intentionally absent
     const s = snapshotEnv();
     expect(s.browserbase.apiKey).toBe("set");
     expect(s.browserbase.projectId).toBe("missing");
@@ -145,7 +141,6 @@ describe("renderInlineWarning", () => {
   it("returns a non-null warning when zero provider keys", () => {
     const out = renderInlineWarning(snapshotEnv());
     expect(out).not.toBeNull();
-    // Strip ANSI for substring match.
     // eslint-disable-next-line no-control-regex
     const plain = (out ?? "").replace(/\[[0-9;]*m/g, "");
     expect(plain).toContain("No provider API key found");

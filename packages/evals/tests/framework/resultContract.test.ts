@@ -36,10 +36,6 @@ const noTools = {
   },
 };
 
-/**
- * Each entry runs one harness's real run path against a fake model and returns
- * everything that harness sent to it: task prompt and system prompt alike.
- */
 const oneLineHarnessRuns: Record<string, () => Promise<string>> = {
   claude_code: async () => {
     const sent: unknown[] = [];
@@ -187,7 +183,6 @@ const oneLineHarnessRuns: Record<string, () => Promise<string>> = {
   },
 };
 
-// Default-path assertions must not inherit a contract from the shell running the tests.
 beforeEach(() => {
   vi.stubEnv("EVAL_RESULT_CONTRACT", "");
 });
@@ -221,7 +216,6 @@ describe("EVAL_RESULT_CONTRACT", () => {
       vi.stubEnv("EVAL_RESULT_CONTRACT", "structured_output");
       const sent = await run();
       expect(sent).toContain(JSON_TAIL);
-      // Neither the task prompt nor the system prompt may still ask for the marker line.
       expect(sent).not.toContain("EVAL_RESULT");
     },
   );

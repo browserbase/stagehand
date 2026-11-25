@@ -27,7 +27,6 @@ export async function run(stagehand: Stagehand, page: Page): Promise<z.output<ty
 
   const benchmarks = [];
   for (const name of BENCHMARKS) {
-    // One page, one switcher: the table re-renders in place for each benchmark.
     await stagehand.act(`Select the "${name}" benchmark`, { page });
     const { data } = await stagehand.extract(
       `The top ${TOP} rows of the leaderboard table, by rank`,

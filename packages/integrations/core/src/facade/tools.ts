@@ -44,7 +44,6 @@ type SnapshotState = { url: string; xpathById: Record<string, string> };
 
 export type StagehandFacadeRunReport = {
   telemetry: PlaywrightCompatTelemetry;
-  /** Whether the run used StagehandFacadeToolsOptions.quietWait. */
   quietWait: boolean;
   /** Wall-clock time of the whole experimentalBatch round trip. */
   batchRoundTripMs: number;
@@ -123,11 +122,6 @@ export class StagehandFacadeSessionLostError extends Error {
 }
 
 const RUN_BATCH_TIMEOUT_MS = 60_000;
-/**
- * snapshot/screenshot RPCs have no executor-side deadline. Calls are serialized,
- * so one that never answers must release the queue at a bounded deadline.
- * Repeated capture deadlines latch terminal loss; no underlying RPC is retried.
- */
 const PAGE_CAPTURE_DEADLINE_MS = 120_000;
 
 export type StagehandFacadeScreenshot = {
@@ -149,7 +143,6 @@ function isImage(bytes: Buffer): boolean {
   );
 }
 
-/** Rejects what already exists on an artifact's destination; missing entries are fine. */
 async function checkDestination(root: string, components: string[]): Promise<void> {
   let entry = root;
   for (const [index, component] of components.entries()) {
@@ -174,7 +167,6 @@ async function checkDestination(root: string, components: string[]): Promise<voi
   }
 }
 
-/** Whether every directory on the chain is still the one recorded when it was checked. */
 async function chainUnchanged(
   chain: { directory: string; dev: number; ino: number }[],
 ): Promise<boolean> {
@@ -185,7 +177,6 @@ async function chainUnchanged(
   return true;
 }
 
-/** The checks that need no filesystem access: confinement, type, signature and name length. */
 function checkArtifact(
   root: string,
   artifact: ScreenshotArtifact,
@@ -217,7 +208,6 @@ function checkArtifact(
   return { components, bytes };
 }
 
-/** URL of the hidden keeper tab (see StagehandFacadeToolsOptions.keeperPage). */
 export const FACADE_KEEPER_PAGE_URL = "about:blank";
 
 export class StagehandFacadeTools {
@@ -225,8 +215,6 @@ export class StagehandFacadeTools {
   private queue: Promise<void> = Promise.resolve();
   private loss: FacadeSessionLoss | undefined;
   private keeper: Promise<string | undefined> | undefined;
-  // Consecutive capture-deadline timeouts; reset by any successful tool call.
-  // Three consecutive failures end this facade; this does not prove transport loss.
   private consecutiveDeadlines = 0;
   private static readonly MAX_CONSECUTIVE_DEADLINES = 3;
 
@@ -286,14 +274,9 @@ export class StagehandFacadeTools {
 
   private async snapshotNow(options: { includeIframes?: boolean }): Promise<string> {
     const page = await this.activePage();
-    // Failed captures invalidate the preceding snapshot too. A late response
-    // must never replace the IDs installed by a subsequent successful capture.
     this.snapshotsByPage.delete(page.pageId);
     const { snapshot, url } = await withDeadline(
       (async () => {
-        // `page.snapshot` defaults to a 20s timeout. Disable it so the capture
-        // deadline below owns the wait; otherwise a slow snapshot fails as an
-        // ordinary tool error and never counts toward terminal session loss.
         const snapshot = await page.snapshot({
           includeIframes: options.includeIframes ?? true,
           timeout: 0,
@@ -343,8 +326,6 @@ export class StagehandFacadeTools {
       throw new StagehandFacadeInputError(NAVIGATED_SNAPSHOT_ERROR);
     }
 
-    // The callback can already have dispatched earlier actions when one fails.
-    // Never replay an action batch after a partial failure.
     const result = await this.stagehand.experimentalBatch(
       actionRunner,
       { actions: parsed, xpathById: snapshot.xpathById },
@@ -367,8 +348,6 @@ export class StagehandFacadeTools {
       ...(quietWait && { quietWait: true }),
     };
     const envelope = await this.runBatchWithActivePageFallback(callback, input, page);
-    // Agent code runs inside the callback that builds this result, so it is not
-    // acted on (no artifacts, no close) unless it has the envelope's shape.
     if (!isRunEnvelope(envelope)) throw new StagehandFacadeInputError(RUN_RESULT_MALFORMED_ERROR);
     let runError: unknown;
     let runFailed = false;
@@ -382,8 +361,6 @@ export class StagehandFacadeTools {
       });
       await this.writeScreenshotArtifacts(envelope.artifacts);
       if (envelope.executionError) {
-        // Thrown by the agent's own code inside the browser, so its message can
-        // never be evidence about this process's connection to the browser.
         throw new StagehandFacadeExecutionError(envelope.executionError);
       }
       const valueBytes = Buffer.byteLength(JSON.stringify(envelope.value) ?? "");
@@ -394,8 +371,6 @@ export class StagehandFacadeTools {
       runError = error;
       runFailed = true;
     }
-    // Wait until the batch finishes before closing its transport, even when
-    // agent code, telemetry, or artifact persistence failed.
     if (envelope.closeRequested) {
       try {
         await this.close();
@@ -410,12 +385,6 @@ export class StagehandFacadeTools {
     return envelope.value;
   }
 
-  /**
-   * The batch controller resolves its target page before invoking the
-   * callback, so when the active page vanished between activePage() and the
-   * batch (tab closed by the previous snippet) this retry cannot replay
-   * partially executed agent code.
-   */
   private async runBatchWithActivePageFallback(
     callback: ExperimentalBatchCallback<RunInput, RunEnvelope>,
     input: RunInput,
@@ -440,12 +409,9 @@ export class StagehandFacadeTools {
 
   private async writeScreenshotArtifacts(artifacts: ScreenshotArtifact[]): Promise<void> {
     if (artifacts.length === 0) return;
-    // Enforce every cap before the first write so an oversized run saves nothing.
     if (artifacts.length > RUN_RESULT_LIMITS.maxArtifacts) {
       throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_COUNT_ERROR);
     }
-    // Sizes come from the base64 length (isRunEnvelope already required
-    // canonical padding), so no artifact is decoded until all of them fit.
     let totalBytes = 0;
     for (const artifact of artifacts) {
       const size = decodedBase64Length(artifact.base64);
@@ -460,7 +426,6 @@ export class StagehandFacadeTools {
     try {
       await this.writeArtifactFiles(artifacts);
     } catch (error) {
-      // Filesystem errors carry host paths; the agent gets only their code.
       const code = (error as NodeJS.ErrnoException | undefined)?.code;
       if (!(error instanceof StagehandFacadeInputError) && typeof code === "string") {
         throw new StagehandFacadeInputError(screenshotArtifactWriteError(code));
@@ -473,11 +438,7 @@ export class StagehandFacadeTools {
     const configuredRoot = path.resolve(
       this.options.artifactRoot || path.join(process.cwd(), DEFAULT_ARTIFACT_DIRECTORY),
     );
-    // Every artifact is checked before the root is created or anything is
-    // written, so a rejected run leaves nothing behind.
     const checked = artifacts.map((artifact) => checkArtifact(configuredRoot, artifact));
-    // A configured root may be a symlink; the default one, found in whatever
-    // directory the host runs in, may not.
     if (!this.options.artifactRoot) {
       const stats = await fsp.lstat(configuredRoot).catch((error: NodeJS.ErrnoException) => {
         if (error.code === "ENOENT") return undefined;
@@ -487,16 +448,11 @@ export class StagehandFacadeTools {
         throw new StagehandFacadeInputError(SCREENSHOT_ARTIFACT_SYMLINK_ERROR);
       }
     }
-    // Existing entries on every destination are checked before the first
-    // write too; the write loop repeats the checks as it creates directories.
     for (const { components } of checked) await checkDestination(configuredRoot, components);
     await fsp.mkdir(configuredRoot, { recursive: true });
     const root = await fsp.realpath(configuredRoot);
     const rootStats = await fsp.lstat(root);
     for (const { components, bytes } of checked) {
-      // Reject symlinks before creating nested directories. An existing file is
-      // replaced by renaming a new file over it, never written through, so
-      // other links to it keep their contents.
       let directory = root;
       const chain = [{ directory, dev: rootStats.dev, ino: rootStats.ino }];
       for (const component of components.slice(0, -1)) {
@@ -553,14 +509,6 @@ export class StagehandFacadeTools {
     }
   }
 
-  /**
-   * The page the agent is working on. A closed or crashed tab leaves the
-   * context without an active page (or with only the keeper); the agent then
-   * gets a fresh blank page rather than a dead end, and the keeper stays hidden.
-   * When another window has focus on a tab Stagehand does not manage, the agent
-   * keeps working on the newest tab Stagehand registered; nothing is reordered,
-   * since activating a tab does not move window focus.
-   */
   private async activePage(): Promise<Page> {
     const context = this.stagehand.browser.context;
     const keeperPageId = await this.keeper;
@@ -584,10 +532,6 @@ export class StagehandFacadeTools {
     return page;
   }
 
-  /**
-   * Opens the keeper once. A dead transport here is session loss like
-   * anywhere else; any other failure just means running without a keeper.
-   */
   private async ensureKeeperPage(): Promise<void> {
     this.keeper ??= this.openKeeperPage().catch((error: unknown) => {
       if (sessionLossCause(error) !== undefined) throw error;
@@ -606,7 +550,6 @@ export class StagehandFacadeTools {
     const context = this.stagehand.browser.context;
     const before = await context.activePage();
     const keeper = await context.newPage(FACADE_KEEPER_PAGE_URL);
-    // newPage activates the new tab; hand focus straight back.
     if (before) await context.setActivePage(before);
     return keeper.pageId;
   }
@@ -618,11 +561,9 @@ export class StagehandFacadeTools {
       try {
         await this.ensureKeeperPage();
         const value = await operation();
-        this.consecutiveDeadlines = 0; // a real response proves the session is alive
+        this.consecutiveDeadlines = 0;
         return value;
       } catch (error) {
-        // Permit two consecutive capture timeouts. The deadline does not cancel
-        // the underlying RPC, and recovery never replays that capture or an action.
         if (error instanceof FacadeDeadlineError) {
           this.consecutiveDeadlines += 1;
           if (this.consecutiveDeadlines < StagehandFacadeTools.MAX_CONSECUTIVE_DEADLINES) {
@@ -649,12 +590,9 @@ export class StagehandFacadeTools {
   }
 
   private notifySessionLost(loss: FacadeSessionLoss): void {
-    // Diagnostic observers cannot replace the terminal error or reopen the queue.
     try {
       void Promise.resolve(this.options.onSessionLost?.(loss)).catch(() => undefined);
-    } catch {
-      // Preserve the first browser failure when an observer throws synchronously.
-    }
+    } catch {}
   }
 }
 
@@ -696,7 +634,6 @@ function isCanonicalBase64(value: unknown): value is string {
   );
 }
 
-/** Byte length a canonical padded base64 string decodes to. */
 function decodedBase64Length(value: string): number {
   const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
   return (value.length / 4) * 3 - padding;
@@ -728,11 +665,6 @@ function withDeadline<T>(promise: Promise<T>, timeoutMs: number, operation: stri
   });
 }
 
-/**
- * Maps an error to the reason the browser session is unusable, or undefined
- * when it is an ordinary tool failure the agent can act on. A batch that hit
- * its executor-side timeout is ordinary: the executor answered.
- */
 function sessionLossCause(error: unknown): string | undefined {
   if (!(error instanceof Error)) return undefined;
   if ((error as { facadeExecutionError?: boolean }).facadeExecutionError) return undefined;
@@ -743,9 +675,6 @@ function sessionLossCause(error: unknown): string | undefined {
         ? `batch received no response within ${clientTimeout}ms`
         : "batch received no response before its client deadline";
     }
-    // FacadeDeadlineError is intentionally NOT terminal here: a single capture
-    // deadline is handled as recoverable in enqueue(), which escalates to
-    // session-loss only after repeated consecutive timeouts.
     case "CDPConnectionClosedError":
       return cdpSessionLossCause(error);
   }
@@ -758,8 +687,6 @@ function cdpSessionLossCause(error: Error): string {
   const messages = [error.message];
   const seen = new Set<Error>([error]);
   let cause = error.cause;
-  // An error before the WebSocket close event carries its diagnostics in cause,
-  // while a close event carries them in the outer message. Preserve both paths.
   while (cause instanceof Error && !seen.has(cause)) {
     seen.add(cause);
     const code = (cause as Error & { code?: unknown }).code;

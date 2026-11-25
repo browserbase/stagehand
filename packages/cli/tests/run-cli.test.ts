@@ -19,8 +19,6 @@ it("terminates the CLI behind a command shim when its timeout expires", async ()
         `require("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));`,
         'process.stdout.write("fixture stdout");',
         'process.stderr.write("fixture stderr");',
-        // Keep the inherited pipes open. Killing only cmd.exe must not satisfy the test.
-        // Bound the fixture lifetime so a broken tree kill cannot hang CI indefinitely.
         "setTimeout(() => {}, 15_000);",
       ].join("\n"),
     );

@@ -13,10 +13,6 @@ import {
 } from "./focusSelectors.js";
 import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils.js";
 
-/**
- * Fetch and prune the accessibility tree for a frame, optionally scoping the
- * output to a selector root for faster targeted snapshots.
- */
 export async function a11yForFrame(
   session: CDPSessionLike,
   frameId: string | undefined,
@@ -167,9 +163,7 @@ export function decorateRoles(
     if (typeof n.backendDOMNodeId === "number") {
       try {
         encodedId = opts.encode(n.backendDOMNodeId);
-      } catch {
-        //
-      }
+      } catch {}
     }
 
     let role = asRole(n);

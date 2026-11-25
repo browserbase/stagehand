@@ -426,7 +426,6 @@ describe("iframe chain resolution in Chrome", () => {
     });
     const steps: LocatorChain["steps"] = [css(".scope, body"), css("button")];
     const all = await targets(steps);
-    // body comes first, so its ordinary descendants precede the child document.
     expect(await ids(all)).toEqual(["a", "b", "same", "same", "save", "open-save", "closed-save"]);
     expect(all[2].backendNodeId).not.toBe(all[3].backendNodeId);
     expect(await ids(await targets([...steps, { type: "nth", index: 4 }]))).toEqual(["save"]);
@@ -504,8 +503,7 @@ describe("iframe chain resolution in Chrome", () => {
           const queries = traffic.calls.filter((call) =>
             String(call.params?.functionDeclaration).includes("this.query("),
           );
-          expect(queries).toHaveLength(3); // initial main query, main scopes, child document
-          // One describe enters the iframe; only requested final targets add describes.
+          expect(queries).toHaveLength(3);
           expect(traffic.calls.filter((call) => call.method === "DOM.describeNode")).toHaveLength(
             1 + (mode.mode === "count" ? 0 : mode.mode === "all" ? 2 * size : 1),
           );
@@ -939,7 +937,6 @@ describe("iframe chain resolution in Chrome", () => {
           const result = await send(method, params);
           if (method === "Accessibility.queryAXTree") {
             queries++;
-            // Ensure style writes occur between the AX response & the DOM join.
             mutationsDuringQuery += await page.evaluate(async () => {
               const { animation } = globalThis as unknown as { animation: { ticks: number } };
               const before = animation.ticks;
@@ -1032,7 +1029,6 @@ describe("iframe chain resolution in Chrome", () => {
         }
         expect(callCounts[0]).toBe(callCounts[1]);
         expect(callCounts[0]).toBeLessThanOrEqual(queryRole === "img" ? 7 : 6);
-        // Calls are bounded; serializing candidates and AX rows still scales with matches.
         expect(payloadSizes[1]).toBeGreaterThan(payloadSizes[0]);
       },
     );

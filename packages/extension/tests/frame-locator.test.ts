@@ -79,7 +79,6 @@ describe("FrameLocator readiness", () => {
     const waitForLocatorWorld = vi
       .spyOn(executionContexts, "waitForLocatorWorld")
       .mockImplementation(async (_session, _frameId, timeout) => {
-        // Simulate attempts that overrun their requested slice, as fallback can.
         vi.setSystemTime(Date.now() + timeout! + 50);
         throw Date.now() >= 1_200 ? lastError : initialError;
       });

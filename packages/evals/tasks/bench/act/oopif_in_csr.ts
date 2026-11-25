@@ -4,16 +4,10 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 export default defineBenchTask(
   { name: "oopif_in_csr" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
-    // this eval is designed to test whether stagehand can successfully
-    // fill a form inside a OOPIF (out of process iframe) that is inside an
-    // CSR (closed mode shadow) root
-
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/oopif-in-open-shadow-dom/");
       await stagehand.act("fill 'nunya' into the first name field");
 
-      // v3 used schemaless extract; v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug (#14).
       const { data: extraction } = await stagehand.extract(
         "extract the entire page text",
         z.object({ extraction: z.string() }),

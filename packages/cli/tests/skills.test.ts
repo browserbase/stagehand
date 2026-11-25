@@ -285,7 +285,6 @@ describe("skills", () => {
     const stubDir = await createTempDir("browse-skills-missing-bin-");
     const logPath = join(stubDir, "npx.log");
     await writeNpxStub(stubDir, logPath);
-    // Empty server: the file API returns 404 for the requested id.
     const { server, baseUrl } = await startFakeSkillServer({});
     cleanupServers.push(server);
 
@@ -301,7 +300,6 @@ describe("skills", () => {
       'Skill "amazon.com/buy-something-fake" not found in the catalog',
     );
     expect(result.stderr).toContain("browse skills find amazon.com");
-    // It must NOT have shelled out to clone the browse.sh repo.
     await expect(readFile(logPath, "utf8").catch(() => "")).resolves.not.toContain(
       "browserbase/browse.sh",
     );

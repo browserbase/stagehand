@@ -1,11 +1,3 @@
-/**
- * Build canonical dist/esm output for evals (plus assets/config).
- *
- * Prereqs: pnpm install.
- * Args: none.
- * Env: none.
- * Example: pnpm run build:esm
- */
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { getRepoRootDir } from "../runtimePaths.js";
@@ -23,7 +15,6 @@ fs.rmSync(`${repoRoot}/packages/evals/dist/esm`, {
   recursive: true,
   force: true,
 });
-// Evals run from dist/esm JS, but still need config/assets/datasets on disk.
 run(["exec", "tsc", "-p", "packages/evals/tsconfig.build.json"]);
 
 fs.mkdirSync(`${repoRoot}/packages/evals/dist/esm`, { recursive: true });

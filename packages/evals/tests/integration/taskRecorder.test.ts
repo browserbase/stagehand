@@ -82,7 +82,6 @@ test("captures the settled observation and replays without scripts or remote ass
   expect(await replay.locator("textarea").inputValue()).toBe("edited text");
   expect(await replay.locator("select").inputValue()).toBe("B");
   expect(await replay.locator("script, [onclick], img[src]").count()).toBe(0);
-  // CSP must also block resource URLs introduced after the HTML is loaded.
   await replay.evaluate(async (sourceUrl) => {
     await new Promise<void>((resolve) => {
       const image = document.createElement("img");

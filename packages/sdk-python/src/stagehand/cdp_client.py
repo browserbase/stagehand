@@ -30,8 +30,6 @@ _RUNTIME_NAME = "stagehand"
 _STAGEHAND_EXTENSION_NAME = "Stagehand Runtime"
 _PROTOCOL_SEMVER_PATTERN = re.compile(PROTOCOL_SEMVER_PATTERN)
 
-# Constant on purpose: the TypeScript SDK evaluates the identical expression, so the two cannot
-# drift. All judgement happens here rather than in the page.
 _RUNTIME_READINESS_EXPRESSION = """(() => ({
   marker: globalThis.__stagehand_runtime ?? null,
   hasReceiver: typeof globalThis.__stagehandReceiveFromHost === "function",
@@ -48,9 +46,7 @@ _SERVICE_WORKER_BUILD_EXPRESSION = """(async () => {
   } catch {}
   return { running: globalThis.__stagehand_build_id ?? null, onDisk };
 })()"""
-# About 1.5 s at the poll interval, while a just-attached worker context starts.
 _SERVICE_WORKER_BUILD_READ_RETRIES = 15
-# Well beyond a slow worker start; connect then reaches the readiness wait and its own error.
 _SERVICE_WORKER_BUILD_READ_TIMEOUT_SECONDS = 10
 
 
@@ -93,13 +89,6 @@ RUNTIME_INCOMPATIBLE_REMEDIATION = (
 
 @dataclass(frozen=True)
 class _RuntimeNegotiation:
-    """Outcome of reading the runtime marker the extension publishes.
-
-    ``kind`` is three-way on purpose: ``"unknown"`` means the marker is absent or not yet
-    readable and the caller should keep polling, while ``"incompatible"`` means the marker
-    parsed but this client can never talk to that runtime, so polling is pointless.
-    """
-
     kind: Literal["compatible", "incompatible", "unknown"]
     detail: str
     reason: str | None = None
@@ -137,7 +126,6 @@ class StagehandRuntimeIncompatibleError(RuntimeError):
 
 
 def _negotiate_runtime(marker: object) -> _RuntimeNegotiation:
-    """Classify the runtime marker. Never raises: hostile input is just ``unknown``."""
     if not isinstance(marker, Mapping):
         return _RuntimeNegotiation("unknown", "no Stagehand runtime marker")
 
@@ -146,8 +134,6 @@ def _negotiate_runtime(marker: object) -> _RuntimeNegotiation:
         return _RuntimeNegotiation("unknown", f"serverInfo={server_info!r}")
     name = server_info.get("name")
     version = server_info.get("version")
-    # Mirrors the protocol's ImplementationInfoSchema: both fields are non-empty strings.
-    # A marker missing either is malformed, not a foreign runtime, so keep polling.
     if not isinstance(name, str) or not name or not isinstance(version, str) or not version:
         return _RuntimeNegotiation(
             "unknown", f"serverInfo.name={name!r} serverInfo.version={version!r}"
@@ -189,7 +175,6 @@ def _negotiate_runtime(marker: object) -> _RuntimeNegotiation:
 
 
 def _protocol_compatibility(client_version: str, server_version: str) -> tuple[str, str] | None:
-    """Return ``None`` when compatible, otherwise ``(reason, detail)``."""
     client = _PROTOCOL_SEMVER_PATTERN.fullmatch(client_version)
     server = _PROTOCOL_SEMVER_PATTERN.fullmatch(server_version)
     if client is None or server is None:
@@ -246,7 +231,6 @@ class _ServiceWorkerBuild:
 
     @property
     def stale(self) -> bool:
-        """A directory without a build identity predates this check and is not compared."""
         if {"", _UNSTAMPED_BUILD_ID} & {self.running, self.on_disk}:
             return False
         return self.on_disk is not None and self.running != self.on_disk
@@ -292,7 +276,6 @@ class CDPClient:
         self._service_worker: ServiceWorkerInfo | None = None
         self._closed = False
         self._client_target_id: str | None = None
-        # Whether the extension shuts the browser down if this client is lost.
         self._client_close_browser_on_loss = False
         self._background_tasks: set[asyncio.Task[dict[str, object]]] = set()
         self._reader = asyncio.create_task(self._read(), name="stagehand-cdp-reader")
@@ -311,12 +294,6 @@ class CDPClient:
         close_browser_on_disconnect: bool | None = None,
         extension_cdp_url: str | None = None,
     ) -> CDPClient:
-        """Connect without an independent lifecycle deadline.
-
-        The production browser factories own the complete 60-second initialization
-        lifecycle. Direct internal callers must provide cancellation themselves.
-        CDP command acknowledgements inherit that same caller-owned cancellation.
-        """
         if (
             sum((
                 bool(extension_dir),
@@ -368,7 +345,6 @@ class CDPClient:
             )
             build = await client._read_service_worker_build(session_id)
             if build.stale and installed_path is not None and local_extension_dir is not None:
-                # Reconnecting after an SDK upgrade rewrote its own directory: the worker is ours.
                 directory = local_extension_dir()
                 if _same_directory(installed_path, directory):
                     loaded_from = directory
@@ -449,8 +425,6 @@ class CDPClient:
             "cdpUrl": cdp_url,
             "closeBrowserOnDisconnect": close_browser_on_disconnect,
         }):
-            # The protocol handshake already rejects older extensions; this one is
-            # inconsistent.
             await self.send_command("Target.closeTarget", {"targetId": target_id})
             raise RuntimeError(
                 "The Stagehand extension in this browser does not support the client "
@@ -460,7 +434,6 @@ class CDPClient:
         self._client_close_browser_on_loss = close_browser_on_disconnect
 
     async def detach_client(self) -> None:
-        """Acknowledge intentional detach before the socket/hidden target disappears."""
         if self._client_target_id is None or self._closed:
             return
         try:
@@ -483,7 +456,6 @@ class CDPClient:
         self._client_target_id = None
 
     async def _client_lifecycle_command(self, params: dict[str, object]) -> bool:
-        """Return False when the extension has no client lifecycle support."""
         expression = (
             "(async () => { "
             'if (typeof globalThis.__stagehandClientLifecycle !== "function") return false; '
@@ -706,7 +678,6 @@ class CDPClient:
         return worker, _required_string(attached, "sessionId", "Target.attachToTarget")
 
     async def _read_service_worker_build(self, session_id: str) -> _ServiceWorkerBuild:
-        """Wait for the runtime marker so a starting worker is not read as unidentified."""
         try:
             async with asyncio.timeout(_SERVICE_WORKER_BUILD_READ_TIMEOUT_SECONDS):
                 return await self._poll_service_worker_build(session_id)
@@ -864,11 +835,6 @@ class CDPClient:
         *,
         allow_fallback_install: bool = False,
     ) -> None:
-        """Poll until the extension runtime is ready.
-
-        ``allow_fallback_install`` is reserved for flows that can replace an incompatible
-        preloaded extension; by default an incompatible marker fails on the first poll.
-        """
         while True:
             try:
                 evaluated = await self.send_command(
@@ -917,7 +883,6 @@ _DEFAULT_PORTS = {"http": 80, "ws": 80, "https": 443, "wss": 443}
 
 
 def _can_forward_headers(source: str, destination: str) -> bool:
-    """Require the same host and effective port, without a TLS downgrade."""
     try:
         first, second = urlsplit(source), urlsplit(destination)
         return (
@@ -1003,7 +968,6 @@ async def _resolve_browser_web_socket_url(
 
 def _read_json(url: str, headers: Mapping[str, str] | None = None) -> dict[str, object]:
     request = Request(url, headers=dict(headers or {}))
-    # Keep the existing redirect behavior for connections without caller headers.
     open_url = build_opener(_CDPRedirectHandler()).open if headers else urlopen
     with open_url(request, timeout=2) as response:
         value: Any = json.load(response)
@@ -1016,7 +980,6 @@ def _same_directory(first: str, second: str) -> bool:
     try:
         return os.path.samefile(first, second)
     except OSError:
-        # A browser on another machine reports a path that may not exist here.
         return os.path.normpath(first) == os.path.normpath(second)
 
 

@@ -6,7 +6,6 @@ import type { BrowserbaseConnection } from "./browserbaseConnection.js";
 import { executeBrowserbaseRequest } from "./browserbaseTransport.js";
 import type { RPCClient } from "./rpcClient.js";
 
-/** Installs Browserbase request handling for one RPC connection. */
 export function registerBrowserbaseTransport(
   client: RPCClient,
   connection: BrowserbaseConnection | undefined,

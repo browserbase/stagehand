@@ -3,21 +3,11 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 export default defineBenchTask(
   { name: "custom_dropdown" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
-    /**
-     * This eval is meant to test whether we do not incorrectly attempt
-     * the selectOptionFromDropdown method (defined in actHandlerUtils.ts) on a
-     * 'dropdown' that is not a <select> element.
-     *
-     * This kind of dropdown must be clicked to be expanded before being interacted
-     * with.
-     */
-
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/expand-dropdown/");
 
       await stagehand.act("choose Canada from the 'Select a Country' dropdown");
 
-      // read the rendered page text directly — no second model call
       const fullTree = await page.locator("#chosenValue").innerText();
 
       if (fullTree.includes("Canada")) {

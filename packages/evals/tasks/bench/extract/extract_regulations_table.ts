@@ -7,7 +7,6 @@ export default defineBenchTask(
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/ncc-numbering-plan/");
 
-      // The locator engine prefix is required for XPath selectors.
       const locator = page.locator(
         "xpath=/html/body/div[3]/main/div[2]/div[2]/div/div/div[2]/article/div[2]/div[1]/div/table",
       );
@@ -27,7 +26,6 @@ export default defineBenchTask(
         { locator },
       );
 
-      // Define the expected weather data
       const allottees_expected_first = {
         allottee_name: "101 Communications Limited",
         area: "Lagos",
@@ -46,7 +44,6 @@ export default defineBenchTask(
 
       const allotteeList = allottees.allottee_list;
 
-      // Check that the first entry, last entry, and total number match expectations
       const isFirstCorrect =
         JSON.stringify(allotteeList[0]) === JSON.stringify(allottees_expected_first);
       const isLastCorrect =

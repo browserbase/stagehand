@@ -6,7 +6,6 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/aigrant/");
-      // The locator engine prefix is required for XPath selectors.
       const locator = page.locator("xpath=/html/body/div/ul[5]/li[28]");
       const { data: company } = await stagehand.extract(
         "Extract the name of the company that comes after 'Coframe'.",
@@ -17,11 +16,6 @@ export default defineBenchTask(
       );
       const companyName = company.company_name;
 
-      // nameWeShouldNotGet matches the name of the company that comes after
-      // CoFrame on the website. Since we are using targeted_extract here,
-      // and passing in a selector that does NOT contain the nameWeShouldNotGet,
-      // the LLM should have no visibility into what comes after 'CoFrame' if
-      // targeted_extract is performing correctly
       const nameWeShouldNotGet = {
         company_name: "OpusClip",
       };

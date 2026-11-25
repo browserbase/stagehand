@@ -3,8 +3,6 @@ import { afterAll, beforeAll, describe, it } from "vitest";
 import { chromium, type Browser, type Locator, type Page } from "playwright";
 import { createPlaywrightCompatRuntime } from "../src/facade/runtime.js";
 
-// Local, static DOM fixtures only. No extension, remote site, credentials or model.
-// Run separately with pnpm --filter @browserbasehq/stagehand-integrations test:browser.
 let browser: Browser;
 beforeAll(async () => {
   browser = await chromium.launch({
@@ -200,8 +198,6 @@ describe("facade DOM compatibility against native Playwright", () => {
         <section id="pay"><div><button><img alt="Pay now"></button></div></section>
         <section id="cancel"><div><button><img alt="Cancel order"></button></div></section>
       `);
-      // This snapshot is the browser-computed name that the DOM approximation
-      // misses for image-only buttons. Native Playwright independently checks it.
       const rawPage = {
         url: () => page.url(),
         evaluate: page.evaluate.bind(page),
@@ -340,7 +336,6 @@ describe("facade DOM compatibility against native Playwright", () => {
           42,
         );
         assert.equal(await facade.locator('[data-checked="yes"]').count(), 1);
-        // Fresh roots after navigation must not reuse remote references.
         await page.goto("about:blank");
         assert.equal(await facade.locator("#pay").count(), 0);
       } finally {
@@ -370,7 +365,6 @@ describe("facade DOM compatibility against native Playwright", () => {
           results.push({ name, pass: false, detail: String(error) });
         }
       };
-      // Strictness should be reported before a busy CI browser exhausts its command budget.
       const strictTimeout = 5000;
       const methods: Array<[string, (locator: Locator) => Promise<unknown>]> = [
         ["textContent", (locator) => locator.textContent({ timeout: strictTimeout })],
