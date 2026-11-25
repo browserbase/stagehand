@@ -102,18 +102,39 @@ describe("native role queries", () => {
   it.each([
     ["img", ["img", "image"]],
     ["directory", ["directory", "list"]],
-  ] as const)("accepts native aliases for %s in one AX call", async (role, aliases) => {
-    const state = setup(
-      [...aliases, "button"].map((value, index) => ({
-        ...node(index + 1),
-        role: { type: "role" as const, value },
-      })),
-    );
-    expect(await queryNativeRoles(state.session, 1, { role }, progress)).toHaveLength(2);
-    expect(
-      state.send.mock.calls.filter(([method]) => method === "Accessibility.queryAXTree"),
-    ).toEqual([["Accessibility.queryAXTree", { objectId: "document" }]]);
-  });
+  ] as const)(
+    "queries %s aliases concurrently with role filters & deduplicates matches",
+    async (role, aliases) => {
+      const state = setup();
+      const complete = new Map<string, () => void>();
+      state.send.mockImplementation(async (method, params) => {
+        if (method !== "Accessibility.queryAXTree") return state.respond(method, params);
+        const { role: alias } = params as { role: string };
+        await new Promise<void>((resolve) => complete.set(alias, resolve));
+        return {
+          nodes: (alias === aliases[0] ? [1, 2] : [2, 3]).map((id) => ({
+            ...node(id),
+            role: { type: "role", value: alias },
+          })),
+        };
+      });
+      const pending = queryNativeRoles(state.session, 1, { role }, progress);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(
+        state.send.mock.calls.filter(([method]) => method === "Accessibility.queryAXTree"),
+      ).toEqual(
+        aliases.map((alias) => [
+          "Accessibility.queryAXTree",
+          { objectId: "document", role: alias },
+        ]),
+      );
+      complete.get(aliases[1])!();
+      complete.get(aliases[0])!();
+      expect((await pending).map((match) => match.backendDOMNodeId)).toEqual([1, 2, 3]);
+      expect(state.groups.size).toBe(0);
+      expect(state.listeners()).toBe(0);
+    },
+  );
 
   it("excludes ignored nodes, other roles & nodes without DOM identities", async () => {
     const { session } = setup([
@@ -248,19 +269,26 @@ describe("native role queries", () => {
     expect(await queryNativeRoles(state.session, 1, { role: "button" }, progress)).toHaveLength(1);
   });
 
-  it.each(["Runtime.evaluate", "Accessibility.queryAXTree"])(
-    "stops waiting for %s at the deadline & releases late handles",
-    async (pendingMethod) => {
+  it.each([
+    { pendingMethod: "Runtime.evaluate", role: "button" },
+    { pendingMethod: "Accessibility.queryAXTree", role: "button" },
+    { pendingMethod: "Accessibility.queryAXTree", role: "img" },
+  ])(
+    "stops waiting for $pendingMethod ($role) at the deadline & releases late handles",
+    async ({ pendingMethod, role }) => {
       const state = setup();
       let complete!: () => void;
       state.send.mockImplementation(async (method, params) => {
-        if (method === pendingMethod)
+        if (
+          method === pendingMethod &&
+          (role !== "img" || (params as { role: string }).role === "image")
+        )
           await new Promise<void>((resolve) => {
             complete = resolve;
           });
         return state.respond(method, params);
       });
-      const pending = queryNativeRoles(state.session, 1, { role: "button" }, progress);
+      const pending = queryNativeRoles(state.session, 1, { role }, progress);
       const assertion = expect(pending).rejects.toBeInstanceOf(TimeoutError);
       await vi.advanceTimersByTimeAsync(100);
       await assertion;

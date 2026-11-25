@@ -94,6 +94,19 @@ describe("native role queries in Chrome", () => {
     expect(new Set(matches.map((node) => node.backendDOMNodeId)).size).toBe(matches.length);
   });
 
+  it("finds images & directories through filtered native aliases without duplicate matches", async () => {
+    await setContent(`
+      <img alt="Report diagram">
+      <div role="img" aria-label="Report icon"></div>
+      <div role="directory" aria-label="Report directory"><div role="listitem">Entry</div></div>
+      <button>Report button</button>
+    `);
+    expect(await names({ role: "img", name: "report" })).toEqual(["Report diagram", "Report icon"]);
+    expect(await names({ role: "directory", name: "Report directory", exact: true })).toEqual([
+      "Report directory",
+    ]);
+  });
+
   it("normalizes names locally for substring & case-sensitive exact matching", async () => {
     await setContent(
       '<button aria-label="  Save   report  "></button><button>Save report copy</button><button></button>',

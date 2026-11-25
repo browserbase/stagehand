@@ -93,24 +93,36 @@ export async function queryNativeRoles(
       );
     }
     if (!document.result.objectId) throw new Error("Missing role query document handle");
-    const { nodes } = await progress.run("querying native accessible roles", () =>
-      session.send<Protocol.Accessibility.QueryAXTreeResponse>("Accessibility.queryAXTree", {
-        objectId: document.result.objectId,
-        ...(nativeRoles.length === 1 ? { role: nativeRoles[0] } : {}),
-        // Native accessibleName is literal equality, not our normalized matcher.
-      }),
+    const responses = await progress.run("querying native accessible roles", () =>
+      Promise.all(
+        nativeRoles.map((role) =>
+          session.send<Protocol.Accessibility.QueryAXTreeResponse>("Accessibility.queryAXTree", {
+            objectId: document.result.objectId,
+            role,
+            // Native accessibleName is literal equality, not our normalized matcher.
+          }),
+        ),
+      ),
     );
     check();
-    return nodes.filter(
-      (node) =>
-        !node.ignored &&
-        node.backendDOMNodeId !== undefined &&
-        nativeRoles.includes(node.role?.value) &&
-        (!matchesName || matchesName(node.name?.value ?? "")) &&
-        stateNames.every(
-          (name) => query[name] === undefined || readState(node, name) === query[name],
-        ),
-    );
+    const matches = new Map<Protocol.DOM.BackendNodeId, Protocol.Accessibility.AXNode>();
+    for (const { nodes } of responses) {
+      for (const node of nodes) {
+        if (
+          !node.ignored &&
+          node.backendDOMNodeId !== undefined &&
+          !matches.has(node.backendDOMNodeId) &&
+          nativeRoles.includes(node.role?.value) &&
+          (!matchesName || matchesName(node.name?.value ?? "")) &&
+          stateNames.every(
+            (name) => query[name] === undefined || readState(node, name) === query[name],
+          )
+        ) {
+          matches.set(node.backendDOMNodeId, node);
+        }
+      }
+    }
+    return [...matches.values()];
   } finally {
     finishing = true;
     try {
