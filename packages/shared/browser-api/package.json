@@ -31,6 +31,7 @@
   "devDependencies": {
     "@browserbasehq/stagehand-protocol": "workspace:*",
     "@types/node": "catalog:",
+    "fast-check": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

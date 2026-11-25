@@ -56,7 +56,7 @@ function utf8ByteLengthExceeds(value: string, limit: number): boolean {
     }
     if (byteLength > limit) return true;
   }
-  return false;
+  return byteLength > limit;
 }
 
 function encodeBase64(bytes: Uint8Array): string {

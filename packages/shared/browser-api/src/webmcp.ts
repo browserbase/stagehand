@@ -5,8 +5,11 @@ import type {
   WebMCPToolResponse,
 } from "@browserbasehq/stagehand-protocol/types";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
+import { WebMCPInvokeOptionsSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import type { WebMCPInvokeOptions, WebMCPResultOptions } from "./schemas.js";
 import type { StagehandCommandClient } from "./commandClient.js";
+
+const partialWebMCPInvokeOptionsSchema = WebMCPInvokeOptionsSchema.partial();
 
 export class WebMCPTool {
   readonly toolId?: string;
@@ -26,19 +29,23 @@ export class WebMCPTool {
     this.toolId = descriptor.toolId;
     this.name = descriptor.name;
     this.description = descriptor.description;
-    this.inputSchema = descriptor.inputSchema;
-    this.annotations = descriptor.annotations;
+    this.inputSchema =
+      descriptor.inputSchema === undefined ? undefined : structuredClone(descriptor.inputSchema);
+    this.annotations =
+      descriptor.annotations === undefined ? undefined : structuredClone(descriptor.annotations);
     this.frameId = descriptor.frameId;
     this.backendNodeId = descriptor.backendNodeId;
   }
 
   async invoke(options?: WebMCPInvokeOptions): Promise<WebMCPInvocation> {
+    const parsedOptions =
+      options === undefined ? undefined : partialWebMCPInvokeOptionsSchema.parse(options);
     const descriptor = await this.#rpcClient.send(StagehandMethods.pageWebMCPInvokeTool, {
       pageId: this.#pageId,
       frameId: this.frameId,
       toolName: this.name,
       ...(this.toolId === undefined ? {} : { toolId: this.toolId }),
-      input: options?.input ?? {},
+      input: parsedOptions?.input ?? {},
     });
     return new WebMCPInvocation(this.#rpcClient, this.#pageId, descriptor);
   }
@@ -64,7 +71,7 @@ export class WebMCPInvocation {
     this.invocationId = descriptor.invocationId;
     this.toolName = descriptor.toolName;
     this.frameId = descriptor.frameId;
-    this.input = descriptor.input;
+    this.input = structuredClone(descriptor.input);
   }
 
   async result(options?: WebMCPResultOptions): Promise<WebMCPToolResponse> {

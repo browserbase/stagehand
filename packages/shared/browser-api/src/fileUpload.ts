@@ -30,7 +30,15 @@ async function normalizeFile(
     return platform.readInputFile(file);
   }
 
-  if (!file.name) throw new TypeError("setInputFiles(): file payload name cannot be empty");
+  if (!file || typeof file !== "object") {
+    throw new TypeError("setInputFiles(): file must be a file path or payload object");
+  }
+  if (typeof file.name !== "string" || !file.name) {
+    throw new TypeError("setInputFiles(): file payload name cannot be empty");
+  }
+  if (file.mimeType !== undefined && typeof file.mimeType !== "string") {
+    throw new TypeError("setInputFiles(): mimeType must be a string");
+  }
   let bytes: Uint8Array;
   if (typeof file.buffer === "string") {
     const exceedsLimit = platform.utf8ByteLengthExceeds(file.buffer, MAX_INPUT_FILE_BYTES);
@@ -53,7 +61,7 @@ async function normalizeFile(
   }
   if (
     file.lastModified !== undefined &&
-    (!Number.isInteger(file.lastModified) || file.lastModified < 0)
+    (!Number.isSafeInteger(file.lastModified) || file.lastModified < 0)
   ) {
     throw new RangeError("setInputFiles(): lastModified must be a non-negative integer");
   }
@@ -61,6 +69,8 @@ async function normalizeFile(
     name: file.name,
     ...(file.mimeType ? { mimeType: file.mimeType } : {}),
     data: platform.encodeBase64(bytes),
-    ...(file.lastModified === undefined ? {} : { lastModified: file.lastModified }),
+    ...(file.lastModified === undefined
+      ? {}
+      : { lastModified: file.lastModified === 0 ? 0 : file.lastModified }),
   };
 }

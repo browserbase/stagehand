@@ -27,6 +27,7 @@ import {
   StagehandMethods,
   StagehandNotifications,
 } from "@browserbasehq/stagehand-protocol/schema-registry";
+import { LocatorRequestDescriptorSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import { decodeBase64 } from "./base64.js";
 import { Locator, type GetByTextOptions, type GetByRoleOptions, type AriaRole } from "./locator.js";
 import { textQueryStep, roleQueryStep } from "@browserbasehq/stagehand-protocol/locatorSelectors";
@@ -87,10 +88,10 @@ export class CDPSubscription {
 
   private async unsubscribeOnce(): Promise<void> {
     this.removeLocalListener();
-    this.onDisposed();
     await this.rpcClient.send(StagehandMethods.pageOff, {
       subscriptionId: this.subscriptionId,
     });
+    this.onDisposed();
   }
 }
 
@@ -303,7 +304,11 @@ export class Page {
       }
       try {
         const result = deliver(notification);
-        if (result && typeof result === "object" && "then" in result) {
+        if (
+          result !== null &&
+          (typeof result === "object" || typeof result === "function") &&
+          typeof (result as { then?: unknown }).then === "function"
+        ) {
           void Promise.resolve(result).catch((error: unknown) =>
             reportPageEventListenerError(error, platform),
           );
@@ -405,11 +410,17 @@ export class Page {
 
   async screenshot(options?: ScreenshotOptions): Promise<Uint8Array> {
     const { path, mask, ...screenshotOptions } = options ?? {};
+    const serializedMask = mask?.map((locator) => {
+      if (locator.descriptor.pageId !== this.pageId) {
+        throw new TypeError("page.screenshot(): mask locators must belong to the target page");
+      }
+      return structuredClone(locator.descriptor);
+    });
     const result = await this.rpcClient.send(StagehandMethods.pageScreenshot, {
       pageId: this.pageId,
       options: {
         ...screenshotOptions,
-        ...(mask ? { mask: mask.map((locator) => locator.descriptor) } : {}),
+        ...(serializedMask ? { mask: serializedMask } : {}),
       },
     });
     return await decodeCaptureResult(result.data, "screenshot", path, this.rpcClient.platform);
@@ -462,10 +473,16 @@ export class Page {
   }
 
   locator(selector: string): Locator {
-    return new Locator(this.rpcClient, {
-      pageId: this.pageId,
-      selector,
-    });
+    if (typeof selector !== "string" || selector.trim().length === 0) {
+      throw new TypeError("page.locator(): selector cannot be empty");
+    }
+    return new Locator(
+      this.rpcClient,
+      LocatorRequestDescriptorSchema.parse({
+        pageId: this.pageId,
+        selector,
+      }),
+    );
   }
 
   getByText(text: string, options?: GetByTextOptions): Locator {

@@ -176,13 +176,16 @@ export class Locator {
   }
 
   nth(index: number): Locator {
+    const normalizedIndex = Object.is(index, -0) ? 0 : index;
     const parsedDescriptor = LocatorRequestDescriptorSchema.safeParse(
       "chain" in this.descriptor
         ? {
             pageId: this.descriptor.pageId,
-            chain: { steps: [...this.descriptor.chain.steps, { type: "nth", index }] },
+            chain: {
+              steps: [...this.descriptor.chain.steps, { type: "nth", index: normalizedIndex }],
+            },
           }
-        : { ...this.descriptor, nth: index },
+        : { ...this.descriptor, nth: normalizedIndex },
     );
 
     if (!parsedDescriptor.success) {

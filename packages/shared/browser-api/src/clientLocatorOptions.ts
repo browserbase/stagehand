@@ -10,7 +10,7 @@ export function serializeClientLocator(locator: Locator, pageId: string, method:
     throw new TypeError(`${method}(): locator must belong to the target page`);
   }
   const { pageId: _pageId, ...descriptor } = locator.descriptor;
-  return descriptor;
+  return structuredClone(descriptor);
 }
 
 export function serializeClientLocatorOptions<Options extends ClientLocatorOptions>(

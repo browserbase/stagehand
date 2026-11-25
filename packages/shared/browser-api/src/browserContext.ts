@@ -102,6 +102,9 @@ export class BrowserContext {
 function serializeClearCookieOptions(
   options: ClearCookieOptions,
 ): ProtocolTypes.ClearCookieOptions {
+  if (!options || typeof options !== "object" || Array.isArray(options)) {
+    throw new TypeError("context.clearCookies(): options must be an object");
+  }
   return {
     ...(options.name === undefined ? {} : { name: serializeCookieFilter(options.name) }),
     ...(options.domain === undefined ? {} : { domain: serializeCookieFilter(options.domain) }),
@@ -112,5 +115,11 @@ function serializeClearCookieOptions(
 function serializeCookieFilter(
   filter: string | RegExp,
 ): string | { source: string; flags: string } {
-  return typeof filter === "string" ? filter : { source: filter.source, flags: filter.flags };
+  if (typeof filter === "string") {
+    return filter;
+  }
+  if (Object.prototype.toString.call(filter) === "[object RegExp]") {
+    return { source: filter.source, flags: filter.flags };
+  }
+  throw new TypeError("context.clearCookies(): cookie filter must be a string or RegExp");
 }
