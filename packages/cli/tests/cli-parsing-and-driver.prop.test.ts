@@ -425,6 +425,15 @@ describe("classifyDriverError property verification", () => {
         throw new Error("hostile toPrimitive");
       },
     };
+    class ThrowingMessageError extends Error {
+      override get message(): string {
+        throw new Error("hostile message getter");
+      }
+    }
+    const nonStringMessageError = Object.defineProperty(new Error("ignored"), "message", {
+      value: 123,
+      configurable: true,
+    });
 
     const unknownErrorArb: fc.Arbitrary<unknown> = fc.oneof(
       fc.anything(),
@@ -434,6 +443,8 @@ describe("classifyDriverError property verification", () => {
       fc.constant(nullProtoObj),
       fc.constant(throwingToString),
       fc.constant(throwingPrimitive),
+      fc.constant(new ThrowingMessageError()),
+      fc.constant(nonStringMessageError),
     );
 
     fc.assert(
@@ -452,6 +463,9 @@ describe("classifyDriverError property verification", () => {
       }),
       { numRuns: 200, seed: SEED_BASE + 10 },
     );
+
+    expect(classifyDriverError(new ThrowingMessageError())).toBeNull();
+    expect(classifyDriverError(nonStringMessageError)).toBeNull();
   });
 
   it("classifies every documented error pattern consistently", () => {
@@ -706,6 +720,7 @@ describe("DriverSessionManager stateful property verification", () => {
     type SessionAction =
       | { kind: "init"; mode: "ok" | "fail-launch" | "fail-create" }
       | { kind: "concurrent-init-close"; slowStage: "slow-launch" | "slow-create" }
+      | { kind: "concurrent-init-during-close"; slowStage: "slow-launch" | "slow-create" }
       | { kind: "concurrent-double-init" }
       | { kind: "close" }
       | { kind: "apply-env"; key: string }
@@ -719,6 +734,10 @@ describe("DriverSessionManager stateful property verification", () => {
       }),
       fc.record({
         kind: fc.constant("concurrent-init-close" as const),
+        slowStage: fc.constantFrom("slow-launch" as const, "slow-create" as const),
+      }),
+      fc.record({
+        kind: fc.constant("concurrent-init-during-close" as const),
         slowStage: fc.constantFrom("slow-launch" as const, "slow-create" as const),
       }),
       fc.constant({ kind: "concurrent-double-init" as const }),
@@ -794,6 +813,31 @@ describe("DriverSessionManager stateful property verification", () => {
               }
               break;
             }
+            case "concurrent-init-during-close": {
+              const beforeStatus = await manager.status();
+              if (!beforeStatus.initialized) {
+                harness.launchMode = action.slowStage;
+                const beforeBrowsers = harness.browsers.length;
+                const firstInit = manager.stagehandInstance().catch((e: unknown) => e);
+                await new Promise((r) => setImmediate(r));
+                const closePromise = manager.close();
+                harness.launchMode = "ok";
+                const secondInit = manager.stagehandInstance().catch((e: unknown) => e);
+                await new Promise((r) => setImmediate(r));
+                harness.pendingResolve?.();
+                harness.pendingResolve = null;
+                const [, secondResult] = await Promise.all([firstInit, secondInit, closePromise]);
+                expect(secondResult).toBeInstanceOf(DriverError);
+                expect((secondResult as DriverError).code).toBe("session_closed");
+                expect(harness.browsers.length - beforeBrowsers).toBeLessThanOrEqual(1);
+                const afterStatus = await manager.status();
+                expect(afterStatus.initialized).toBe(false);
+                expect(afterStatus.browserConnected).toBe(false);
+                expect(afterStatus.initError).toBeUndefined();
+                assertNoResourceBugs(true);
+              }
+              break;
+            }
             case "concurrent-double-init": {
               harness.launchMode = "ok";
               const beforeBrowsers = harness.browsers.length;
@@ -845,5 +889,88 @@ describe("DriverSessionManager stateful property verification", () => {
       }),
       { numRuns: 40, seed: SEED_BASE + 15 },
     );
+  });
+
+  it("gates concurrent initialization attempts until close() finishes and allows re-init afterward", async () => {
+    let releaseFirstLaunch: (() => void) | null = null;
+    let launchCalls = 0;
+    const closedBrowsers: number[] = [];
+
+    const makeMockBrowser = (id: number) => {
+      const page = {
+        pageId: `page-${id}`,
+        title: async () => `Title ${id}`,
+        url: async () => "https://example.com",
+      };
+      return {
+        id,
+        close: async () => {
+          closedBrowsers.push(id);
+        },
+        context: {
+          activePage: async () => page,
+          pages: async () => [page],
+          newPage: async () => page,
+          setActivePage: async () => undefined,
+        },
+      };
+    };
+
+    vi.spyOn(localBrowser, "launch").mockImplementation((async () => {
+      const id = ++launchCalls;
+      if (id === 1) {
+        await new Promise<void>((resolve) => {
+          releaseFirstLaunch = resolve;
+        });
+      }
+      return makeMockBrowser(id);
+    }) as unknown as typeof localBrowser.launch);
+
+    vi.spyOn(Stagehand, "create").mockImplementation((async ({
+      browser,
+    }: {
+      browser: unknown;
+    }) => ({
+      browser,
+      close: async () => undefined,
+    })) as unknown as typeof Stagehand.create);
+
+    const manager = new DriverSessionManager("close-gating-regression", {
+      kind: "managed-local",
+      headless: true,
+    });
+
+    const firstInit = manager.stagehandInstance();
+    await new Promise((r) => setImmediate(r));
+
+    const closePromise = manager.close();
+    const concurrentInit = manager.stagehandInstance();
+    await new Promise((r) => setImmediate(r));
+
+    expect(launchCalls).toBe(1);
+
+    releaseFirstLaunch!();
+    const [firstResult, concurrentResult] = await Promise.allSettled([firstInit, concurrentInit]);
+    await closePromise;
+
+    expect(firstResult.status).toBe("rejected");
+    expect(concurrentResult.status).toBe("rejected");
+    expect((concurrentResult as PromiseRejectedResult).reason).toBeInstanceOf(DriverError);
+    expect(((concurrentResult as PromiseRejectedResult).reason as DriverError).code).toBe(
+      "session_closed",
+    );
+    expect(launchCalls).toBe(1);
+    expect(closedBrowsers).toEqual([1]);
+
+    const closedStatus = await manager.status();
+    expect(closedStatus.initialized).toBe(false);
+    expect(closedStatus.browserConnected).toBe(false);
+
+    await expect(manager.stagehandInstance()).resolves.toBeDefined();
+    expect(launchCalls).toBe(2);
+    expect((await manager.status()).initialized).toBe(true);
+
+    await manager.close();
+    expect(closedBrowsers).toEqual([1, 2]);
   });
 });

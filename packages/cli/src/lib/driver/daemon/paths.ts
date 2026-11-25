@@ -185,7 +185,10 @@ export function getSocketPath(session: string): string {
   const hash = createHash("sha256").update(session).digest("hex");
   const available =
     MAX_POSIX_SOCKET_PATH_BYTES - Buffer.byteLength(dir, "utf8") - 1 - ".sock".length;
-  const hashLength = Math.max(8, Math.min(16, available));
+  if (available < 8) {
+    throw new Error("Runtime directory is too long for a UNIX socket path.");
+  }
+  const hashLength = Math.min(16, available);
   return path.join(dir, `${hash.slice(0, hashLength)}.sock`);
 }
 

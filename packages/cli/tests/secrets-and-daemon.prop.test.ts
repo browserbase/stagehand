@@ -32,7 +32,7 @@ import {
   type DriverRequest,
   type DriverResponse,
 } from "../src/lib/driver/daemon/protocol.js";
-import { runDriverDaemon } from "../src/lib/driver/daemon/server.js";
+import { formatError, runDriverDaemon } from "../src/lib/driver/daemon/server.js";
 import { DRIVER_COMMAND_NAMES } from "../src/lib/driver/commands/types.js";
 import { CommandFailure } from "../src/lib/errors.js";
 import {
@@ -48,7 +48,7 @@ import { readSecretValue } from "../src/lib/secrets/input.js";
 import { sealSecret } from "../src/lib/secrets/seal.js";
 import { describePosix } from "./helpers/platform.js";
 
-const UNIX_SUN_PATH_MAX_BYTES = 103;
+const UNIX_SUN_PATH_MAX_BYTES = process.platform === "darwin" ? 103 : 107;
 const SEED_BASE = 20261125;
 
 function createHpkeSuite(): CipherSuite {
@@ -555,6 +555,66 @@ describe("daemon protocol, paths, and forwarded-env property verification", () =
       );
     } finally {
       if (prev !== undefined) process.env.BROWSE_DAEMON_DIR = prev;
+    }
+  });
+
+  it("caps hashed socket paths to the platform limit and rejects overly long runtime dirs", () => {
+    if (process.platform === "win32") return;
+
+    const longSession = "session-with-a-very-long-name-that-forces-hashing";
+    const overhead = 1 + ".sock".length;
+
+    for (const available of [8, 12, 16]) {
+      const targetDirLen = UNIX_SUN_PATH_MAX_BYTES - overhead - available;
+      const dir = `/${"d".repeat(targetDirLen - 1)}`;
+      vi.stubEnv("BROWSE_DAEMON_DIR", dir);
+      const socketPath = getSocketPath(longSession);
+      expect(path.dirname(socketPath)).toBe(dir);
+      expect(Buffer.byteLength(socketPath, "utf8")).toBeLessThanOrEqual(UNIX_SUN_PATH_MAX_BYTES);
+    }
+
+    for (const available of [7, 0, -10]) {
+      const targetDirLen = UNIX_SUN_PATH_MAX_BYTES - overhead - available;
+      const dir = `/${"d".repeat(targetDirLen - 1)}`;
+      vi.stubEnv("BROWSE_DAEMON_DIR", dir);
+      expect(() => getSocketPath(longSession)).toThrow(
+        "Runtime directory is too long for a UNIX socket path.",
+      );
+    }
+  });
+
+  it("always formats non-string or throwing Error messages into serializable error responses", () => {
+    class ThrowingMessageError extends Error {
+      override get message(): string {
+        throw new Error("boom");
+      }
+    }
+
+    const nonStringMessageErrors = [undefined, null, 42, { nested: true }, Symbol("msg")].map(
+      (value) => {
+        const err = new Error("initial");
+        Object.defineProperty(err, "message", { value, configurable: true });
+        return err;
+      },
+    );
+
+    const inputs: unknown[] = [
+      new ThrowingMessageError(),
+      ...nonStringMessageErrors,
+      Object.create(null),
+      {
+        toString() {
+          throw new Error("bad toString");
+        },
+      },
+    ];
+
+    for (const input of inputs) {
+      const formatted = formatError(input);
+      expect(typeof formatted.error).toBe("string");
+      expect(formatted.error).toBe("Unknown error");
+      const line = serializeResponse({ ...formatted, type: "error" });
+      expect(() => ResponseSchema.parse(JSON.parse(line.trimEnd()))).not.toThrow();
     }
   });
 

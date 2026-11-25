@@ -227,7 +227,7 @@ function endSocket(socket: net.Socket): Promise<void> {
   });
 }
 
-function formatError(error: unknown): {
+export function formatError(error: unknown): {
   code?: string;
   error: string;
   httpStatus?: number;
@@ -250,7 +250,8 @@ function formatError(error: unknown): {
   }
 
   try {
-    return { error: error instanceof Error ? error.message : String(error) };
+    const message = error instanceof Error ? error.message : String(error);
+    return { error: typeof message === "string" ? message : "Unknown error" };
   } catch {
     return { error: "Unknown error" };
   }

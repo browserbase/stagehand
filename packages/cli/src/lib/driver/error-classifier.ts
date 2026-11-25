@@ -21,10 +21,10 @@ const CDP_UNREACHABLE_PATTERN = /Unable to resolve CDP endpoint from/;
 const LAST_TAB_PATTERN = /^Cannot close the last tab\.$/;
 
 function errorMessageOf(error: unknown): string | null {
-  if (error instanceof Error) {
-    return typeof error.message === "string" ? error.message : null;
-  }
   try {
+    if (error instanceof Error) {
+      return typeof error.message === "string" ? error.message : null;
+    }
     return String(error);
   } catch {
     return null;

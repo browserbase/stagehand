@@ -79,6 +79,7 @@ export class DriverSessionManager {
   private browser: StagehandBrowser | null = null;
   private browserbaseIdentityValue: BrowserbaseIdentity = {};
   private closeGeneration = 0;
+  private closePromise: Promise<void> | null = null;
   private consecutiveInitFailures = 0;
   private context: DriverContext | null = null;
   private cursorOverlayPageIds = new Set<string>();
@@ -193,6 +194,7 @@ export class DriverSessionManager {
 
   async close(): Promise<void> {
     this.closeGeneration += 1;
+    const previousClose = this.closePromise;
     const pendingInit = this.initPromise;
     const stagehand = this.stagehand;
     const browser = this.browser;
@@ -206,16 +208,29 @@ export class DriverSessionManager {
     this.browserbaseIdentityValue = {};
     this.initFailure = null;
     this.consecutiveInitFailures = 0;
-    await this.network.close().catch(() => undefined);
-    if (pendingInit) {
-      await pendingInit.catch(() => undefined);
-    }
-    if (stagehand) {
-      await stagehand.close().catch(() => undefined);
-    }
-    if (browser) {
-      await browser.close().catch(() => undefined);
-    }
+
+    const currentClose = (async () => {
+      if (previousClose) {
+        await previousClose.catch(() => undefined);
+      }
+      await this.network.close().catch(() => undefined);
+      if (pendingInit) {
+        await pendingInit.catch(() => undefined);
+      }
+      if (stagehand) {
+        await stagehand.close().catch(() => undefined);
+      }
+      if (browser) {
+        await browser.close().catch(() => undefined);
+      }
+    })().finally(() => {
+      if (this.closePromise === currentClose) {
+        this.closePromise = null;
+      }
+    });
+
+    this.closePromise = currentClose;
+    return currentClose;
   }
 
   resolveSelector(selector: string): string {
@@ -326,6 +341,14 @@ export class DriverSessionManager {
   }
 
   private async ensureInitialized(): Promise<void> {
+    if (this.closePromise) {
+      while (this.closePromise) {
+        await this.closePromise;
+      }
+      throw new DriverError("Driver session was closed during initialization.", {
+        code: "session_closed",
+      });
+    }
     if (this.stagehand && this.context) return;
     if (this.initPromise) return this.initPromise;
 
@@ -379,6 +402,11 @@ export class DriverSessionManager {
 
   private async initialize(generation: number): Promise<void> {
     const resolvedTarget = await this.resolveTarget();
+    if (this.closeGeneration !== generation) {
+      throw new DriverError("Driver session was closed during initialization.", {
+        code: "session_closed",
+      });
+    }
     let browser: StagehandBrowser | undefined;
 
     try {
