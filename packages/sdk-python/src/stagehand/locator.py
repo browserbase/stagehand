@@ -309,7 +309,10 @@ class Locator:
         )
         if self._chain is not None:
             child._chain = LocatorChain.model_validate({
-                "steps": [*self._chain.model_dump()["steps"], {"type": "nth", "index": index}]
+                "steps": [
+                    *self._chain.model_dump(exclude_unset=True)["steps"],
+                    {"type": "nth", "index": index},
+                ]
             })
         return child
 
@@ -328,7 +331,7 @@ class Locator:
     def _append_steps(self, next_steps: Sequence[LocatorStepInput], selector: str) -> Self:
         child = type(self)(self._rpc_client, page_id=self.page_id, selector=selector)
         if self._chain is not None:
-            steps = self._chain.model_dump()["steps"]
+            steps = self._chain.model_dump(exclude_unset=True)["steps"]
         else:
             steps = list(locator_steps(self.selector))
             if self.nth_index is not None:

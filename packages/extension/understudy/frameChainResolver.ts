@@ -1,5 +1,9 @@
 import { LocatorChainSchema } from "@browserbasehq/stagehand-protocol/schemas";
-import type { LocatorChain, LocatorQuerySelector } from "@browserbasehq/stagehand-protocol/types";
+import type {
+  LocatorChain,
+  LocatorQuerySelector,
+  RoleSelectorQuery,
+} from "@browserbasehq/stagehand-protocol/types";
 import type { Protocol } from "devtools-protocol";
 import type { FrameChainMatch } from "../dom/locatorScripts/createFrameChainScope.js";
 import type { ElementChainResolution } from "../dom/locatorScripts/resolveElementChain.js";
@@ -11,9 +15,22 @@ import { findContentFrameId } from "./frameLocator.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 import type { Page } from "./page.js";
 import { Progress, runWithProgress } from "./progress.js";
+import { queryNativeRoles } from "./roleQuery.js";
 
-type ChainWorld = { session: CDPSessionLike; frameId: string; objectId: string; loaderId?: string };
+type ChainWorld = {
+  session: CDPSessionLike;
+  frameId: string;
+  objectId: string;
+  contextId: number;
+  loaderId?: string;
+};
 type Match = FrameChainMatch & { world: ChainWorld };
+
+class RoleQueryChangedError extends Error {
+  constructor() {
+    super("DOM changed during role query resolution");
+  }
+}
 
 export class FrameChainResolver {
   constructor(
@@ -37,12 +54,23 @@ export class FrameChainResolver {
         ) {
           throw new RangeError("Selected chain index must be a non-negative safe integer");
         }
-        const operation = new FrameChainOperation(this.page, context, this.readinessOptions);
-        try {
-          return await operation.resolve(this.root, validated, resolution);
-        } finally {
-          await operation.dispose();
-          context.throwIfStopped();
+        while (true) {
+          const operation = new FrameChainOperation(this.page, context, this.readinessOptions);
+          try {
+            return await operation.resolve(this.root, validated, resolution);
+          } catch (error) {
+            context.throwIfStopped();
+            if (
+              !(error instanceof RoleQueryChangedError) ||
+              !Number.isFinite(context.remainingMs()) ||
+              this.readinessOptions.readinessRetries === "none"
+            )
+              throw error;
+          } finally {
+            await operation.dispose();
+            context.throwIfStopped();
+          }
+          await context.delay(50);
         }
       },
     );
@@ -55,6 +83,7 @@ class FrameChainOperation {
   private readonly sessions = new Set<CDPSessionLike>();
   private readonly worlds = new Map<string, ChainWorld>();
   private finishing = false;
+  private readonly roleWorlds = new Set<ChainWorld>();
 
   constructor(
     private readonly page: Page,
@@ -161,13 +190,18 @@ class FrameChainOperation {
   private async query(selector: LocatorQuerySelector, scopes: Match[]): Promise<Match[]> {
     const byScope: Match[][] = [];
     for (const [world, entries] of groupByWorld(scopes)) {
-      const result = await this.call(
-        world,
-        "function(selector, scopes) { return this.query(selector, scopes); }",
-        [selector, entries.map(({ match }) => match.id)],
-        true,
-      );
-      const groups = result.value as FrameChainMatch[][];
+      const scopeIds = entries.map(({ match }) => match.id);
+      const groups =
+        selector.kind === "role"
+          ? await this.queryRoles(world, selector, scopeIds)
+          : ((
+              await this.call(
+                world,
+                "function(selector, scopes) { return this.query(selector, scopes); }",
+                [selector, scopeIds],
+                true,
+              )
+            ).value as FrameChainMatch[][]);
       entries.forEach(({ index }, i) => {
         byScope[index] = groups[i].map((match) => ({ ...match, world }));
       });
@@ -183,6 +217,40 @@ class FrameChainOperation {
       ids.add(id);
       return true;
     });
+  }
+
+  private async queryRoles(
+    world: ChainWorld,
+    selector: RoleSelectorQuery,
+    scopes: number[],
+  ): Promise<FrameChainMatch[][]> {
+    this.roleWorlds.add(world);
+    const captured = await this.call(
+      world,
+      "function(scopes) { return this.roleCandidates(scopes); }",
+      [scopes],
+      false,
+      { serialization: "deep", maxDepth: 2, additionalParameters: { maxNodeDepth: 0 } },
+    );
+    const backendIds = roleCandidateIds(captured);
+    const { value: role, kind: _kind, ...options } = selector;
+    const matches = await queryNativeRoles(
+      world.session,
+      world.contextId,
+      { role, ...options },
+      this.progress,
+    );
+    this.assertWorld(world);
+    const selected = new Set(matches.map((node) => node.backendDOMNodeId));
+    const indices = backendIds.flatMap((id, index) => (selected.has(id) ? [index] : []));
+    const result = await this.call(
+      world,
+      "function(indices) { return this.roleMatches(indices); }",
+      [indices],
+      true,
+    );
+    if (result.value === null) throw new RoleQueryChangedError();
+    return result.value as FrameChainMatch[][];
   }
 
   private async world(frameId: string): Promise<ChainWorld> {
@@ -241,7 +309,7 @@ class FrameChainOperation {
         );
         throwException(response.exceptionDetails);
         if (!response.result.objectId) throw new Error("Missing frame chain scope handle");
-        const world = { session, frameId, objectId: response.result.objectId, loaderId };
+        const world = { session, frameId, objectId: response.result.objectId, contextId, loaderId };
         this.assertWorld(world);
         this.worlds.set(frameId, world);
         return world;
@@ -270,6 +338,7 @@ class FrameChainOperation {
     functionDeclaration: string,
     args: unknown[],
     returnByValue = false,
+    serializationOptions?: Protocol.Runtime.SerializationOptions,
   ) {
     this.assertWorld(world);
     const response = await this.send<Protocol.Runtime.CallFunctionOnResponse>(
@@ -281,6 +350,7 @@ class FrameChainOperation {
         arguments: args.map((value) => ({ value })),
         objectGroup: this.objectGroup,
         returnByValue,
+        ...(serializationOptions ? { serializationOptions } : {}),
       },
     );
     this.assertWorld(world);
@@ -352,8 +422,23 @@ class FrameChainOperation {
     );
   }
 
-  private release(session: CDPSessionLike) {
-    return this.progress.cleanup(() =>
+  private async release(session: CDPSessionLike) {
+    // Disconnect observers before releasing their owner. dispose also prevents
+    // a delayed candidate capture from installing a new observer after cleanup.
+    await Promise.all(
+      [...this.roleWorlds]
+        .filter((world) => world.session === session)
+        .map((world) =>
+          this.progress.cleanup(() =>
+            session.send("Runtime.callFunctionOn", {
+              objectId: world.objectId,
+              functionDeclaration: "function() { this.dispose(); }",
+              returnByValue: true,
+            }),
+          ),
+        ),
+    );
+    await this.progress.cleanup(() =>
       session.send("Runtime.releaseObjectGroup", { objectGroup: this.objectGroup }),
     );
   }
@@ -379,4 +464,18 @@ function groupByWorld(matches: Match[]) {
 
 function throwException(details?: Protocol.Runtime.ExceptionDetails): void {
   if (details) throw new Error(details.exception?.description ?? details.text);
+}
+
+function roleCandidateIds(result: Protocol.Runtime.RemoteObject): number[] {
+  const serialized = result.deepSerializedValue;
+  if (serialized?.type !== "array" || !Array.isArray(serialized.value)) {
+    throw new Error("Role queries require Chromium deep serialization with backend node IDs");
+  }
+  return serialized.value.map((entry: Protocol.Runtime.DeepSerializedValue) => {
+    const id = entry.type === "node" ? entry.value?.backendNodeId : undefined;
+    if (!Number.isSafeInteger(id) || id <= 0 || entry.value?.nodeType !== 1) {
+      throw new Error("Invalid role candidate identity from Chromium deep serialization");
+    }
+    return id as number;
+  });
 }

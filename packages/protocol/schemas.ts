@@ -461,6 +461,168 @@ export const GetByTextOptionsSchema = z
   .strictObject({ exact: z.boolean().optional() })
   .meta({ id: "GetByTextOptions" });
 
+export const AriaRoleSchema = z
+  .enum([
+    "alert",
+    "alertdialog",
+    "application",
+    "article",
+    "banner",
+    "blockquote",
+    "button",
+    "caption",
+    "cell",
+    "checkbox",
+    "code",
+    "columnheader",
+    "combobox",
+    "complementary",
+    "contentinfo",
+    "definition",
+    "deletion",
+    "dialog",
+    "directory",
+    "document",
+    "emphasis",
+    "feed",
+    "figure",
+    "form",
+    "generic",
+    "grid",
+    "gridcell",
+    "group",
+    "heading",
+    "img",
+    "insertion",
+    "link",
+    "list",
+    "listbox",
+    "listitem",
+    "log",
+    "main",
+    "marquee",
+    "math",
+    "menu",
+    "menubar",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "meter",
+    "navigation",
+    "none",
+    "note",
+    "option",
+    "paragraph",
+    "presentation",
+    "progressbar",
+    "radio",
+    "radiogroup",
+    "region",
+    "row",
+    "rowgroup",
+    "rowheader",
+    "scrollbar",
+    "search",
+    "searchbox",
+    "separator",
+    "slider",
+    "spinbutton",
+    "status",
+    "strong",
+    "subscript",
+    "superscript",
+    "switch",
+    "tab",
+    "table",
+    "tablist",
+    "tabpanel",
+    "term",
+    "textbox",
+    "time",
+    "timer",
+    "toolbar",
+    "tooltip",
+    "tree",
+    "treegrid",
+    "treeitem",
+  ])
+  .meta({ id: "AriaRole" });
+
+export const GetByRoleOptionsSchema = z
+  .strictObject({
+    name: z.string().optional(),
+    exact: z.boolean().optional(),
+    checked: z.union([z.boolean(), z.literal("mixed")]).optional(),
+    pressed: z.union([z.boolean(), z.literal("mixed")]).optional(),
+    selected: z.boolean().optional(),
+    expanded: z.boolean().optional(),
+    disabled: z.boolean().optional(),
+    level: z.number().int().positive().optional(),
+  })
+  .meta({ id: "GetByRoleOptions" });
+
+const roleStateSupport: Partial<
+  Record<keyof z.infer<typeof GetByRoleOptionsSchema>, readonly z.infer<typeof AriaRoleSchema>[]>
+> = {
+  checked: [
+    "checkbox",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "option",
+    "radio",
+    "switch",
+    "treeitem",
+  ],
+  pressed: ["button"],
+  selected: ["columnheader", "gridcell", "option", "row", "rowheader", "tab", "treeitem"],
+  expanded: [
+    "application",
+    "button",
+    "checkbox",
+    "columnheader",
+    "combobox",
+    "gridcell",
+    "link",
+    "listbox",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "row",
+    "rowheader",
+    "switch",
+    "tab",
+    "treeitem",
+  ],
+  level: ["heading", "listitem", "row", "treeitem"],
+};
+
+export const RoleSelectorQuerySchema = GetByRoleOptionsSchema.extend({
+  kind: z.literal("role"),
+  value: AriaRoleSchema,
+})
+  .superRefine((query, context) => {
+    for (const [option, roles] of Object.entries(roleStateSupport)) {
+      if (
+        query[option as keyof typeof roleStateSupport] !== undefined &&
+        !roles.includes(query.value)
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: [option],
+          message: `${option} is not supported for role ${query.value}`,
+        });
+      }
+    }
+    if (query.checked === "mixed" && ["radio", "menuitemradio", "switch"].includes(query.value)) {
+      context.addIssue({
+        code: "custom",
+        path: ["checked"],
+        message: `Mixed checked state is not supported for role ${query.value}`,
+      });
+    }
+  })
+  .meta({ id: "RoleSelectorQuery" });
+
 export const LocatorQuerySelectorSchema = z
   .discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("css"), value: z.string().min(1) }),
@@ -468,6 +630,7 @@ export const LocatorQuerySelectorSchema = z
     // Preserve the legacy text= engine separately from getByText matching.
     z.strictObject({ kind: z.literal("text"), value: z.string().min(1) }),
     GetByTextOptionsSchema.extend({ kind: z.literal("textMatch"), value: z.string() }),
+    RoleSelectorQuerySchema,
   ])
   .meta({ id: "LocatorQuerySelector" });
 

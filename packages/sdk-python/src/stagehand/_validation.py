@@ -1,6 +1,6 @@
 import re
 from collections.abc import Mapping
-from typing import Annotated, cast
+from typing import Annotated, Self, cast
 from urllib.parse import urlparse
 
 from pydantic import (
@@ -100,6 +100,66 @@ class WireModel(BaseModel):
             value = getattr(self, name)
             if name not in self.model_fields_set and not field.is_required() and value is not None:
                 self.model_fields_set.add(name)
+
+
+class RoleSelectorQueryValidation(WireModel):
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_options(cls, value: object) -> object:
+        if isinstance(value, Mapping) and any(item is None for item in value.values()):
+            raise ValueError("role query options cannot be null")
+        return value
+
+    @model_validator(mode="after")
+    def validate_role_options(self) -> Self:
+        query = self.model_dump(mode="json", exclude_unset=True)
+        role = query["value"]
+        support = {
+            "checked": {
+                "checkbox",
+                "menuitemcheckbox",
+                "menuitemradio",
+                "option",
+                "radio",
+                "switch",
+                "treeitem",
+            },
+            "pressed": {"button"},
+            "selected": {
+                "columnheader",
+                "gridcell",
+                "option",
+                "row",
+                "rowheader",
+                "tab",
+                "treeitem",
+            },
+            "expanded": {
+                "application",
+                "button",
+                "checkbox",
+                "columnheader",
+                "combobox",
+                "gridcell",
+                "link",
+                "listbox",
+                "menuitem",
+                "menuitemcheckbox",
+                "menuitemradio",
+                "row",
+                "rowheader",
+                "switch",
+                "tab",
+                "treeitem",
+            },
+            "level": {"heading", "listitem", "row", "treeitem"},
+        }
+        for option, roles in support.items():
+            if query.get(option) is not None and role not in roles:
+                raise ValueError(f"{option} is not supported for role {role}")
+        if query.get("checked") == "mixed" and role in {"radio", "menuitemradio", "switch"}:
+            raise ValueError(f"Mixed checked state is not supported for role {role}")
+        return self
 
 
 class LocatorChainValidation(WireModel):

@@ -1,5 +1,6 @@
 import type { LocatorQuerySelector } from "@browserbasehq/stagehand-protocol/types";
 import { queryAll } from "./queryAll.js";
+import { captureRoleCandidates } from "./roleCandidates.js";
 
 export type FrameChainMatch = { id: number; isFrame: boolean };
 
@@ -7,26 +8,53 @@ export type FrameChainMatch = { id: number; isFrame: boolean };
 export function createFrameChainScope() {
   const nodes: (Document | Element)[] = [document];
   const ids = new Map<Document | Element, number>([[document, 0]]);
+  let roleCapture: ReturnType<typeof captureRoleCandidates> | undefined;
+  let disposed = false;
+  const scopeFor = (id: number) => {
+    const scope = nodes[id];
+    if (!scope) throw new Error("Unknown chain scope");
+    return scope;
+  };
+  const register = (node: Element): FrameChainMatch => {
+    let id = ids.get(node);
+    if (id === undefined) {
+      id = nodes.length;
+      nodes.push(node);
+      ids.set(node, id);
+    }
+    return { id, isFrame: /^(iframe|frame)$/i.test(node.localName) };
+  };
   return {
     query(selector: LocatorQuerySelector, scopes: number[]): FrameChainMatch[][] {
+      if (selector.kind === "role")
+        throw new Error("Role queries require native accessibility resolution");
       const shadowPresence = new Map<Document, boolean>();
-      // Keep each scope's results separate so the caller can interleave results
-      // from other documents before deduplication and positional selection.
-      return scopes.map((scopeId) => {
-        const scope = nodes[scopeId];
-        if (!scope) throw new Error("Unknown chain scope");
-        return queryAll(selector, [scope], shadowPresence)
+      // Keep groups separate for cross-document ordering before deduplication.
+      return scopes.map((scopeId) =>
+        queryAll(selector, [scopeFor(scopeId)], shadowPresence)
           .filter((node) => node instanceof Element)
-          .map((node) => {
-            let id = ids.get(node);
-            if (id === undefined) {
-              id = nodes.length;
-              nodes.push(node);
-              ids.set(node, id);
-            }
-            return { id, isFrame: /^(iframe|frame)$/i.test(node.localName) };
-          });
-      });
+          .map(register),
+      );
+    },
+    roleCandidates(scopes: number[]): Element[] {
+      if (disposed) throw new Error("Chain scope disposed");
+      roleCapture?.dispose();
+      roleCapture = captureRoleCandidates(scopes.map(scopeFor));
+      return roleCapture.candidates;
+    },
+    roleMatches(indices: number[]): FrameChainMatch[][] | null {
+      if (!roleCapture) throw new Error("No pending role query");
+      try {
+        return roleCapture.finish(indices)?.map((group) => group.map(register)) ?? null;
+      } finally {
+        roleCapture.dispose();
+        roleCapture = undefined;
+      }
+    },
+    dispose() {
+      disposed = true;
+      roleCapture?.dispose();
+      roleCapture = undefined;
     },
     elements(selected: number[]): Element[] {
       return selected.map((id) => {
