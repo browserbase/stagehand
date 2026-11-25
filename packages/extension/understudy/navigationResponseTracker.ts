@@ -37,6 +37,7 @@ export class NavigationResponseTracker {
 
   readonly pendingResponsesByLoader = new Map<string, Protocol.Network.ResponseReceivedEvent>();
   readonly pendingExtraInfo = new Map<string, Protocol.Network.ResponseReceivedExtraInfoEvent>();
+  private readonly pendingCompletions = new Map<string, Error | null>();
 
   readonly listeners: Array<{
     event: string;
@@ -57,6 +58,7 @@ export class NavigationResponseTracker {
       this.resolveResponse = (value) => {
         if (this.responseResolved) return;
         this.responseResolved = true;
+        this.cleanupTracking();
         resolve(value);
       };
     });
@@ -66,12 +68,18 @@ export class NavigationResponseTracker {
 
   /** Stop listening for CDP events and release any pending bookkeeping. */
   public dispose(): void {
+    this.cleanupTracking();
+    this.resolveResponse(null);
+  }
+
+  private cleanupTracking(): void {
     for (const { event, handler } of this.listeners) {
       this.session.off(event, handler as never);
     }
     this.listeners.length = 0;
     this.pendingResponsesByLoader.clear();
     this.pendingExtraInfo.clear();
+    this.pendingCompletions.clear();
   }
 
   /**
@@ -80,7 +88,8 @@ export class NavigationResponseTracker {
    * and match them once the loader id is known.
    */
   public setExpectedLoaderId(loaderId: string | undefined): void {
-    if (!loaderId) return;
+    if (!loaderId || this.responseResolved) return;
+    this.acceptNextWithoutLoader = false;
     this.expectedLoaderId = loaderId;
     const pending = this.pendingResponsesByLoader.get(loaderId);
     if (pending) {
@@ -95,7 +104,7 @@ export class NavigationResponseTracker {
    * resolved, or accept the next one if no response has arrived yet.
    */
   public expectNavigationWithoutKnownLoader(): void {
-    if (this.responseResolved) return;
+    if (this.responseResolved || this.expectedLoaderId) return;
 
     const pending = this.pendingResponsesByLoader.values().next().value;
     if (pending) {
@@ -132,6 +141,19 @@ export class NavigationResponseTracker {
     this.addListener("Network.responseReceivedExtraInfo", (event) => {
       this.onResponseReceivedExtraInfo(event as Protocol.Network.ResponseReceivedExtraInfoEvent);
     });
+    this.addListener("Network.loadingFinished", (event) => {
+      this.onLoadingCompleted(
+        (event as Protocol.Network.LoadingFinishedEvent | undefined)?.requestId,
+        null,
+      );
+    });
+    this.addListener("Network.loadingFailed", (event) => {
+      const failed = event as Protocol.Network.LoadingFailedEvent | undefined;
+      this.onLoadingCompleted(
+        failed?.requestId,
+        new Error(failed?.errorText || "Navigation request failed"),
+      );
+    });
   }
 
   /** Attach a CDP listener and track it for later disposal. */
@@ -142,23 +164,25 @@ export class NavigationResponseTracker {
 
   /** Handle the initial response payload for document navigations. */
   onResponseReceived(event: Protocol.Network.ResponseReceivedEvent): void {
+    if (this.responseResolved) return;
     if (!this.page.isCurrentNavigationCommand(this.navigationCommandId)) return;
     if (!event || !event.response) return;
     if (event.type !== "Document") return;
     if (event.frameId !== this.page.mainFrameId()) return;
 
+    this.pendingCompletions.delete(event.requestId);
     const loaderId = event.loaderId ?? "";
-    if (this.acceptNextWithoutLoader) {
-      this.acceptNextWithoutLoader = false;
+    if (this.expectedLoaderId) {
+      if (loaderId !== this.expectedLoaderId) {
+        if (loaderId) this.pendingResponsesByLoader.set(loaderId, event);
+        return;
+      }
       this.selectResponse(event);
       return;
     }
 
-    if (this.expectedLoaderId) {
-      if (loaderId && loaderId !== this.expectedLoaderId) {
-        this.pendingResponsesByLoader.set(loaderId, event);
-        return;
-      }
+    if (this.acceptNextWithoutLoader) {
+      this.acceptNextWithoutLoader = false;
       this.selectResponse(event);
       return;
     }
@@ -173,9 +197,21 @@ export class NavigationResponseTracker {
 
   /** Merge auxiliary header information once Chrome exposes it. */
   onResponseReceivedExtraInfo(event: Protocol.Network.ResponseReceivedExtraInfoEvent): void {
+    if (this.responseResolved) return;
+    if (!this.page.isCurrentNavigationCommand(this.navigationCommandId)) return;
     if (!event || !event.requestId) return;
     if (this.selectedRequestId && event.requestId === this.selectedRequestId) return;
     this.pendingExtraInfo.set(event.requestId, event);
+  }
+
+  private onLoadingCompleted(requestId: string | undefined, error: Error | null): void {
+    if (this.responseResolved || !requestId) return;
+    for (const pending of this.pendingResponsesByLoader.values()) {
+      if (pending.requestId === requestId) {
+        this.pendingCompletions.set(requestId, error);
+        return;
+      }
+    }
   }
 
   /**
@@ -219,8 +255,19 @@ export class NavigationResponseTracker {
 
     const extraInfo = this.pendingExtraInfo.get(event.requestId);
     if (extraInfo) {
-      response.applyExtraInfo(extraInfo);
+      if (
+        extraInfo.statusCode === undefined ||
+        event.response?.status === undefined ||
+        extraInfo.statusCode === event.response.status
+      ) {
+        response.applyExtraInfo(extraInfo);
+      }
       this.pendingExtraInfo.delete(event.requestId);
+    }
+
+    if (this.pendingCompletions.has(event.requestId)) {
+      response.markFinished(this.pendingCompletions.get(event.requestId) ?? null);
+      this.pendingCompletions.delete(event.requestId);
     }
 
     this.resolveResponse(response);

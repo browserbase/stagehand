@@ -41,6 +41,7 @@ export class LifecycleWatcher {
   abortPromise: Promise<never>;
   abortError: Error | null = null;
   disposed = false;
+  private waitCompleted = false;
 
   expectedLoaderId: string | undefined;
   initialLoaderId: string | undefined;
@@ -74,6 +75,7 @@ export class LifecycleWatcher {
     this.abortPromise = new Promise<never>((_, reject) => {
       this.abortReject = reject;
     });
+    void this.abortPromise.catch(() => {});
     this.navigationStartPromise = new Promise<boolean>((resolve) => {
       this.resolveNavigationStart = (sameDocument) => {
         if (this.navigationStarted) return;
@@ -110,18 +112,29 @@ export class LifecycleWatcher {
     const deadline = Date.now() + this.timeout;
 
     try {
+      if (this.abortError) throw this.abortError;
+      if (this.disposed) throw new Error("LifecycleWatcher was disposed");
+
       const sameDocument = await this.awaitNavigationStart(deadline);
-      if (sameDocument) return;
+      if (this.abortError) throw this.abortError;
+      if (sameDocument) {
+        this.waitCompleted = true;
+        return;
+      }
 
       if (this.waitUntil === "domcontentloaded") {
         await this.waitForMainLoadState("domcontentloaded", deadline);
+        if (this.abortError) throw this.abortError;
+        this.waitCompleted = true;
         return;
       }
 
       while (true) {
+        this.pendingFollowupNavigation = false;
         await this.waitForMainLoadState("load", deadline);
 
         if (this.waitUntil !== "networkidle") break;
+        if (this.pendingFollowupNavigation) continue;
 
         try {
           await this.awaitWithAbort(this.waitForNetworkIdle(deadline));
@@ -133,17 +146,22 @@ export class LifecycleWatcher {
           throw error;
         }
       }
+
+      if (this.abortError) throw this.abortError;
+      this.waitCompleted = true;
     } finally {
       this.dispose();
     }
-
-    if (this.abortError) throw this.abortError;
   }
 
   /** Cancel any outstanding network-idle waits and remove event listeners. */
   public dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+
+    if (!this.waitCompleted) {
+      this.triggerAbort(new Error("LifecycleWatcher was disposed"));
+    }
 
     if (this.idleHandle) {
       void this.idleHandle.promise.catch(() => {});
@@ -231,6 +249,7 @@ export class LifecycleWatcher {
 
   /** Wait for a new-document or same-document main-frame navigation to begin. */
   async awaitNavigationStart(deadline: number): Promise<boolean> {
+    if (this.abortError) throw this.abortError;
     if (this.navigationStarted) return this.sameDocumentNavigation;
 
     const remaining = this.timeRemaining(deadline);
@@ -250,6 +269,7 @@ export class LifecycleWatcher {
 
   /** Wait for a main-frame load state, reporting timeouts against the caller's full budget. */
   async waitForMainLoadState(state: LoadState, deadline: number): Promise<void> {
+    if (this.abortError) throw this.abortError;
     try {
       await this.awaitWithAbort(
         this.page.waitForMainLoadState(state, this.timeRemaining(deadline)),

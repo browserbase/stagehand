@@ -35,6 +35,9 @@ export class NetworkManager {
   // Captures from nested targets can replay before their parents' headers.
   // Retain only completions without a local request, scoped to the child root.
   private readonly pendingDocumentCompletions = new Map<string, PendingDocumentCompletion>();
+  private readonly activeIdleDisposers = new Set<() => void>();
+  private readonly respondedRequestKeys = new Set<string>();
+  private readonly completedRequestsBySession = new Map<string, Set<string>>();
 
   constructor(private readonly page: Page) {}
 
@@ -74,10 +77,18 @@ export class NetworkManager {
     const onRequest = (evt: Protocol.Network.RequestWillBeSentEvent, receivedAt: number) => {
       if (!evt || !evt.requestId) return;
 
+      const requestKey = this.requestKey(sid, evt.requestId);
+      const previous = this.requests.get(requestKey);
+      if (previous) {
+        this.removeIdleRequest(previous);
+      }
+      this.respondedRequestKeys.delete(requestKey);
+      this.completedRequestsBySession.get(sid)?.delete(evt.requestId);
+
       const info: NetworkRequestInfo = {
         sessionId: sid,
         requestId: evt.requestId,
-        requestKey: this.requestKey(sid, evt.requestId),
+        requestKey,
         frameId: evt.frameId ?? undefined,
         loaderId: evt.loaderId ?? undefined,
         url: evt.request?.url,
@@ -86,6 +97,19 @@ export class NetworkManager {
         documentRequest: evt.type === "Document",
       };
 
+      const completion = info.documentRequest ? this.findDocumentCompletion(info) : undefined;
+      if (completion?.requestRetired && evt.redirectResponse) {
+        return;
+      }
+
+      if (info.documentRequest && info.frameId) {
+        for (const [childSid, childEntry] of this.sessions) {
+          if (childEntry.childMainFrameId === info.frameId) {
+            this.completedRequestsBySession.get(childSid)?.delete(info.requestId);
+          }
+        }
+      }
+
       unfinishedRequests.set(evt.requestId, info);
       this.requests.set(info.requestKey, info);
       if (info.documentRequest && info.frameId) {
@@ -93,31 +117,45 @@ export class NetworkManager {
       }
 
       this.emitStart(info);
-      const completion = info.documentRequest ? this.findDocumentCompletion(info) : undefined;
       if (completion) {
+        completion.requestRetired = true;
         unfinishedRequests.delete(info.requestId);
-        this.takeIdleRequest(session, info.requestId, receivedAt);
-        if (completion.error) this.emitFailure(info);
-        else this.emitFinish(info);
+        const retired = this.takeIdleRequest(session, info.requestId);
+        if (retired) {
+          if (completion.error) this.emitFailure(retired);
+          else this.emitFinish(retired);
+        }
       }
     };
 
-    const completeRequest = (requestId: string, receivedAt: number, error: Error | null) => {
+    const completeRequest = (requestId: string, error: Error | null) => {
       this.finishResponse(session, requestId, error);
       unfinishedRequests.delete(requestId);
-      const info = this.takeIdleRequest(session, requestId, receivedAt);
+      this.respondedRequestKeys.delete(this.requestKey(sid, requestId));
+      this.recordCompletedRequest(sid, requestId);
+      const info = this.takeIdleRequest(session, requestId);
+      if (!info) return;
       this.sessions.get(info.sessionId)?.unfinishedRequests.delete(requestId);
+      this.respondedRequestKeys.delete(info.requestKey);
       if (error) this.emitFailure(info);
       else this.emitFinish(info);
     };
 
-    const onResponse = (evt: Protocol.Network.ResponseReceivedEvent, receivedAt: number) => {
+    const onResponse = (evt: Protocol.Network.ResponseReceivedEvent) => {
       if (!evt?.requestId) return;
+      const reqKey = this.requestKey(sid, evt.requestId);
+      if (unfinishedRequests.has(evt.requestId)) {
+        this.respondedRequestKeys.add(reqKey);
+      }
       this.emitResponse(evt, session);
       const url = evt.response?.url ?? "";
       if (url.startsWith("data:")) {
+        this.finishResponse(session, evt.requestId, null);
         unfinishedRequests.delete(evt.requestId);
-        this.emitFinish(this.takeIdleRequest(session, evt.requestId, receivedAt));
+        this.respondedRequestKeys.delete(reqKey);
+        this.recordCompletedRequest(sid, evt.requestId);
+        const info = this.takeIdleRequest(session, evt.requestId);
+        if (info) this.emitFinish(info);
       }
     };
 
@@ -142,14 +180,32 @@ export class NetworkManager {
         if (info.frameId !== id || !info.loaderId || info.loaderId === loaderId) continue;
         const owner = this.sessions.get(info.sessionId);
         owner?.unfinishedRequests.delete(info.requestId);
+        this.respondedRequestKeys.delete(info.requestKey);
         if (owner) this.failReplacedResponses(owner.session, info.requestId);
         this.removeIdleRequest(info);
         this.emitFailure(info);
+      }
+      for (const [ownerSid, owner] of this.sessions) {
+        for (const [reqId, info] of owner.unfinishedRequests) {
+          if (info.frameId !== id || !info.loaderId || info.loaderId === loaderId) continue;
+          owner.unfinishedRequests.delete(reqId);
+          this.respondedRequestKeys.delete(this.requestKey(ownerSid, reqId));
+          this.failReplacedResponses(owner.session, reqId);
+        }
+      }
+      for (const response of this.pendingResponses.keys()) {
+        if (response.finishedSettled) continue;
+        if (response.frameId !== id || !response.loaderId || response.loaderId === loaderId) {
+          continue;
+        }
+        response.markFinished(new Error("Request was abandoned by a replaced document"));
+        this.pendingResponses.delete(response);
       }
     };
 
     const capture = pendingCapture ?? new SessionNetworkCapture(session);
     // Register ownership before replay: observers may untrack or dispose during delivery.
+    this.completedRequestsBySession.set(sid, new Set());
     this.sessions.set(sid, {
       session,
       capture,
@@ -160,18 +216,18 @@ export class NetworkManager {
     try {
       capture.attach({
         "Network.requestWillBeSent": onRequest,
-        "Network.loadingFinished": (event, receivedAt) => {
-          if (event?.requestId) completeRequest(event.requestId, receivedAt, null);
+        "Network.loadingFinished": (event) => {
+          if (event?.requestId) completeRequest(event.requestId, null);
         },
-        "Network.loadingFailed": (event, receivedAt) => {
+        "Network.loadingFailed": (event) => {
           if (!event?.requestId) return;
           const error = new Error(event.errorText || "Navigation request failed");
-          completeRequest(event.requestId, receivedAt, error);
+          completeRequest(event.requestId, error);
         },
-        "Network.requestServedFromCache": (event, receivedAt) => {
-          if (event?.requestId) {
-            this.emitFinish(this.takeIdleRequest(session, event.requestId, receivedAt));
-          }
+        "Network.requestServedFromCache": (event) => {
+          if (!event?.requestId) return;
+          const info = this.takeIdleRequest(session, event.requestId);
+          if (info) this.emitFinish(info);
         },
         "Network.responseReceived": onResponse,
         "Page.frameStoppedLoading": onFrameStopped,
@@ -198,17 +254,31 @@ export class NetworkManager {
     entry.detach();
     this.disposeResponsesForSession(entry.session, entry.childMainFrameId);
     this.sessions.delete(sid);
+    this.completedRequestsBySession.delete(sid);
+    for (const reqId of entry.unfinishedRequests.keys()) {
+      this.respondedRequestKeys.delete(this.requestKey(sid, reqId));
+    }
+    entry.unfinishedRequests.clear();
     for (const [key, completion] of this.pendingDocumentCompletions) {
       if (completion.session === entry.session) this.pendingDocumentCompletions.delete(key);
     }
 
+    const removed: NetworkRequestInfo[] = [];
     for (const info of this.requests.values()) {
       if (
         info.sessionId !== sid &&
         !(entry.childMainFrameId && info.documentRequest && info.frameId === entry.childMainFrameId)
       )
         continue;
+      if (info.sessionId !== sid) {
+        this.sessions.get(info.sessionId)?.unfinishedRequests.delete(info.requestId);
+      }
+      this.respondedRequestKeys.delete(info.requestKey);
       this.removeIdleRequest(info);
+      removed.push(info);
+    }
+    for (const info of removed) {
+      this.emitFailure(info);
     }
   }
 
@@ -250,9 +320,12 @@ export class NetworkManager {
     let resolveFn: (() => void) | null = null;
     let rejectFn: ((error: Error) => void) | null = null;
 
+    const disposeHandle = () => cleanup(new Error("waitForIdle disposed"));
+
     const cleanup = (error?: Error) => {
       if (settled) return;
       settled = true;
+      this.activeIdleDisposers.delete(disposeHandle);
       if (idleTimer) clearTimeout(idleTimer);
       if (timeoutTimer) clearTimeout(timeoutTimer);
       removeObserver();
@@ -302,6 +375,7 @@ export class NetworkManager {
     };
 
     const removeObserver = this.addObserver(observer);
+    this.activeIdleDisposers.add(disposeHandle);
 
     const promise = new Promise<void>((resolve, reject) => {
       resolveFn = resolve;
@@ -327,7 +401,7 @@ export class NetworkManager {
 
     return {
       promise,
-      dispose: () => cleanup(new Error("waitForIdle disposed")),
+      dispose: disposeHandle,
     };
   }
 
@@ -335,12 +409,18 @@ export class NetworkManager {
    * Tear down all session listeners and clear observers/bookkeeping.
    */
   public dispose(): void {
+    for (const disposeIdle of this.activeIdleDisposers) {
+      disposeIdle();
+    }
+    this.activeIdleDisposers.clear();
     for (const { detach } of this.sessions.values()) {
       detach();
     }
     for (const response of this.pendingResponses.keys()) response.dispose();
     this.pendingResponses.clear();
     this.pendingDocumentCompletions.clear();
+    this.respondedRequestKeys.clear();
+    this.completedRequestsBySession.clear();
     this.sessions.clear();
     this.observers.clear();
     this.requests.clear();
@@ -372,11 +452,12 @@ export class NetworkManager {
       response: event.response,
       fromServiceWorker: Boolean(event.response.fromServiceWorker),
     });
-    this.pendingResponses.set(response, event.type);
-    void response.finished().then(() => this.pendingResponses.delete(response));
     if (completion) {
       response.updateSession(completion.session);
       response.markFinished(completion.error);
+    } else {
+      this.pendingResponses.set(response, event.type);
+      void response.finished().then(() => this.pendingResponses.delete(response));
     }
     for (const observer of this.observers) {
       observer.onResponse?.(response);
@@ -387,8 +468,7 @@ export class NetworkManager {
   private takeIdleRequest(
     session: CDPSessionLike,
     requestId: string,
-    receivedAt: number,
-  ): NetworkRequestInfo {
+  ): NetworkRequestInfo | undefined {
     const sid = this.sessionKey(session);
     let info = this.requests.get(this.requestKey(sid, requestId));
     if (!info) {
@@ -407,13 +487,7 @@ export class NetworkManager {
       this.removeIdleRequest(info);
       return info;
     }
-    return {
-      sessionId: sid,
-      requestId,
-      requestKey: this.requestKey(sid, requestId),
-      timestamp: receivedAt,
-      documentRequest: false,
-    };
+    return undefined;
   }
 
   /**
@@ -425,7 +499,15 @@ export class NetworkManager {
       if (response.finishedSettled) continue;
       if (response.session !== session || response.requestId !== requestId) continue;
       response.markFinished(new Error("Request was abandoned by a replaced document"));
+      this.pendingResponses.delete(response);
     }
+  }
+
+  private recordCompletedRequest(sid: string, requestId: string): void {
+    const completed = this.completedRequestsBySession.get(sid);
+    if (!completed) return;
+    if (completed.size >= 1024) completed.clear();
+    completed.add(requestId);
   }
 
   private removeIdleRequest(info: NetworkRequestInfo): void {
@@ -445,7 +527,10 @@ export class NetworkManager {
     const localResponses = pending.filter((response) => response.session === session);
     if (localResponses.length) {
       // Raw listeners cannot receive events that arrived before capture replay.
-      for (const response of localResponses) response.markFinished(error);
+      for (const response of localResponses) {
+        response.markFinished(error);
+        this.pendingResponses.delete(response);
+      }
       return;
     }
 
@@ -453,13 +538,20 @@ export class NetworkManager {
     const trackedSession = this.sessions.get(sid);
     // A local request without headers may have failed; do not claim another session's response.
     if (trackedSession?.unfinishedRequests.has(requestId)) return;
+    if (this.completedRequestsBySession.get(sid)?.has(requestId)) return;
     const frameId = trackedSession?.childMainFrameId;
     if (!frameId) return;
 
-    for (const entry of this.sessions.values()) {
+    let matchedParentResponded = false;
+    let matchedParentDocument = false;
+    for (const [entrySid, entry] of this.sessions) {
       const info = entry.unfinishedRequests.get(requestId);
       if (info?.documentRequest && info.loaderId === requestId && info.frameId === frameId) {
         entry.unfinishedRequests.delete(requestId);
+        matchedParentDocument = true;
+        if (this.respondedRequestKeys.delete(this.requestKey(entrySid, requestId))) {
+          matchedParentResponded = true;
+        }
       }
     }
     const documents = pending.filter(
@@ -472,7 +564,8 @@ export class NetworkManager {
     if (documents.length === 1 && document) {
       document.updateSession(session);
       document.markFinished(error);
-    } else if (!pending.length) {
+      this.pendingResponses.delete(document);
+    } else if (!pending.length && !matchedParentResponded && !(matchedParentDocument && error)) {
       this.pendingDocumentCompletions.set(this.requestKey(sid, requestId), {
         session,
         frameId,

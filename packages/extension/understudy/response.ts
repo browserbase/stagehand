@@ -115,6 +115,13 @@ export class Response {
     event: Protocol.Network.ResponseReceivedExtraInfoEvent,
   ): void => {
     if (event?.requestId !== this.requestId) return;
+    if (
+      event.statusCode !== undefined &&
+      this.response.status !== undefined &&
+      event.statusCode !== this.response.status
+    ) {
+      return;
+    }
     this.applyExtraInfo(event);
   };
 
