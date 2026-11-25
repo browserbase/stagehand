@@ -9,7 +9,7 @@ import type {
   CursorSdkAgent,
   CursorSdkAgentFactory,
   CursorSdkRun,
-} from "@browserbasehq/stagehand-integrations-cursor-sdk";
+} from "@browserbasehq/stagehand-integrations-cursor";
 import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
 
 import {

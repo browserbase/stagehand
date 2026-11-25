@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from ._generated.input_types import Locator as ProtocolLocator
 from ._generated.input_types import ModelConfig, Variables
 from ._generated.models import ActOptions, ExtractOptions, ObserveOptions
+from ._generated.models import LocatorInput as ProtocolLocator
 from .client_models import _cache_config
 from .client_types import Cache
 from .locator import Locator
@@ -11,9 +11,9 @@ from .locator import Locator
 def _serialize_locator(locator: Locator, page_id: str, method: str) -> ProtocolLocator:
     if locator.page_id != page_id:
         raise TypeError(f"{method}() locator must belong to the target page")
-    if locator.nth_index is not None:
-        return ProtocolLocator(selector=locator.selector, nth=locator.nth_index)
-    return ProtocolLocator(selector=locator.selector)
+    return ProtocolLocator.model_validate(
+        locator.descriptor.model_dump(exclude={"page_id"}, exclude_none=True, exclude_unset=True)
+    )
 
 
 def _serialize_locators(

@@ -22,6 +22,50 @@ describe("a11yForFrame focused locators", () => {
     vi.restoreAllMocks();
   });
 
+  it("recovers descendants flattened outside an ignored chain scope", async () => {
+    const full = repeatedSubtreeNodes();
+    const target = full.find((node) => node.nodeId === "second")!;
+    const detail = full.find((node) => node.nodeId === "second-detail")!;
+    detail.parentId = "root";
+    detail.childIds = ["nested"];
+    full[0].childIds = ["first", "second-detail"];
+    full.push(
+      axNode({
+        nodeId: "nested",
+        backendDOMNodeId: 22,
+        role: "button",
+        name: "Nested action",
+        parentId: "second-detail",
+      }),
+    );
+    const session = {
+      send: vi.fn(async (method: string) => {
+        if (method === "Accessibility.getFullAXTree")
+          return { nodes: full.filter((node) => node !== target) };
+        if (method === "Accessibility.getPartialAXTree")
+          return {
+            nodes: [
+              { ...target, ignored: true, role: { type: "role", value: "none" }, name: undefined },
+              { ...detail, parentId: "second", childIds: undefined },
+            ],
+          };
+        return {};
+      }),
+    } as unknown as CDPSessionLike;
+    const result = await a11yForFrame(session, "root-frame", {
+      focusBackendNodeId: 20,
+      tagNameMap: {},
+      scrollableMap: {},
+      encode: String,
+    });
+    expect(result.scopeApplied).toBe(true);
+    expect(result.outline).toContain("Second detail");
+    expect(result.outline).toContain("Nested action");
+    expect(result.outline).not.toContain("First match");
+    expect(result.outline).not.toContain("First detail");
+    expect(detail.parentId).toBe("root");
+  });
+
   it.each(["Accessibility.getFullAXTree", "DOM.describeNode"])(
     "does not fall back after %s exceeds the deadline",
     async (command) => {

@@ -50,7 +50,7 @@ Pass these as `experimentalDecisions` when creating Stagehand. Python uses `expe
 | `llmFallback` | `true` | Hand over to the LLM pipeline when the decision model is not confident. With `false` the call fails instead. |
 | `argumentLlm` | `true` | Allow a small LLM call that lifts unquoted text to type from the instruction. |
 | `extract` | `"pick"` | `"pick"` picks the elements holding each value and copies their text. `"judge"` keeps the LLM extraction and replaces only its completion check. |
-| `targetReadiness` | `false` | Act as soon as Stagehand finds a stable target instead of waiting out the DOM-settle window. |
+| `targetReadiness` | `false` | Act as soon as Stagehand finds a stable target instead of waiting out the DOM-settle window. The settle wait bounds that early look, not the whole act: Stagehand then holds a pointer action on a covered or moving target for up to 1.5 seconds more. |
 | `tools` | `false` | Let `act()` invoke a WebMCP tool the page registered when the decision model is sure the tool is the request. |
 | `cacheCheck` | `false` | Ask the decision model whether a cached action's selector still points at a matching element before replaying it. |
 | `pageState` | `true` | Check for captchas, access-denied pages, and similar states when the decision model finds no target. |
