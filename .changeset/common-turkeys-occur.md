@@ -5,4 +5,4 @@
 "@browserbasehq/stagehand": minor
 ---
 
-Add text inclusion and exclusion filters to locators.
+Add `Locator.filter()` to match locators by included or excluded text.
