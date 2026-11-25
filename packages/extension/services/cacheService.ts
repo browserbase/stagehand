@@ -6,6 +6,7 @@ import type {
   StagehandExtractParams,
   StagehandInitParams,
   StagehandObserveParams,
+  Variables,
 } from "@browserbasehq/stagehand-protocol/types";
 import {
   CacheClient,
@@ -77,12 +78,33 @@ export function buildCacheContext(
  * omitted: it is not part of the cache key and its v4 shape does not parse
  * under the v3 schema.
  */
+function sanitizeCacheVariables(
+  variables: Variables | undefined,
+): Record<string, "" | { value: ""; description: string }> | undefined {
+  if (!variables) return undefined;
+  const sanitized: Record<string, "" | { value: ""; description: string }> = {};
+  for (const key of Object.keys(variables).sort()) {
+    const entry = variables[key];
+    if (
+      typeof entry === "object" &&
+      entry !== null &&
+      "value" in entry &&
+      entry.description !== undefined
+    ) {
+      sanitized[key] = { value: "", description: entry.description };
+    } else {
+      sanitized[key] = "";
+    }
+  }
+  return sanitized;
+}
+
 export function buildActCacheData(params: StagehandActParams): Record<string, unknown> {
   return {
     input: params.instruction,
     options: params.options
       ? {
-          variables: params.options.variables,
+          variables: sanitizeCacheVariables(params.options.variables),
           timeout: params.options.timeout,
         }
       : undefined,
@@ -94,7 +116,7 @@ export function buildObserveCacheData(params: StagehandObserveParams): Record<st
     instruction: params.instruction,
     options: params.options
       ? {
-          variables: params.options.variables,
+          variables: sanitizeCacheVariables(params.options.variables),
           timeout: params.options.timeout,
         }
       : undefined,
@@ -146,6 +168,16 @@ export function normalizeCachedActions(value: unknown): Action[] {
     });
   }
   return actions;
+}
+
+export class CacheReplayCommittedError<Result = unknown> extends Error {
+  readonly committedResult?: Result;
+
+  constructor(message: string, committedResult?: Result) {
+    super(message);
+    this.name = "CacheReplayCommittedError";
+    this.committedResult = committedResult;
+  }
 }
 
 export interface CacheExecuteOutcome<Result> {
@@ -278,6 +310,20 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
       return result;
     } catch (error) {
       progress?.throwIfStopped();
+      if (error instanceof CacheReplayCommittedError) {
+        logger.warn("Cached replay failed after committing an action; skipping fallback", {
+          category: "cache",
+          method,
+          cacheKey: getResponse.cacheKey ?? "",
+          error: error.message,
+        });
+        if (error.committedResult !== undefined) {
+          const committed = error.committedResult as Result;
+          committed.metadata.cache = missMetadata(getResponse, "replay_failed");
+          return committed;
+        }
+        throw error;
+      }
       logger.warn("Cached value could not be applied; falling back to execution", {
         category: "cache",
         method,

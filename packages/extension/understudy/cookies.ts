@@ -29,6 +29,37 @@ const CookieUrlsSchema = z.array(z.string()).superRefine((urls, context) => {
  * against a single default browser context.
  */
 
+function isIpHostname(hostname: string): boolean {
+  return hostname.startsWith("[") || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
+}
+
+function domainMatches(requestHost: string, cookieDomain: string): boolean {
+  const host = requestHost.toLowerCase();
+  const domain = cookieDomain.toLowerCase();
+  if (!host || !domain) return false;
+  if (!domain.startsWith(".")) return host === domain;
+  const bare = domain.slice(1);
+  if (!bare || bare.startsWith(".")) return false;
+  // RFC 6265 §5.1.3: domain-attribute cookies never subdomain-match IP literals.
+  if (isIpHostname(host)) return false;
+  return host === bare || host.endsWith(domain);
+}
+
+function pathMatches(requestPath: string, cookiePath: string): boolean {
+  if (!cookiePath.startsWith("/") || !requestPath.startsWith("/")) return false;
+  if (requestPath === cookiePath) return true;
+  if (!requestPath.startsWith(cookiePath)) return false;
+  return cookiePath.endsWith("/") || requestPath[cookiePath.length] === "/";
+}
+
+function secureMatches(url: URL, cookieSecure: boolean): boolean {
+  if (!cookieSecure) return true;
+  if (url.protocol === "https:" || url.protocol === "wss:") return true;
+  const isLoopback =
+    url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
+  return (url.protocol === "http:" || url.protocol === "ws:") && isLoopback;
+}
+
 /**
  * Filter cookies by URL matching (domain, path, secure).
  * If `urls` is empty every cookie passes.
@@ -38,23 +69,9 @@ export function filterCookies(cookies: Cookie[], urls: string[]): Cookie[] {
   const parsed = CookieUrlsSchema.parse(urls).map((url) => new URL(url));
   return cookies.filter((c) => {
     for (const url of parsed) {
-      // A leading dot permits subdomains; host-only cookies require an exact match.
-      if (
-        url.hostname !== c.domain &&
-        !(c.domain.startsWith(".") && ("." + url.hostname).endsWith(c.domain))
-      )
-        continue;
-      // Path must match on a "/" boundary: cookie path "/foo" should match
-      // "/foo" and "/foo/bar" but NOT "/foobar".
-      const p = url.pathname;
-      if (
-        !p.startsWith(c.path) ||
-        (c.path.length < p.length && !c.path.endsWith("/") && p[c.path.length] !== "/")
-      )
-        continue;
-      const isLoopback =
-        url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
-      if (url.protocol !== "https:" && !isLoopback && c.secure) continue;
+      if (!domainMatches(url.hostname, c.domain)) continue;
+      if (!pathMatches(url.pathname, c.path)) continue;
+      if (!secureMatches(url, c.secure)) continue;
       return true;
     }
     return false;
@@ -77,9 +94,11 @@ export function normalizeCookieParams(cookies: CookieParam[]): CookieParam[] {
       if (copy.url) {
         const url = new URL(copy.url);
         copy.domain = url.hostname;
-        copy.path = url.pathname.substring(0, url.pathname.lastIndexOf("/") + 1);
-        copy.secure = url.protocol === "https:";
+        copy.path = url.pathname.substring(0, url.pathname.lastIndexOf("/") + 1) || "/";
+        copy.secure = copy.secure ?? url.protocol === "https:";
         delete copy.url;
+      } else if (copy.domain) {
+        copy.domain = copy.domain.toLowerCase();
       }
       return copy;
     });

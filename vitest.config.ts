@@ -17,6 +17,7 @@ export default defineConfig({
       "packages/integrations/pi-sdk/tests/**/*.test.ts",
       "packages/integrations/deepagents-sdk/tests/**/*.test.ts",
       "packages/integrations/fx/tests/**/*.test.ts",
+      "packages/extension/services/**/*.test.ts",
       "packages/extension/tests/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
       "packages/shared/browser-api/tests/**/*.test.ts",

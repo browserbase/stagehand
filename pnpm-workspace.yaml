@@ -66,6 +66,7 @@ catalog:
   openai: ^6.48.0
   "@browserbasehq/sdk": ^2.16.0
   fflate: ^0.8.3
+  fast-check: 4.11.0
   mint: 4.2.788
   publint: ^0.3.8
   smol-toml: 1.9.0
