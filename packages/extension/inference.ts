@@ -131,7 +131,6 @@ export async function extract<T extends z.ZodObject>(params: {
   generate: GenerateLlm;
   userProvidedInstructions?: string;
   screenshot?: LLMImageContent;
-  /** Replaces the metadata LLM call; a throw falls back to it. */
   judgeCompleted?: (extracted: unknown) => Promise<boolean>;
 }): Promise<
   z.infer<T> & {
@@ -152,7 +151,6 @@ export async function extract<T extends z.ZodObject>(params: {
     promptText(buildExtractSystemPrompt(false, userProvidedInstructions, Boolean(screenshot))),
     buildExtractUserPrompt(instruction, domElements, false, screenshot),
   );
-  // Deferred so a synchronous throw in the judge falls back like a rejection.
   const judged = params.judgeCompleted
     ? await Promise.resolve()
         .then(() => params.judgeCompleted!(extraction.data))
@@ -268,11 +266,6 @@ const ActTextArgumentSchema = z
   })
   .strict();
 
-/**
- * Argument-only inference for the experimental decisions act path: no page content,
- * just the instruction, returning the literal text to type. The element is
- * chosen elsewhere.
- */
 export async function actTextArgument(params: {
   instruction: string;
   variableNames: string[];
@@ -285,7 +278,6 @@ export async function actTextArgument(params: {
   cached_input_tokens: number;
   inference_time_ms: number;
 }> {
-  // Variable names are caller data: they go in the data message, never the system prompt.
   const variables =
     params.variableNames.length > 0
       ? `\ndeclared variables: ${params.variableNames.map((name) => `%${name}%`).join(", ")}`
@@ -307,10 +299,6 @@ export async function actTextArgument(params: {
   };
 }
 
-/**
- * Argument-only inference for a WebMCP tool the decision model already chose: the prompt is
- * one tool, not the catalog, and the tool's own input schema shapes the answer.
- */
 export async function toolArguments(params: {
   instruction: string;
   tool: { name: string; description: string; inputSchema?: Record<string, unknown> };
@@ -350,7 +338,6 @@ export async function toolArguments(params: {
   let response: Awaited<ReturnType<GenerateLlm>>;
   const properties = Object.keys((params.tool.inputSchema?.properties as object | undefined) ?? {});
   const required = params.tool.inputSchema?.required;
-  // Optional properties are the common rejection; do not pay a failed call to find out.
   const strictFriendly =
     Array.isArray(required) && properties.every((name) => required.includes(name));
   try {

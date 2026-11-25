@@ -42,11 +42,9 @@ type Scripted = {
   toolP?: number;
   none?: number;
   namesControl?: number;
-  /** Per parameter: the wanted option (a span's text, an enum value, "unset") and its confidence. */
   args?: Record<string, [string, number]>;
 };
 
-/** Answers tool questions from a script; span and enum options are looked up by their text. */
 function stubDecisions(script: Scripted) {
   const requests: Array<Record<string, { criteria?: Record<string, string> }>> = [];
   vi.stubGlobal(
@@ -111,7 +109,6 @@ function stubDecisions(script: Scripted) {
 type Harness = {
   deps: DecisionsActDeps;
   invoked: Array<{ name: string; input: unknown }>;
-  /** `tool_skip` from the intent trace entry of the last run. */
   skipReason: () => string | undefined;
   webmcp: DecisionsToolDeps;
 };
@@ -147,8 +144,6 @@ function harness(
     }),
     ensureTimeRemaining: () => {},
     snapshotOptions: {},
-    // The scripted intent is "not an action", so a skipped tool ends the act
-    // before any page work.
     page: {} as DecisionsActDeps["page"],
     takeAction: async () => {
       throw new Error("no element action expected");

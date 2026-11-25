@@ -306,8 +306,6 @@ export const StagehandClientCreateConfigSchema = z
     browserCdpUrl: true,
     logLevel: true,
     browser: true,
-    // Experimental and deliberately not part of the cross-language create
-    // contract; see STAGEHAND_EXPERIMENTAL_DECISIONS in stagehand.ts.
     experimentalDecisions: true,
   })
   .extend({

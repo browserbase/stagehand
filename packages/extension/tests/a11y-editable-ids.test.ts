@@ -29,7 +29,6 @@ describe("a11yForFrame editable ids", () => {
     const nodes = [
       axNode("1", 1, "RootWebArea", "Editor", { childIds: ["2", "3", "4", "5"] }),
       axNode("2", 2, "textbox", "Title", { parentId: "1", properties: editable("plaintext") }),
-      // A contenteditable div: its role says nothing about being typeable.
       axNode("3", 3, "generic", "Body", { parentId: "1", properties: editable("richtext") }),
       axNode("4", 4, "button", "Save", { parentId: "1" }),
       axNode("5", 5, "textbox", "Hidden", { parentId: "1", properties: editable("plaintext") }),

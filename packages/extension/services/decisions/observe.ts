@@ -31,17 +31,9 @@ import {
 } from "./tree.js";
 import { choiceAnswer, noulAnswer, type DecisionModelConfig } from "./typesafeClient.js";
 
-/**
- * Experimental observe() on the decision model. observe() answers "which element(s), and how
- * would you act on them" — the same decisions act() makes, minus the action —
- * so it reuses the act tree: intent → candidates → pick. "Find all …"
- * instructions become one yes/no per candidate, asked in a single request.
- */
-
 export type DecisionsObserveDeps = {
   page: Pick<Page, "captureSnapshot">;
   logger: StagehandLogger;
-  /** Undefined means "everything a user could act on". */
   instruction?: string;
   variables?: Variables;
   snapshotOptions: Parameters<Page["captureSnapshot"]>[0];
@@ -69,7 +61,6 @@ export async function runDecisionsObserve(
 ): Promise<DecisionsObserveOutcome> {
   const trace: TraceEntry[] = [];
   const finish = (outcome: DecisionsObserveOutcome): DecisionsObserveOutcome => {
-    // A result assembled after the deadline is still a timeout.
     deps.ensureTimeRemaining();
     deps.logger.info("Decisions observe pipeline finished", {
       category: "decisions",
@@ -82,11 +73,8 @@ export async function runDecisionsObserve(
     return outcome;
   };
 
-  // The intent request only needs the instruction: it is asked while the
-  // snapshot is being captured.
   const snapshotting = snapshot(deps);
 
-  // No instruction: every interactive element, no model needed.
   if (!deps.instruction) {
     const snap = await snapshotting;
     const everything = uniqueById([
@@ -95,7 +83,6 @@ export async function runDecisionsObserve(
       ...buildView(snap.nodes, "select"),
     ]).sort((a, b) => a.index - b.index);
     trace.push({ node: "all_interactive", ms: 0, options: everything.length });
-    // Never a silently shortened "everything": past the cap the LLM decides what matters.
     if (everything.length > MAX_ALL_ELEMENTS)
       return finish({ kind: "fallback", reason: `too_many_elements:${everything.length}` });
     return finish({ kind: "done", actions: toActions(snap, everything, undefined, deps) });
@@ -108,7 +95,6 @@ export async function runDecisionsObserve(
     threshold: config.actConfidence ?? 0.7,
     logger: deps.logger,
     ensureTimeRemaining: deps.ensureTimeRemaining,
-    // A value an earlier act typed from %variables% is on the page by now.
     redact: redactor(deps.variables),
   };
 
@@ -194,11 +180,8 @@ export async function runDecisionsObserve(
     return finish({ kind: "done", actions: toActions(snap, [picked.target], family.choice, deps) });
   }
 
-  // "Find all …": an independent yes/no per candidate, fanned out in as few
-  // requests as fit. Lexical scoring only orders the list when it must be cut.
   const candidates = uniqueById(kinds.flatMap((kind) => buildView(snap.nodes, kind)));
   if (candidates.length === 0) return finish({ kind: "fallback", reason: "no_candidates" });
-  // "All" means all: every candidate gets its yes/no, or the decision model does not answer.
   if (candidates.length > RELEVANCE_MAX) {
     return finish({ kind: "fallback", reason: `too_many_candidates:${candidates.length}` });
   }
@@ -243,12 +226,10 @@ function viewsFor(family: string): ViewKind[] {
   if (family === "fill") return ["input", "broad"];
   if (family === "select") return ["select", "broad"];
   if (family in SCROLL_METHODS) return ["scroll"];
-  // Locating: readable text first; nameless inputs and controls only show up in their own views.
   if (family === LOCATE) return ["text", "input", "pointer"];
   return ["pointer", "broad"];
 }
 
-/** Method and arguments per element: from the intent when there is one, else from the element's role. */
 function toActions(
   snap: Snapshot,
   nodes: OutlineNode[],
@@ -269,8 +250,6 @@ function toActions(
       const percent = deps.instruction ? parsePercent(deps.instruction) : undefined;
       if (method === "scrollTo") args = [percent ?? "50%"];
     } else if (family && family in POINTER_METHODS) {
-      // An explicit "hover over / click the Country dropdown" is what it says,
-      // even on a native <select>; the role only decides when intent does not.
       method = POINTER_METHODS[family]!;
     } else if (options.length > 0) {
       method = "selectOptionFromDropdown";
@@ -283,7 +262,6 @@ function toActions(
       (!family && (node.editable || /\b(textbox|searchbox|spinbutton|textarea)\b/.test(role)))
     ) {
       method = "fill";
-      // Only a value that cannot be the field's own label; never a made-up one.
       const values = (
         deps.instruction ? fillValueCandidates(deps.instruction, deps.variables) : []
       ).filter((value) => value.trim().toLowerCase() !== node.name.trim().toLowerCase());

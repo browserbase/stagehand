@@ -206,7 +206,6 @@ describe("decisions act argument helpers", () => {
     expect(
       matchOption(options, "pick the northern one in 'Select a Country'", "Select a Country"),
     ).toBeUndefined();
-    // Unquoted mentions go to the decision model: short options occur in instructions as ordinary words.
     expect(
       matchOption(["In", "Out"], "choose Out in the direction dropdown", "Direction"),
     ).toBeUndefined();
@@ -229,9 +228,7 @@ describe("redactor", () => {
   it("replaces resolved variable values, including their JSON-escaped form, longest first", () => {
     const redact = redactor({ password: 'p"ss/w0rd', user: "alice@example.com", pin: "12" })!;
     expect(redact('typed alice@example.com then p"ss/w0rd')).toBe("typed %user% then %password%");
-    // Values already JSON-encoded inside a serialised request are caught too.
     expect(redact(JSON.stringify({ text: 'p"ss/w0rd' }))).toBe('{"text":"%password%"}');
-    // Keys of the request stay intact; only values move.
     expect(redact('{"instructions":"alice@example.com"}')).toBe('{"instructions":"%user%"}');
   });
 
@@ -247,7 +244,6 @@ describe("argument parsing edge cases", () => {
     expect(parsePercent("scroll to 0.75")).toBe("75%");
     expect(parsePercent("scroll down 75%")).toBe("75%");
     expect(parsePercent("click item 1.5 in the list")).toBeUndefined();
-    // Counts and ordinals are not fractions.
     expect(parsePercent("scroll down 1 screen")).toBeUndefined();
     expect(parsePercent("scroll to the 1st result")).toBeUndefined();
     expect(parsePercent("scroll to .5")).toBe("50%");
@@ -293,8 +289,6 @@ describe("typesafe client errors", () => {
     );
     const config = { apiKey: `k-${Math.random()}` };
     for (let i = 0; i < 4; i++) await systemOne(config, {}, {}).catch(() => undefined);
-    // Failures were 500, 400 (reset), 500, 500: two consecutive outage failures,
-    // not three, so the breaker is still closed and the next call is attempted.
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ answers: {} }), { status: 200 })),
@@ -356,14 +350,12 @@ describe("typesafe client breaker recovery", () => {
     for (let i = 0; i < 3; i++) await systemOne(config, {}, {}).catch(() => undefined);
     await expect(systemOne(config, {}, {})).rejects.toThrow(/paused/);
 
-    // 30 s later the breaker lets a request through again.
     now += 30_001;
     const ok = vi.fn(async () => new Response(JSON.stringify({ answers: {} }), { status: 200 }));
     vi.stubGlobal("fetch", ok);
     await expect(systemOne(config, {}, {})).resolves.toMatchObject({ answers: {} });
     expect(ok).toHaveBeenCalledTimes(1);
 
-    // The success reset the counter: two failures do not re-open it.
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response("{}", { status: 500 })),
@@ -382,7 +374,6 @@ describe("redactDeep", () => {
       questions: { best: { type: "choice", criteria: { "0-1": { name: 'Secr3t"' } } } },
     };
     const out = redactDeep(request, redact);
-    // Keys survive; every value is redacted; JSON stays valid.
     expect(Object.keys(out)).toEqual(["state", "questions"]);
     expect(out.state).toEqual({ instruction: "type %pw% into %n%", name: "%s%" });
     expect(out.questions.best.criteria["0-1"]).toEqual({ name: "%pw%" });
