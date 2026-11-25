@@ -19,17 +19,6 @@ import {
   type JsonValue,
 } from "./typesafeClient.js";
 
-/**
- * Experimental extract() on the decision model: pick-and-copy. The decision model cannot write text, but an
- * extraction rarely needs writing: the values are on the page. For every
- * field of the schema the decision model picks the element that holds the value and code
- * copies that element's text (or link URL), parsing numbers. Lists are
- * induced from one exemplar item: the decision model picks each field in the FIRST item, code
- * finds the repeating container and reads the same relative position in every
- * sibling. Booleans and enums, which are judgments rather than copies, are
- * asked directly. Anything the schema or the page does not fit goes to the LLM.
- */
-
 export type JsonSchema = {
   type?: string | string[];
   properties?: Record<string, JsonSchema>;
@@ -49,7 +38,6 @@ export type DecisionsExtractDeps = {
   snap: Snapshot;
   urlMap: Record<string, string>;
   ensureTimeRemaining: () => void;
-  /** Gate the result with the completion yes/no. False returns whatever was copied. */
   gate: boolean;
 };
 
@@ -107,14 +95,10 @@ export async function runDecisionsExtract(
   const base = {
     config,
     trace,
-    // Lower than act()'s 0.7: a wrong copy is caught by the schema, the list
-    // structure and the completion gate, and nothing on the page is touched.
     threshold: EXTRACT_CONFIDENCE,
     logger: deps.logger,
     ensureTimeRemaining: deps.ensureTimeRemaining,
   };
-  // Each field is its own question; the field's name and description steer
-  // both the lexical pruning and the decision model.
   const forField = (leaf: Leaf, note = ""): AskContext => ({
     ...base,
     instruction: `${deps.instruction}\nField to find: ${leaf.path.join(".")}${leaf.description ? ` (${leaf.description})` : ""}${note}`,
@@ -123,7 +107,6 @@ export async function runDecisionsExtract(
   const data: Record<string, JsonValue> = {};
   const missing: string[] = [];
 
-  // Scalars and list exemplars are independent: ask them all at once.
   const [scalars, lists] = await Promise.all([
     Promise.all(plan.leaves.map((leaf) => readLeaf(forField(leaf), deps, leaf))),
     Promise.all(plan.lists.map((list) => readList(list, deps, forField, trace))),
@@ -151,8 +134,6 @@ export async function runDecisionsExtract(
 
   let completed = true;
   if (deps.gate) {
-    // A large list would overflow the judge; it sees the shape and the first
-    // items instead of the pick path throwing away a finished extraction.
     const verdict = await extractionCompleted(
       { ...base, instruction: deps.instruction },
       compactForJudge(data),
@@ -196,8 +177,6 @@ async function pickValueNode(
   );
   if (picked.target) return picked.target;
 
-  // Pages repeat a value (a star count in the header and in the sidebar). A
-  // vote split between copies of the same text is not doubt about the value.
   const [first, second] = picked.ranked;
   const node = (id: string | undefined) => deps.snap.nodes.find((candidate) => candidate.id === id);
   const a = node(first?.id);
@@ -215,11 +194,6 @@ async function pickValueNode(
   return undefined;
 }
 
-/**
- * Only candidates that can yield a value of the field's type (a number field
- * cannot be copied from the label "Stars"), and one node per distinct value:
- * copies of the same text would only split the decision model's vote over an identical result.
- */
 function usableCandidates(
   deps: DecisionsExtractDeps,
   leaf: Leaf,
@@ -228,7 +202,6 @@ function usableCandidates(
   const seen = new Set<string>();
   const keep = new Set<string>();
   for (const node of candidates) {
-    // A column header names a value; it is never the value.
     if (/columnheader/i.test(node.role)) continue;
     const value = valueOf(deps, leaf, node);
     if (value === undefined) continue;
@@ -240,7 +213,6 @@ function usableCandidates(
   return keep;
 }
 
-/** Equal, or numbers within 2% ("250.5k" in the sidebar, "251k" in the header). */
 function sameValue(a: JsonValue | undefined, b: JsonValue | undefined): boolean {
   if (a === undefined || b === undefined) return false;
   if (typeof a === "number" && typeof b === "number") {
@@ -249,7 +221,6 @@ function sameValue(a: JsonValue | undefined, b: JsonValue | undefined): boolean 
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** Booleans and enums are judgments about the page, not text to copy. */
 async function judgeLeaf(
   ctx: AskContext,
   deps: DecisionsExtractDeps,
@@ -284,13 +255,6 @@ async function judgeLeaf(
   return options[Number(answer.choice.slice("option_".length))];
 }
 
-/**
- * Lists, item-first. Code finds the groups of repeated siblings on the page
- * (rows, cards, list items, and flat heading/text/paragraph runs), the decision model says
- * which group is the list, then picks each field inside the FIRST item only:
- * a handful of candidates that are guaranteed to belong together. The same
- * relative positions are then read from every other item.
- */
 async function readList(
   list: ListPlan,
   deps: DecisionsExtractDeps,
@@ -311,8 +275,6 @@ async function readList(
   const group = await pickGroup(listCtx, deps, label, list);
   if (!group) return undefined;
 
-  // Field picks inside one item. If the first item lacks a required field
-  // (a sponsored card, a header), the second item gets a try.
   let routes: Array<Step[] | undefined> | undefined;
   let exemplarValues: Array<JsonValue | undefined> = [];
   for (const exemplar of group.items.slice(0, 2)) {
@@ -322,8 +284,6 @@ async function readList(
         pickInItem(forField(field), deps, field, inside, `${label}[].${field.path.join(".")}`),
       ),
     );
-    // Two fields landing on the same element means at least one pick is wrong
-    // ("area" and "area code" both on the Area cell): not an exemplar to trust.
     const ids = picks
       .filter((node): node is OutlineNode => node !== undefined)
       .map((node) => node.id);
@@ -336,9 +296,6 @@ async function readList(
       exemplarValues = picks.map((node, index) =>
         node ? valueOf(deps, list.fields[index]!, node) : undefined,
       );
-      // A list of plain values whose items each say one thing: read the item
-      // itself, so items wrapped slightly differently (a link here, bare text
-      // there) still resolve.
       if (
         list.primitive &&
         list.fields[0]!.kind !== "url" &&
@@ -356,15 +313,9 @@ async function readList(
 
   const items: JsonValue[] = [];
   const kept: Array<{ text: string; section: string }> = [];
-  // The nearest preceding item that did not resolve is usually a section
-  // header ("Economy", "Daily Driver") and says which section an item is in.
-  // A list introduced by a heading ("Economy") is in that section from its
-  // first item on, before any header shows up between items.
   let section = clip(precedingHeading(nodes, group.items[0]?.[0]) ?? "", 80);
   let previousEnd = -1;
   for (const item of group.items.slice(0, MAX_ITEMS)) {
-    // Text sitting BETWEEN two items (a "Premium" band that is not itself an
-    // item of the group) is a section header too.
     const start = item[0]!.index;
     if (previousEnd >= 0) {
       const between = nodes
@@ -379,23 +330,7 @@ async function readList(
     let complete = true;
     list.fields.forEach((field, index) => {
       const route = routes![index];
-      // The exemplar's position first; in an item shaped a little differently
-      // (an extra badge cell, a missing photo) the same-role neighbours are
-      // tried too. Whatever is read must look like the exemplar's value, so a
-      // category header between rows contributes nothing.
-      // The exemplar's exact position is trusted as is. Only when an item has
-      // no such position (an extra badge, a missing photo, a section header)
-      // are same-role neighbours read, and then the value must look like the
-      // exemplar's, so a header between rows contributes nothing.
-      // An inserted or removed same-role element before the field shifts the
-      // ordinal: an exact position whose value does not resemble the exemplar's
-      // (a badge cell where a name should be) is a shifted route, and the
-      // same-role neighbours are read instead.
       const found = route ? follow(nodes, item, route) : undefined;
-      // The exact position is trusted on a lenient check for strings (length
-      // only: "AirPods Max" next to an exemplar "Sony WH-1000XM5" is the same
-      // kind of value, digits or not). A neighbour substituted for a shifted
-      // route must match strictly, so a header's text between rows never does.
       const lenient = field.kind === "string" || field.kind === "enum";
       const exactValue = found?.exact ? valueOf(deps, field, found.exact) : undefined;
       const value =
@@ -419,8 +354,6 @@ async function readList(
     kept.push({ text: clip(itemText(nodes, item), 200), section });
   }
 
-  // The group is structural; the instruction may want only some of it ("in the
-  // 'economy' category"). One yes/no per item, all in one request.
   const wanted = await itemsAskedFor(
     forField({ path: list.path, kind: "string", description: "", required: true }),
     label,
@@ -446,7 +379,6 @@ async function readList(
 }
 
 const ITEM_BATCH = 60;
-/** With section headers present, an item the decision model doubts belongs to the asked-for section is left out. */
 const ITEM_NOT_WANTED = 0.5;
 
 async function itemsAskedFor(
@@ -454,8 +386,6 @@ async function itemsAskedFor(
   label: string,
   items: Array<{ text: string; section: string }>,
 ): Promise<boolean[]> {
-  // Without sections there is nothing structural to filter on, and a list of
-  // plain siblings is what the group choice already answered.
   if (!items.some((item) => item.section)) return items.map(() => true);
   const verdicts: boolean[] = [];
   for (let at = 0; at < items.length; at += ITEM_BATCH) {
@@ -489,7 +419,6 @@ function fieldSummary(list: ListPlan): string {
   return `a list; each item has: ${list.fields.map((field) => field.path.join(".") + (field.description ? ` (${field.description})` : "")).join(", ")}`;
 }
 
-/** An item is one or more adjacent top-level nodes (several for flat runs). */
 type Item = OutlineNode[];
 type Group = { kind: "siblings" | "flat"; role: string; parent: OutlineNode; items: Item[] };
 
@@ -554,8 +483,6 @@ async function pickGroup(
   );
   const best = choiceAnswer(response, "best");
   const none = round(choiceAnswer(response, "strict").probabilities[NONE] ?? 0);
-  // Nested groups (a table's rows, its row groups) split the vote between
-  // near-equivalent answers: a clear leader is enough.
   const [leader = 0, second = 0] = Object.values(best.probabilities).sort((a, b) => b - a);
   const accepted =
     (best.confidence >= ctx.threshold && none <= 0.9) ||
@@ -570,7 +497,6 @@ async function pickGroup(
   return accepted ? groups[Number(best.choice.slice("group_".length))] : undefined;
 }
 
-/** Same-role siblings, and flat runs where an anchor role (a heading) starts each item. */
 export function findGroups(nodes: OutlineNode[]): Group[] {
   const groups: Group[] = [];
   for (const parent of nodes) {
@@ -592,7 +518,6 @@ export function findGroups(nodes: OutlineNode[]): Group[] {
         groups.push({ kind: "siblings", role, parent, items: withText.map((member) => [member]) });
       }
 
-      // Flat run: h3, date, p, h3, date, p … — each anchor plus what follows it.
       if (members.length >= 3 && children.length >= members.length * 2 && !rich) {
         const items: Item[] = members.map((anchor, index) => {
           const from = children.indexOf(anchor);
@@ -606,7 +531,6 @@ export function findGroups(nodes: OutlineNode[]): Group[] {
         )[0]!;
         const regular = sizes.filter((size) => size === mode).length / sizes.length;
         if (mode >= 2 && regular >= 0.6) {
-          // The trailing item often swallows the footer: cut it to the usual size.
           groups.push({
             kind: "flat",
             role,
@@ -638,8 +562,6 @@ async function pickInItem(
   );
   const usable = usableCandidates(deps, leaf, inItem);
   const candidates = inItem.filter((node) => usable.has(node.id));
-  // Even a lone candidate is confirmed (one yes/no): the first "item" of a
-  // group is often a category header whose only text is not the field at all.
   if (candidates.length === 0) return undefined;
   const pick = await pickCandidate(
     ctx,
@@ -652,8 +574,6 @@ async function pickInItem(
     false,
   );
   if (pick.picked && pick.accepted) return pick.picked;
-  // Inside a single item a clear leader is enough: the alternatives are the
-  // item's other fields, not other items.
   const [first, second] = pick.ranked;
   if (first && first.p >= 0.5 && first.p >= 2 * (second?.p ?? 0) && pick.none <= 0.5) {
     return deps.snap.nodes.find((node) => node.id === first.id);
@@ -663,7 +583,6 @@ async function pickInItem(
 
 type Step = { role: string; nth: number };
 
-/** Path from an item's top-level nodes down to `target`, as (role, ordinal among same-role siblings). */
 function routeTo(nodes: OutlineNode[], item: Item, target: OutlineNode): Step[] | undefined {
   const tops = new Set(item.map((node) => node.index));
   const steps: Step[] = [];
@@ -681,7 +600,6 @@ function routeTo(nodes: OutlineNode[], item: Item, target: OutlineNode): Step[] 
   }
 }
 
-/** The nearest heading above a node, in document order. */
 function precedingHeading(
   nodes: OutlineNode[],
   first: OutlineNode | undefined,
@@ -694,7 +612,6 @@ function precedingHeading(
   return undefined;
 }
 
-/** The node at the exemplar's exact position, or (when the item has none) the same-role nodes nearest to it. */
 function follow(
   nodes: OutlineNode[],
   item: Item,
@@ -719,7 +636,6 @@ function follow(
   return exact && at ? { exact: at, neighbours } : { neighbours };
 }
 
-/** Coarse "same kind of value": both carry digits or neither does, and a comparable length. */
 function looksAlike(
   value: JsonValue | undefined,
   exemplar: JsonValue | undefined,
@@ -763,7 +679,6 @@ function valueOf(deps: DecisionsExtractDeps, leaf: Leaf, node: OutlineNode): Jso
   if (leaf.kind === "url") {
     const direct = deps.urlMap[node.id];
     if (direct) return direct;
-    // The picked text may sit inside the link.
     for (let at = node.parent; at !== undefined; at = deps.snap.nodes[at]!.parent) {
       const url = deps.urlMap[deps.snap.nodes[at]!.id];
       if (url) return url;
@@ -775,17 +690,10 @@ function valueOf(deps: DecisionsExtractDeps, leaf: Leaf, node: OutlineNode): Jso
   if (leaf.kind === "string") return text;
   const number = parseNumberText(text);
   if (number === undefined) return undefined;
-  // An integer field whose text is fractional is the wrong element, not a
-  // value to round into the schema.
   if (leaf.kind === "integer") return Number.isInteger(number) ? number : undefined;
   return number;
 }
 
-/**
- * "1,249.50" → 1249.5, "1.2k stars" → 1200, "3M views" → 3e6, "2 km" → 2.
- * Whitespace is collapsed, not removed: a unit word after the suffix must not
- * swallow the suffix, and a space between number and letter is not a suffix.
- */
 export function parseNumberText(text: string): number | undefined {
   const match = /(-?\d[\d,]*(?:\.\d+)?)([kKmMbB])?(?![\w])/.exec(text.replace(/\s+/g, " "));
   if (!match) return undefined;
@@ -794,7 +702,6 @@ export function parseNumberText(text: string): number | undefined {
   return Number.isFinite(number) ? number : undefined;
 }
 
-/** "Price: $20" picked for the field `price` → "$20". */
 function stripLabel(text: string, leaf: Leaf): string {
   const match = /^([^:]{1,40}):\s+(.+)$/s.exec(text.trim());
   if (!match) return text.trim();
@@ -819,7 +726,6 @@ function setPath(target: Record<string, JsonValue>, path: string[], value: JsonV
   at[path[path.length - 1]!] = value;
 }
 
-/** Flattens the JSON schema into copyable leaves and lists; throws Unsupported otherwise. */
 export function planSchema(schema: JsonSchema): Plan {
   const plan: Plan = { leaves: [], lists: [] };
   const walk = (
@@ -892,7 +798,6 @@ function unwrapNullable(node: JsonSchema): JsonSchema {
   return real[0]!;
 }
 
-/** Lists longer than a few items are shown to the completion judge as count + first items. */
 export function compactForJudge(value: JsonValue, limit = 6000): JsonValue {
   if ((JSON.stringify(value) ?? "").length <= limit) return value;
   const compact = (item: JsonValue): JsonValue => {

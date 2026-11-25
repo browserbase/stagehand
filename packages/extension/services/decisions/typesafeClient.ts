@@ -1,9 +1,3 @@
-/**
- * Minimal client for TypeSafe's System One endpoint (`POST /v1/systemone`).
- * Raw fetch rather than @typesafe-ai/sdk: the SDK targets Node 20+ and this
- * code runs inside the extension service worker.
- */
-
 export type JsonValue =
   | string
   | number
@@ -48,10 +42,6 @@ const BREAKER_MS = 60_000;
 const FAILURES_TO_OPEN = 3;
 const OUTAGE_BREAKER_MS = 30_000;
 
-// A bad key, exhausted quota, or a TypeSafe outage fails every act the same
-// way; skip the decision model for a while instead of paying a doomed (up to 8 s) round trip
-// before each LLM fallback. Keyed by endpoint + key so one tenant's bad key
-// does not pause another's in a shared worker.
 const breakers = new Map<string, { openUntil: number; failures: number }>();
 
 function breakerFor(config: DecisionModelConfig) {
@@ -113,9 +103,6 @@ export async function systemOne(
     }
 
     if (response.ok) {
-      // A 2xx with a body that is not the documented shape (an intermediary's
-      // HTML, a truncated response) must surface as a typed error, not as an
-      // undefined `answers` that the answer helpers trip over later.
       const payload = (await response.json().catch(() => undefined)) as
         | {
             model?: string;
@@ -158,11 +145,8 @@ export async function systemOne(
     } else if (response.status >= 500 || RETRY_STATUSES.has(response.status)) {
       failed();
     } else {
-      // A terminal client error (bad request) is not an outage: it must not
-      // let earlier counted failures open the outage breaker later.
       breaker.failures = 0;
     }
-    // Only the vendor's error code reaches logs, never the raw body.
     const detail = (await response.text().catch(() => "")).match(
       /"error_type"\s*:\s*"([\w-]{1,64})"/,
     );

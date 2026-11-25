@@ -37,9 +37,6 @@ import { focusOutline, parseOutline } from "./decisions/tree.js";
 import * as llmService from "./llmService.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
-// Set high on purpose: on ordinary pages the shortlist cost accuracy (the LLM
-// lost the context that disambiguates), so it is reserved for huge trees where
-// the full-page call is slow and expensive.
 const FOCUS_MIN_TREE_CHARS = 120_000;
 
 type ActInferenceResponse = Awaited<ReturnType<typeof inference.act>>;
@@ -140,10 +137,8 @@ async function actWithProgress(
   progress.throwIfStopped();
   let actPath: "llm" | "decisions" | "decisions+arg-llm" | "decisions+llm" = "llm";
   let usedArgumentLlm = false;
-  // The decision model's shortlist when it narrowed the choice but could not commit.
   let decisionsFocusIds: string[] = [];
   let decisionsNoCache = false;
-  // Actions the decision model already performed before abstaining (e.g. expanding a dropdown).
   let decisionsPriorActions: ActResultData["actions"] = [];
 
   return await cacheService.withCache<ActResult>({
@@ -157,17 +152,11 @@ async function actWithProgress(
     progress,
     onHit: (value) => replayCachedActions(value, instruction, variables, context),
     execute: async () => {
-      // performance.now(): tests script Date.now() for inference timing.
       const startedAt = performance.now();
       const result = await runActPipeline();
-      // Whatever the decision model already did changed the page, whether or not the act
-      // then succeeded: it belongs in the result either way.
       if (decisionsPriorActions.length > 0) {
         result.data.actions = [...decisionsPriorActions, ...result.data.actions];
       }
-      // Experiment instrumentation: one line per act so baseline and decision-model arms
-      // can be compared on latency and LLM usage from the run log alone. Only
-      // with the experimental flag present: the instruction is user content.
       if (decisions)
         logger.info("Act pipeline finished", {
           category: "decisions-eval",
@@ -213,13 +202,10 @@ async function actWithProgress(
             generate: (input) =>
               llmService.generate(context.model, input, context.clientLLMGenerate, context.gateway),
           });
-          // Only the usage fields are read; the act-shaped extras stay empty.
           recordUsage({ ...response, element: null, twoStep: false });
           usedArgumentLlm = true;
           return response.text;
         },
-        // Self-heal re-enters LLM inference; a failed decision-model action falls back to
-        // the full LLM pipeline below instead.
         takeAction: (action) =>
           takeDeterministicAction({ action, variables, context: { ...context, selfHeal: false } }),
       }).catch((error: unknown) => {
@@ -250,7 +236,6 @@ async function actWithProgress(
         return actResult(
           {
             success: false,
-            // Reasons can carry error text; redact typed values and keep it short.
             message: `Failed to perform act: the decision model abstained (${(redactor(variables) ?? ((text: string) => text))(outcome.reason).slice(0, 160)})`,
             actionDescription: instruction,
             actions: [],
@@ -271,9 +256,6 @@ async function actWithProgress(
       variables,
     );
 
-    // The decision model shortlisted a handful of elements on a big page: show the LLM those
-    // (with ancestors and subtrees) first, and only pay for the whole tree if
-    // it finds nothing there.
     let firstInference: Awaited<ReturnType<typeof getActionFromLLM>> | undefined;
     if (decisionsFocusIds.length > 0 && combinedTree.length > FOCUS_MIN_TREE_CHARS) {
       const focused = focusOutline(parseOutline(combinedTree), decisionsFocusIds);
@@ -393,11 +375,6 @@ async function replayCachedActions(
     throw new Error("Cached act value contained no usable actions");
   }
 
-  // Replay is blind: a selector that still resolves but now points at another
-  // control gets acted on with no model in the loop. With `cacheCheck`, one decision-model
-  // yes/no runs before each action, against the page as it is right then
-  // (earlier actions of the same entry may have changed it); a stale verdict
-  // throws, which sends the act through full inference.
   const checking = context.decisions?.cacheCheck === true && context.decisions.enabled !== false;
   const results: ActResultData[] = [];
   for (const action of actions) {
@@ -411,7 +388,6 @@ async function replayCachedActions(
       );
       if (verdict?.verdict === "stale") {
         throw new Error(
-          // The element's name can echo a value an earlier act typed; redact it like every request.
           `Cached action no longer matches the page: selector now resolves to "${(redactor(variables) ?? ((text: string) => text))(verdict.found ?? "")}" (match ${verdict.score})`,
         );
       }

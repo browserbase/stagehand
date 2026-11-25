@@ -131,7 +131,6 @@ export async function extract<T extends z.ZodObject>(params: {
   generate: GenerateLlm;
   userProvidedInstructions?: string;
   screenshot?: LLMImageContent;
-  /** Replaces the metadata LLM call; a throw falls back to it. */
   judgeCompleted?: (extracted: unknown) => Promise<boolean>;
 }): Promise<
   z.infer<T> & {
@@ -152,7 +151,6 @@ export async function extract<T extends z.ZodObject>(params: {
     promptText(buildExtractSystemPrompt(false, userProvidedInstructions, Boolean(screenshot))),
     buildExtractUserPrompt(instruction, domElements, false, screenshot),
   );
-  // Deferred so a synchronous throw in the judge falls back like a rejection.
   const judged = params.judgeCompleted
     ? await Promise.resolve()
         .then(() => params.judgeCompleted!(extraction.data))
@@ -268,11 +266,6 @@ const ActTextArgumentSchema = z
   })
   .strict();
 
-/**
- * Argument-only inference for the experimental decisions act path: no page content,
- * just the instruction, returning the literal text to type. The element is
- * chosen elsewhere.
- */
 export async function actTextArgument(params: {
   instruction: string;
   variableNames: string[];
@@ -285,7 +278,6 @@ export async function actTextArgument(params: {
   cached_input_tokens: number;
   inference_time_ms: number;
 }> {
-  // Variable names are caller data: they go in the data message, never the system prompt.
   const variables =
     params.variableNames.length > 0
       ? `\ndeclared variables: ${params.variableNames.map((name) => `%${name}%`).join(", ")}`
