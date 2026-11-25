@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Frame } from "../frame.js";
 import type { Page } from "../page.js";
 import { Progress } from "../progress.js";
+import type { ContentNodeJson } from "./common_quality_data_pb.js";
 import { control, controls, text } from "./fixtures/controls.js";
 import { prepareAnnotatedPageContentQuery } from "./query.js";
 import {
@@ -126,6 +127,90 @@ describe("APC locator candidates", () => {
       expect(result.candidates[0]?.description).toContain("redacted");
       expect(result.limitations).toEqual(["hidden-file-inputs"]);
       expect(send).not.toHaveBeenCalled();
+    } finally {
+      progress.dispose();
+    }
+  });
+
+  it("describes plain anchors as links with their path and numbers identical descriptions", () => {
+    const frame = { frameId: "main" } as Frame;
+    const link = (url: string): ContentNodeJson => ({
+      contentAttributes: {
+        attributeType: "CONTENT_ATTRIBUTE_ANCHOR",
+        interactionInfo: { clickabilityReasons: ["CLICKABILITY_REASON_CLICKABLE_CONTROL"] },
+        anchorData: { url },
+      },
+      childrenNodes: [text("Details")],
+    });
+    const first = link("https://shop.test/orders/1?ref=a");
+    const second = link("https://shop.test/orders/2");
+    const box = (name: string) => control("FORM_CONTROL_TYPE_INPUT_CHECKBOX", name);
+    const boxes = [box("opt"), box("opt")];
+    const nodes = [first, second, ...boxes];
+    const query = prepareAnnotatedPageContentQuery(
+      { rootNode: { childrenNodes: nodes } },
+      ["click"],
+      undefined,
+      new Map(
+        nodes.map((node, index) => [node, { id: `0-${index}`, frame, backendNodeId: index }]),
+      ),
+    );
+    const descriptions = prepareAnnotatedPageContentCandidates(query).candidates.map(
+      (candidate) => candidate.description,
+    );
+    expect(descriptions.slice(0, 2)).toEqual([
+      'link: "Details" [href="/orders/1"]',
+      'link: "Details" [href="/orders/2"]',
+    ]);
+    expect(descriptions[2]).toBe(descriptions[3]);
+  });
+
+  it("names unlabeled action candidates from the accessibility tree and numbers twins", async () => {
+    const send = vi.fn(async (method: string, params: { backendNodeId?: number }) => {
+      if (method === "Accessibility.getPartialAXTree") {
+        const name = params.backendNodeId === 1 ? "Subscribe to news" : "";
+        return {
+          nodes: [
+            {
+              backendDOMNodeId: params.backendNodeId,
+              role: { value: "checkbox" },
+              name: { value: name },
+            },
+          ],
+        };
+      }
+      if (method === "DOM.resolveNode") return { object: { objectId: "box" } };
+      if (method === "Runtime.callFunctionOn") return { result: { value: "" } };
+      return {};
+    });
+    const frame = { frameId: "main", session: { send } } as unknown as Frame;
+    const boxes = [1, 2, 3].map(() => control("FORM_CONTROL_TYPE_INPUT_CHECKBOX", "opt"));
+    const query = prepareAnnotatedPageContentQuery(
+      { rootNode: { childrenNodes: boxes } },
+      ["click"],
+      undefined,
+      new Map(
+        boxes.map((node, index) => [
+          node,
+          { id: `0-${index + 1}`, frame, backendNodeId: index + 1 },
+        ]),
+      ),
+    );
+    const page = { queryAnnotatedPageContent: async () => query } as unknown as Page;
+    const progress = new Progress("locate", 1000);
+    try {
+      const result = await queryAnnotatedPageContentCandidates(
+        page,
+        { operation: "click" },
+        progress,
+      );
+      expect(result.candidates.map((candidate) => candidate.description)).toEqual([
+        'input_checkbox: "Subscribe to news"',
+        'input_checkbox [name="opt"] [1 of 2]',
+        'input_checkbox [name="opt"] [2 of 2]',
+      ]);
+      expect(result.content).toContain('[0-1] input_checkbox: "Subscribe to news"');
+      expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "box" });
     } finally {
       progress.dispose();
     }
