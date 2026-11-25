@@ -18,6 +18,10 @@ import type { ApcScope } from "./annotatedPageContent/scopes.js";
 import { resolveLocatorChain, type ChainTarget } from "./locatorChain.js";
 import type { Page } from "./page.js";
 import type { Progress } from "./progress.js";
+import { waitForDomNetworkQuiet } from "../handlers/handlerUtils/actHandlerUtils.js";
+
+/** Upper bound for the settle wait before the one re-capture after a miss. */
+const RECAPTURE_SETTLE_TIMEOUT_MS = 1000;
 
 export type ChoosePromptTarget = (
   params: DecisionChooseParams,
@@ -77,6 +81,27 @@ export async function resolvePromptLocator(
     }
   }
 
+  const prompt = terminal.selector.value;
+  const target = await captureAndChoose(page, prompt, action, operation, scopes, choose, progress);
+  if (target) return target;
+  // Content can render after the first capture (late iframes, client-side forms). A miss
+  // costs one settle wait and one more capture; a hit costs nothing extra.
+  await progress.run("waiting for the page to settle before re-capture", () =>
+    waitForDomNetworkQuiet(page.mainFrame(), page.logger, RECAPTURE_SETTLE_TIMEOUT_MS, progress),
+  );
+  progress.throwIfStopped();
+  return captureAndChoose(page, prompt, action, operation, scopes, choose, progress);
+}
+
+async function captureAndChoose(
+  page: Page,
+  prompt: string,
+  action: NonNullable<ReturnType<typeof actionForLocatorOperation>>,
+  operation: ApcLocatorOperation,
+  scopes: ApcScope[] | undefined,
+  choose: ChoosePromptTarget,
+  progress: Progress,
+): Promise<ChainTarget | null> {
   const capture = await progress.run("preparing prompt locator candidates", () =>
     page.queryAnnotatedPageContentCandidates(
       { operation, ...(scopes ? { scopes } : {}) },
@@ -85,7 +110,7 @@ export async function resolvePromptLocator(
   );
   if (!capture.candidates.length) return null;
   const params: DecisionChooseParams = {
-    prompt: terminal.selector.value,
+    prompt,
     action,
     candidates: capture.candidates.map(({ id, description }) => ({ id, description })),
   };

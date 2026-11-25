@@ -19,6 +19,7 @@ import { Page } from "./page.js";
 import type { Frame } from "./frame.js";
 import { Progress } from "./progress.js";
 import * as locatorChain from "./locatorChain.js";
+import * as actHandlerUtils from "../handlers/handlerUtils/actHandlerUtils.js";
 import { resolvePromptLocator } from "./promptLocator.js";
 import type { ApcCandidateOptions, ApcCandidateResult } from "./annotatedPageContent/candidates.js";
 import { control } from "./annotatedPageContent/fixtures/controls.js";
@@ -56,15 +57,17 @@ function harness() {
   const page = Object.assign(Object.create(Page.prototype) as Page, {
     mainFrame: () => frame,
     targetId: () => "page-1",
+    logger: {},
     queryAnnotatedPageContentCandidates: query,
   });
+  const settle = vi.spyOn(actHandlerUtils, "waitForDomNetworkQuiet").mockResolvedValue();
   const choose = vi.fn(
     async (_params: DecisionChooseParams, _progress: Progress): Promise<DecisionChooseResult> => ({
       status: "selected",
       id: target.id,
     }),
   );
-  return { page, frame, send, target, capture, query, choose };
+  return { page, frame, send, target, capture, query, choose, settle };
 }
 
 function runtimeFor(
@@ -165,11 +168,39 @@ describe("prompt locator resolution", () => {
       resolvePromptLocator(h.page, chain, "click", h.choose, budget()),
     ).resolves.toBeNull();
     expect(h.choose).not.toHaveBeenCalled();
+    expect(h.query).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-captures once after the page settles when the first capture misses", async () => {
+    const h = harness();
+    const progress = budget();
+    h.query.mockResolvedValueOnce({ ...h.capture, candidates: [] });
+    await expect(resolvePromptLocator(h.page, chain, "click", h.choose, progress)).resolves.toEqual(
+      { frame: h.target.frame, backendNodeId: 42 },
+    );
+    expect(h.settle).toHaveBeenCalledExactlyOnceWith(h.frame, h.page.logger, 1000, progress);
+    expect(h.query).toHaveBeenCalledTimes(2);
+    expect(h.choose).toHaveBeenCalledOnce();
+
+    h.choose.mockResolvedValueOnce({ status: "no_match" });
+    await expect(resolvePromptLocator(h.page, chain, "click", h.choose, budget())).resolves.toEqual(
+      { frame: h.target.frame, backendNodeId: 42 },
+    );
+    expect(h.choose).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not wait or re-capture when the first capture selects a target", async () => {
+    const h = harness();
+    await resolvePromptLocator(h.page, chain, "click", h.choose, budget());
+    expect(h.settle).not.toHaveBeenCalled();
+    expect(h.query).toHaveBeenCalledOnce();
   });
 
   it("keeps no-match and refusal distinct and propagates provider errors without retry", async () => {
     const h = harness();
-    h.choose.mockResolvedValueOnce({ status: "no_match" });
+    h.choose.mockResolvedValueOnce({ status: "no_match" }).mockResolvedValueOnce({
+      status: "no_match",
+    });
     await expect(
       resolvePromptLocator(h.page, chain, "click", h.choose, budget()),
     ).resolves.toBeNull();
@@ -182,7 +213,7 @@ describe("prompt locator resolution", () => {
     await expect(resolvePromptLocator(h.page, chain, "click", h.choose, budget())).rejects.toBe(
       error,
     );
-    expect(h.choose).toHaveBeenCalledTimes(3);
+    expect(h.choose).toHaveBeenCalledTimes(4);
   });
 
   it("rejects IDs outside the candidate set even if they appear elsewhere in the capture", async () => {

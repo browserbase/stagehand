@@ -20,6 +20,7 @@ import { FrameSelectorResolver } from "../understudy/selectorResolver.js";
 import * as actService from "../services/actService.js";
 import * as extractService from "../services/extractService.js";
 import * as observeService from "../services/observeService.js";
+import * as actHandlerUtils from "../handlers/handlerUtils/actHandlerUtils.js";
 import type { ApcCandidateResult } from "../understudy/annotatedPageContent/candidates.js";
 
 const descriptor: LocatorDescriptor = {
@@ -51,9 +52,12 @@ function harness() {
   const capture = vi.fn(async () => candidates);
   const screenshot = vi.fn();
   const page = Object.assign(Object.create(Page.prototype) as Page, {
+    mainFrame: () => frame,
+    logger: {},
     queryAnnotatedPageContentCandidates: capture,
     screenshot,
   });
+  vi.spyOn(actHandlerUtils, "waitForDomNetworkQuiet").mockResolvedValue();
   const choose = vi.fn(
     async (_params: DecisionChooseParams, _signal: AbortSignal): Promise<DecisionChooseResult> => ({
       status: "selected",
@@ -177,7 +181,9 @@ describe("prompt locator action delegation", () => {
   it("reports no match and never dispatches or retries a failed action", async () => {
     const h = harness();
     const action = vi.spyOn(ChainTargetLocator.prototype, "click").mockResolvedValue();
-    h.choose.mockResolvedValueOnce({ status: "no_match" });
+    h.choose.mockResolvedValueOnce({ status: "no_match" }).mockResolvedValueOnce({
+      status: "no_match",
+    });
     await expect(h.runtime.locatorClick(descriptor)).rejects.toBeInstanceOf(
       PromptLocatorNoMatchError,
     );
@@ -186,7 +192,7 @@ describe("prompt locator action delegation", () => {
     action.mockRejectedValueOnce(failure);
     await expect(h.runtime.locatorClick(descriptor)).rejects.toBe(failure);
     expect(action).toHaveBeenCalledTimes(1);
-    expect(h.choose).toHaveBeenCalledTimes(2);
+    expect(h.choose).toHaveBeenCalledTimes(3);
   });
 
   it("uses only the selected backend node and rejects a detached target before dispatch", async () => {
