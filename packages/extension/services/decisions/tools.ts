@@ -8,29 +8,14 @@ import {
   type JsonValue,
 } from "./typesafeClient.js";
 
-/**
- * WebMCP tool selection on the decision model. A page that registers tools has already said
- * what it can do, so "which tool fulfils this request" is a closed-set choice,
- * and most arguments are words of the instruction (a span the decision model can point at) or
- * an enum/boolean. Anything else is left to the caller: an argument-only LLM
- * call for the chosen tool, or the ordinary element path.
- */
-
 const NONE = "none_of_these";
 const UNSET = "unset";
-/** Set on 380 labelled requests over 166 live tools: 79% answered at 99% precision. */
 const TOOL_MIN = 0.8;
 const TOOL_NONE_MAX = 0.2;
-/** Every parameter, including the ones judged "not stated": 69% filled at 98% precision. */
 const ARGUMENT_MIN = 0.8;
-/** One option is reserved for "unset". */
 const MAX_SPANS = 250;
 const MAX_TOOLS = 254;
 const DESCRIPTION_CHARS = 600;
-/**
- * Argument questions for the tools most likely to win ride in the same request
- * as the choice, so a confident tool call is one round trip, not two.
- */
 const SPECULATIVE_TOOLS = 2;
 const STOPWORDS = new Set([
   "the",
@@ -50,9 +35,7 @@ const STOPWORDS = new Set([
 type ToolInput = Record<string, JsonValue>;
 
 export type ToolOutcome =
-  /** `input` is absent when the decision model chose the tool but could not fill its arguments with confidence. */
   | { kind: "tool"; tool: WebMCPToolDescriptor; input?: ToolInput }
-  /** The request is not a tool call (or the decision model is unsure): carry on with the element path. */
   | { kind: "skip"; reason: string };
 
 type Property = { type?: JsonValue; enum?: JsonValue[]; description?: JsonValue };
@@ -74,23 +57,15 @@ function requiredOf(tool: WebMCPToolDescriptor): string[] {
 export type ToolQuestions = {
   offered: WebMCPToolDescriptor[];
   questions: Record<string, DecisionQuestion>;
-  /** Tools whose argument questions are already in `questions`. */
   withArguments: WebMCPToolDescriptor[];
-  /** Best lexical match when it needs an argument LLM whatever the decision model says about spans. */
   needsArgumentLlm?: WebMCPToolDescriptor;
   spanIds: Map<string, string>;
 };
 
-/**
- * Questions to merge into a request that only needs the instruction (act's
- * intent fan-out). Undefined when there is nothing to ask.
- */
 export function toolQuestions(
   instruction: string,
   tools: WebMCPToolDescriptor[],
 ): ToolQuestions | undefined {
-  // Two frames may register the same name; the choice is keyed by name, so
-  // only unambiguous names are offered.
   const counts = new Map<string, number>();
   for (const tool of tools) counts.set(tool.name, (counts.get(tool.name) ?? 0) + 1);
   const offered = tools.filter((tool) => counts.get(tool.name) === 1 && tool.name !== NONE);
@@ -120,8 +95,6 @@ export function toolQuestions(
           "No listed tool can do what the request asks; a different capability would be needed",
       },
     },
-    // "click the Add to cart button" names a control. The user asked for a
-    // click, so they get a click, even though add_to_cart would match.
     tool_names_control: {
       type: "noul",
       instructions: {
@@ -143,8 +116,6 @@ export function toolQuestions(
     }
     withArguments.push(tool);
   }
-  // A clear lexical leader with a list, object or otherwise non-scalar
-  // parameter will need the argument LLM if it wins; the caller may start it now.
   const [leader, runnerUp] = ranked;
   const needsArgumentLlm =
     leader &&
@@ -162,7 +133,6 @@ export function toolQuestions(
   };
 }
 
-/** Reads the tool decision out of the response the questions rode in. */
 export async function readToolDecision(
   ctx: AskContext,
   response: DecisionResponse,
@@ -193,7 +163,6 @@ export async function readToolDecision(
   } else if (asked.withArguments.includes(tool)) {
     input = readArguments(response, tool, asked.spanIds, (name) => argumentKey(tool, name), entry);
   } else {
-    // The winner was not among the lexical favourites: one more request.
     const questions = argumentQuestions(tool, ctx.instruction, asked.spanIds);
     if (questions) {
       const second = await ask(ctx, "tool_arguments", { request: ctx.instruction }, questions);
@@ -218,7 +187,6 @@ function words(text: string): string[] {
   return found.filter((word) => word.length > 1 && !STOPWORDS.has(word));
 }
 
-/** Cheap guess at the likely winners; only decides whose argument questions ride along. */
 function rankByWords(
   instruction: string,
   tools: WebMCPToolDescriptor[],
@@ -235,7 +203,6 @@ function rankByWords(
     .sort((a, b) => b.score - a.score);
 }
 
-/** Quoted strings first, then every run of one to four words, punctuation and possessives stripped. */
 export function instructionSpans(instruction: string): string[] {
   const spans: string[] = [];
   const add = (span: string): void => {
@@ -260,11 +227,6 @@ export function instructionSpans(instruction: string): string[] {
   return spans.slice(0, MAX_SPANS);
 }
 
-/**
- * Undefined when a parameter is not a scalar. Values the instruction only
- * implies ("July 15th" for an ISO date, lists, nested objects) are not spans,
- * and guessing them is how a tool gets called with the wrong input.
- */
 function argumentQuestions(
   tool: WebMCPToolDescriptor,
   instruction: string,
@@ -327,7 +289,6 @@ function argumentQuestions(
   return questions;
 }
 
-/** Undefined unless the decision model is sure about every parameter, stated or not, and none required is missing. */
 function readArguments(
   response: DecisionResponse,
   tool: WebMCPToolDescriptor,
@@ -362,8 +323,6 @@ function readArguments(
   }
   Object.assign(entry, { arguments_weakest: round(weakest), arguments_filled: Object.keys(input) });
   if (weakest < ARGUMENT_MIN) return undefined;
-  // "search the store for mugs" put "mugs" into both query and category, each
-  // with high confidence. One span is one value; which parameter is a judgement call.
   const spans = Object.entries(input)
     .filter(([name]) => !properties[name]?.enum && properties[name]?.type !== "boolean")
     .map(([, value]) => (typeof value === "string" ? value : JSON.stringify(value)));

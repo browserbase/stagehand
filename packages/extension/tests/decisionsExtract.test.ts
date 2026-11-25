@@ -47,7 +47,6 @@ function deps(
   };
 }
 
-/** Answers every pick by looking at which field the request is about. */
 function stubByField(picks: Record<string, string>, completed = 0.9) {
   const bodies: Array<{ state: { instruction?: string } }> = [];
   vi.stubGlobal(
@@ -65,8 +64,6 @@ function stubByField(picks: Record<string, string>, completed = 0.9) {
             const group = options.find(
               ([id, value]) => id.startsWith("group_") && JSON.stringify(value).includes("Alice"),
             );
-            // "no_group": best still names the group (it has no none option),
-            // strict vetoes it with the real none-of-these id.
             const choice =
               picks[field] === "no_group"
                 ? key === "strict"
@@ -257,7 +254,6 @@ describe("decisions extract (pick-and-copy)", () => {
         },
       ),
     );
-    // "Economy" (header row) is dropped; the 3-cell row still yields its part number.
     expect(outcome).toMatchObject({
       kind: "done",
       data: {
@@ -343,7 +339,6 @@ describe("extract helpers", () => {
     expect(compact.items.item_count).toBe(80);
     expect(compact.items.first_items).toHaveLength(3);
     expect(JSON.stringify(compact).length).toBeLessThan(6000);
-    // Small results pass through untouched.
     expect(compactForJudge({ a: 1 })).toEqual({ a: 1 });
   });
 });
