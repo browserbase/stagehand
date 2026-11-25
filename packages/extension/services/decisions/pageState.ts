@@ -2,11 +2,6 @@ import { ask, round, type AskContext } from "./pick.js";
 import { pageDigest, type OutlineNode } from "./tree.js";
 import { noulAnswer } from "./typesafeClient.js";
 
-/**
- * Page-state signals from one decision-model request over a compact page digest. Used to
- * explain why a target could not be found (the page is a bot wall, not a
- * decision-tree miss) and to stop paying for an LLM fallback that cannot help.
- */
 export const PAGE_STATE_SIGNALS = {
   access_denied:
     "The page is an access-denied, forbidden, or 'you have been blocked' page instead of the site's real content",
@@ -22,7 +17,6 @@ export const PAGE_STATE_SIGNALS = {
 export type PageSignal = keyof typeof PAGE_STATE_SIGNALS;
 export type PageState = Record<PageSignal, number>;
 
-/** A target can never be found on these, whoever looks for it. */
 const BLOCKING: PageSignal[] = ["access_denied", "captcha"];
 const BLOCKING_THRESHOLD = 0.9;
 
