@@ -6,7 +6,6 @@ type FrameId = Protocol.Page.FrameId;
 type ExecId = Protocol.Runtime.ExecutionContextId;
 
 export type ReadinessOptions = {
-  /** Retry failed readiness attempts within progress, or return after one attempt. */
   readinessRetries?: "until-deadline" | "none";
 };
 
@@ -43,7 +42,6 @@ export class ExecutionContextRegistry {
     this.fallbackInstallerSource.set(session, source);
   }
 
-  /** Wire listeners for this session. Call BEFORE Runtime.enable. */
   attachSession(session: CDPSessionLike): void {
     const onCreated = (evt: Protocol.Runtime.ExecutionContextCreatedEvent): void => {
       const aux = (evt.context.auxData ?? {}) as {
@@ -52,8 +50,6 @@ export class ExecutionContextRegistry {
       };
       if (aux.isDefault === true && typeof aux.frameId === "string") {
         this.register(session, aux.frameId as FrameId, evt.context.id);
-        // The packaged extension blank page loads the locator bundle directly,
-        // so its privileged Stagehand context is also its main world.
         this.registerExtensionCandidate(session, aux.frameId as FrameId, evt.context.id);
       } else if (typeof aux.frameId === "string") {
         this.registerExtensionCandidate(session, aux.frameId as FrameId, evt.context.id);
@@ -98,10 +94,6 @@ export class ExecutionContextRegistry {
     return this.fallbackByFrame.get(session)?.get(frameId) ?? null;
   }
 
-  /** With progress, timeout limits each extension probe, not the whole wait.
-   * Callers that handle failure themselves can disable retries without losing
-   * the caller's deadline. Without progress, readiness makes a single attempt.
-   */
   async waitForLocatorWorld(
     session: CDPSessionLike,
     frameId: FrameId,
@@ -125,7 +117,6 @@ export class ExecutionContextRegistry {
         progress?.throwIfStopped();
         if (progress && isCdpClosedError(extensionError)) throw extensionError;
         if (await this.isFallbackEligible(session, frameId, progress)) {
-          // Installation is shared. Only this caller's wait belongs to its progress.
           return this.fallbackWorld(
             await runLocatorStep(progress, "installing locator helpers", () =>
               this.createFallbackWorld(session, frameId),
@@ -458,7 +449,6 @@ export class ExecutionContextRegistry {
         closedShadowRoots: value?.closedShadowRoots === true,
       };
     } catch (error) {
-      // Shared installation must retain closure errors for every waiting caller.
       if (isCdpClosedError(error)) throw error;
       return { ready: false, kind: "unavailable", closedShadowRoots: false };
     }

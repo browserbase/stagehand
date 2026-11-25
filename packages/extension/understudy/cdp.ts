@@ -1,16 +1,7 @@
-// lib/v3/understudy/cdp.ts
 import type { Protocol } from "devtools-protocol";
 import { z } from "zod/v4";
 import type { StagehandLogger } from "../logger.js";
 
-/**
- * CDP transport & session multiplexer
- *
- * Uses an injected text transport and multiplexes flattened Target sessions.
- * Tracks inflight CDP calls, routes responses to the right session, and forwards events.
- *
- * This does not interpret Page/DOM/Runtime semantics — callers own that logic.
- */
 export interface CDPSessionLike {
   send<R = unknown>(method: string, params?: object): Promise<R>;
   on<P = unknown>(event: string, handler: (params: P) => void): void;
@@ -19,7 +10,6 @@ export interface CDPSessionLike {
   readonly id: string | null;
 }
 
-/** Closure errors emitted by this transport, not transient execution-context loss. */
 export function isCdpClosedError(error: unknown): error is Error {
   return (
     error instanceof Error &&
@@ -102,13 +92,12 @@ function isExpectedReleaseObjectCleanupError(
 export class CdpConnection implements CDPSessionLike {
   messageQueue: Promise<void> = Promise.resolve();
   nextId = 1;
-  inflight = new Map<number, Inflight>(); // Outstanding request records; `_sendViaSession()` inserts and `onMessage()` removes/resolves them.
+  inflight = new Map<number, Inflight>();
   eventHandlers = new Map<string, Set<EventHandler>>();
   sessions = new Map<string, CdpSession>();
-  /** Maps sessionId -> targetId (1:1 mapping) */
   sessionToTarget = new Map<string, string>();
   sessionDispatchWaiters = new Set<SessionDispatchWaiter>();
-  public readonly id: string | null = null; // root
+  public readonly id: string | null = null;
   transportCloseHandlers = new Set<(why: string) => void>();
   private readonly telemetryScopes = new Map<symbol, CdpTelemetryLogger[]>();
 
@@ -127,9 +116,7 @@ export class CdpConnection implements CDPSessionLike {
     for (const h of this.transportCloseHandlers) {
       try {
         h(why);
-      } catch {
-        //
-      }
+      } catch {}
     }
   }
 
@@ -186,11 +173,6 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   private telemetryLogger(): CdpTelemetryLogger {
-    // Request and operation scopes for one RPC reuse the same symbol, so nesting
-    // selects the innermost logger. Distinct active symbols mean independent RPCs
-    // overlap; without async-local context the connection cannot safely infer
-    // which one caused a call or unsolicited event, so use the neutral fallback
-    // instead of attaching telemetry to an arbitrary request.
     if (this.telemetryScopes.size !== 1) return this.logger;
     const stack = this.telemetryScopes.values().next().value;
     return stack?.[stack.length - 1] ?? this.logger;
@@ -395,7 +377,6 @@ export class CdpConnection implements CDPSessionLike {
         this.sessionToTarget.delete(p.sessionId);
       } else if (msg.method === "Target.targetDestroyed") {
         const p = (msg as { params: { targetId: string } }).params;
-        // Remove any session mapping for this target
         for (const [sessionId, targetId] of this.sessionToTarget.entries()) {
           if (targetId === p.targetId) {
             this.rejectSessionPendingWork(sessionId, p.targetId);

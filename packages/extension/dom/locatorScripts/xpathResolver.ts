@@ -48,8 +48,6 @@ export function collectXPathMatches(
   const ownerDocument = scope instanceof Document ? scope : scope.ownerDocument;
   const shadowCtx = pierceShadow ? getShadowContext(ownerDocument, options?.shadowPresence) : null;
 
-  // Element queries stay relative to their scope. Document queries retain the
-  // generated-path shadow-hop route below, whose // semantics are different.
   if (scope instanceof Element) {
     const relative = xp.startsWith("/") ? `.${xp}` : xp;
     if (shadowCtx?.hasShadow) {
@@ -309,8 +307,6 @@ function collectNativeMatchesWithError(
     const value: Element[] = [];
     for (let i = 0; i < snapshot.snapshotLength && value.length < limit; i += 1) {
       const node = snapshot.snapshotItem(i);
-      // Preserve document XPath results, including its historical node casting.
-      // Element-scoped queries must not return the scope itself or escape it.
       if (
         scope instanceof Element &&
         (!(node instanceof Element) || node === scope || !scope.contains(node))

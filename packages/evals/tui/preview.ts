@@ -1,17 +1,3 @@
-/**
- * Human-readable rendering of the --dry-run plan payload.
- *
- * Consumes the same payload built in commands/run.ts:emitDryRun so the
- * preview and JSON outputs stay in lockstep — anything `renderPreview`
- * shows is something `--dry-run` would emit too.
- *
- * Column-pruning rule: group matrix rows by every field except `task` and
- * `harnessConfig`, count occurrences, then drop any column whose values are
- * all equal (those constants get summarized in the header instead). The
- * combinations table shows only the dimensions that actually vary across
- * the run.
- */
-
 import {
   bold,
   cyan,
@@ -36,11 +22,6 @@ interface PreviewPayload {
   error?: string;
 }
 
-/**
- * Display order for combinations-table columns. Fields not listed are
- * appended in alphabetical order at the end. `task` and `harnessConfig` are
- * never shown; `tier` is summarized in the header.
- */
 const COLUMN_ORDER = [
   "model",
   "agentMode",
@@ -92,10 +73,6 @@ export function renderPreview(payload: unknown): void {
   renderFooter(p);
 }
 
-// ---------------------------------------------------------------------------
-// Header
-// ---------------------------------------------------------------------------
-
 function renderHeader(p: PreviewPayload): void {
   const target = p.target ?? p.normalizedTarget ?? "(default)";
   const tierLabel = uniqueTiers(p.matrix).join(", ") || "no tasks";
@@ -104,9 +81,6 @@ function renderHeader(p: PreviewPayload): void {
     `  ${bold("Target:")} ${cyan(String(target))}  ${dim("→")}  ${tierLabel} (${p.tasks.length} task${p.tasks.length === 1 ? "" : "s"})`,
   );
 
-  // Header line 2: run options that aren't already shown column-by-column.
-  // Always-show: env, concurrency, trials, harness. Conditional: model
-  // override, useApi, provider — only if non-default.
   const opts = p.runOptions;
   const headerBits: string[] = [];
   const env = String(opts.environment ?? "");
@@ -123,11 +97,7 @@ function renderHeader(p: PreviewPayload): void {
     console.log(`  ${headerBits.join("  ")}`);
   }
 
-  // Header line 3: every column the combinations table pruned because it is
-  // the same for all runs. Without this a single-cell run shows no tool
-  // surface, provider or model anywhere in the preview.
   const constants = constantColumns(p.matrix).filter(
-    // `Model override:` above already names the model when one was given.
     ([column]) => !HEADER_ECHOED_COLUMNS.has(column) && !(column === "model" && opts.model),
   );
   if (constants.length > 0) {
@@ -138,8 +108,6 @@ function renderHeader(p: PreviewPayload): void {
   }
 
   const envOverrideKeys = Object.keys(p.envOverrides ?? {}).filter(
-    // These are echoes of resolved options, not user-supplied overrides
-    // worth surfacing again. Hide to keep the header tight.
     (k) => !["EVAL_ENV", "USE_API", "EVAL_TRIAL_COUNT", "EVAL_MAX_CONCURRENCY"].includes(k),
   );
   if (envOverrideKeys.length > 0) {
@@ -150,13 +118,8 @@ function renderHeader(p: PreviewPayload): void {
   console.log("");
 }
 
-/** Columns already printed on header line 2; not repeated among the constants. */
 const HEADER_ECHOED_COLUMNS = new Set(["environment", "harness", "useApi"]);
 
-/**
- * Columns whose value is identical across every matrix row, in COLUMN_ORDER.
- * Null/undefined constants are dropped — nothing to summarize.
- */
 export function constantColumns(matrix: MatrixRow[]): Array<[string, unknown]> {
   const { columns, rows } = buildCombinations(matrix);
   if (rows.length === 0) return [];
@@ -177,10 +140,6 @@ function uniqueTiers(matrix: MatrixRow[]): string[] {
   return [...seen];
 }
 
-// ---------------------------------------------------------------------------
-// Combinations table
-// ---------------------------------------------------------------------------
-
 interface CombinationRow {
   values: Record<string, unknown>;
   runs: number;
@@ -192,7 +151,6 @@ export function buildCombinations(matrix: MatrixRow[]): {
 } {
   if (matrix.length === 0) return { columns: [], rows: [] };
 
-  // 1. Build per-row "shape key" excluding hidden fields.
   const shapeMap = new Map<string, CombinationRow>();
   for (const row of matrix) {
     const shape: Record<string, unknown> = {};
@@ -211,9 +169,6 @@ export function buildCombinations(matrix: MatrixRow[]): {
 
   const groups = [...shapeMap.values()];
 
-  // 2. Determine which columns vary. A column is dropped if every group has
-  //    the same value (after coercion to JSON-stringified form so null
-  //    compares equal to null).
   const allColumns = new Set<string>();
   for (const g of groups) {
     for (const key of Object.keys(g.values)) allColumns.add(key);
@@ -226,7 +181,6 @@ export function buildCombinations(matrix: MatrixRow[]): {
     if (!allSame) varying.push(col);
   }
 
-  // 3. Order columns: COLUMN_ORDER first, then alphabetical for the rest.
   const ordered = [
     ...COLUMN_ORDER.filter((c) => varying.includes(c)),
     ...varying.filter((c) => !COLUMN_ORDER.includes(c)).sort(),
@@ -247,14 +201,11 @@ function renderCombinations(p: PreviewPayload): void {
   console.log(`  ${bold(`Combinations (${rows.length})`)} ${dim(`× tasks → runs`)}`);
 
   if (columns.length === 0) {
-    // Single combination — just say so. The task list does the work.
     console.log(`  ${dim("1 combination (default), all tasks identical")}`);
     console.log("");
     return;
   }
 
-  // Compute per-column widths (clipped to terminal). Always include a
-  // trailing "runs" column.
   const RUNS_HEADER = "runs";
   const headerCells = columns.map((c) => COLUMN_HEADERS[c] ?? c);
 
@@ -263,13 +214,11 @@ function renderCombinations(p: PreviewPayload): void {
   );
   const runsWidth = Math.max(RUNS_HEADER.length, ...rows.map((r) => String(r.runs).length));
 
-  // Trim if total width blows past terminal.
   const termWidth = getTerminalWidth();
-  const padding = (columns.length + 1) * 2; // 2 spaces between columns
-  const availableWidth = termWidth - 4 - padding - runsWidth; // 4 = leading "  " + safety
+  const padding = (columns.length + 1) * 2;
+  const availableWidth = termWidth - 4 - padding - runsWidth;
   const totalContent = colWidths.reduce((a, b) => a + b, 0);
   if (totalContent > availableWidth && availableWidth > 0) {
-    // Shrink the widest column until we fit.
     while (colWidths.reduce((a, b) => a + b, 0) > availableWidth) {
       const max = Math.max(...colWidths);
       const idx = colWidths.indexOf(max);
@@ -280,7 +229,6 @@ function renderCombinations(p: PreviewPayload): void {
 
   const sepLine = gray("─".repeat(colWidths.reduce((a, b) => a + b, 0) + runsWidth + padding - 2));
 
-  // Header row
   const headerLine = headerCells
     .map((h, i) => bold(padRight(h, colWidths[i])))
     .concat(bold(padRight(RUNS_HEADER, runsWidth)))
@@ -288,7 +236,6 @@ function renderCombinations(p: PreviewPayload): void {
   console.log(`  ${headerLine}`);
   console.log(`  ${sepLine}`);
 
-  // Data rows — order rows for stable output: ascending by each column.
   const sortedRows = [...rows].sort(
     (a, b) =>
       columns
@@ -305,18 +252,11 @@ function renderCombinations(p: PreviewPayload): void {
   console.log("");
 }
 
-// ---------------------------------------------------------------------------
-// Task list
-// ---------------------------------------------------------------------------
-
 function renderTasks(p: PreviewPayload): void {
   if (p.tasks.length === 0) return;
 
   console.log(`  ${bold(`Tasks (${p.tasks.length})`)}`);
 
-  // Strip a common category prefix (e.g. "agent/") so the list reads cleanly
-  // when every task shares the same category. If categories are mixed,
-  // leave the names alone.
   const display = stripCommonPrefix(p.tasks);
 
   const termWidth = getTerminalWidth();
@@ -342,10 +282,6 @@ function stripCommonPrefix(names: string[]): string[] {
   return names.map((n) => n.slice(prefix.length));
 }
 
-// ---------------------------------------------------------------------------
-// Footer
-// ---------------------------------------------------------------------------
-
 function renderFooter(p: PreviewPayload): void {
   const total = p.matrix.length;
   const taskCount = p.tasks.length;
@@ -364,7 +300,6 @@ function renderFooter(p: PreviewPayload): void {
   if (total === 0) {
     console.log(`  ${bold("Total:")} 0 runs`);
   } else if (combos > 1 && taskCount > 0 && total === taskCount * combos) {
-    // Full cross-product: every task runs every combination.
     const taskLabel = `${taskCount} task${taskCount === 1 ? "" : "s"}`;
     const comboLabel = `${combos} combination${combos === 1 ? "" : "s"}`;
     console.log(`  ${bold("Total:")} ${total} runs ${dim(`(${taskLabel} × ${comboLabel})`)}`);
@@ -373,10 +308,6 @@ function renderFooter(p: PreviewPayload): void {
   }
   console.log("");
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return "—";

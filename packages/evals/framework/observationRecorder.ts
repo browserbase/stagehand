@@ -1,6 +1,5 @@
 import type { ProbeEvidence } from "stagehand-v3";
 
-/** A probe observation captured after the Nth run-tool execution (0-based). */
 export interface StepObservation {
   runIndex: number;
   toolCallId?: string;
@@ -11,21 +10,10 @@ const OBSERVATIONS_ENV = "EVAL_HARNESS_OBSERVATIONS";
 const OBSERVATION_TIMEOUT_ENV = "EVAL_OBSERVATION_TIMEOUT_MS";
 const DEFAULT_OBSERVATION_TIMEOUT_MS = 10_000;
 
-/**
- * Whether this run collects per-step observations. Sampling is a run-level
- * decision: batch tooling sets EVAL_HARNESS_OBSERVATIONS=none on runs it
- * excludes from evidence collection; the default is to observe.
- */
 export function harnessObservationsEnabled(): boolean {
   return (process.env[OBSERVATIONS_ENV] ?? "all") !== "none";
 }
 
-/**
- * Buffers per-step probe observations for an external-harness run. Each
- * record() consumes one run index (matching the harness's Nth run-tool
- * execution); a failed capture leaves a gap at its index rather than
- * shifting later observations onto the wrong step.
- */
 export class ObservationRecorder {
   private readonly observations: StepObservation[] = [];
   private readonly pending = new Set<Promise<void>>();
@@ -41,9 +29,7 @@ export class ObservationRecorder {
         if (evidence.screenshot || evidence.url || evidence.ariaTree) {
           this.observations.push({ runIndex, evidence, ...(toolCallId && { toolCallId }) });
         }
-      } catch {
-        // best-effort only — a failed probe must never fail the run tool
-      }
+      } catch {}
     })();
     this.pending.add(attempt);
     try {
@@ -53,11 +39,6 @@ export class ObservationRecorder {
     }
   }
 
-  /**
-   * Waits for in-flight captures. Callers that fire record() without
-   * awaiting it (MCP tool-result streams) must settle() before drain(), or
-   * the last observations of a run race the drain and silently go missing.
-   */
   async settle(): Promise<void> {
     while (this.pending.size > 0) {
       await Promise.allSettled([...this.pending]);

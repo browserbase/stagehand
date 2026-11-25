@@ -165,7 +165,6 @@ describe("ProgressRenderer board", () => {
     const slow = suiteRow("aaaaaaaa00000000aaaaaaaa00000000", "slow.com");
     renderer.onStart(slow);
     renderer.onPhase(slow, "agent");
-    // Four quick finishes set a p75 of ~40s.
     for (let i = 0; i < 4; i++) {
       const row = suiteRow(`${i}bbbbbbb00000000bbbbbbbb0000000${i}`, `q${i}.com`);
       renderer.onStart(row);
@@ -184,7 +183,6 @@ describe("ProgressRenderer board", () => {
       /aaaaaaaa slow\.com\s+Do the thing on slow\.com\s+agent\s+6m50s$/,
     );
     expect(stripAnsi(freshLine)).toMatch(/fresh\.com\s+Do the thing on fresh\.com\s+verify\s+10s$/);
-    // 6m50s is past the p75 (40s): rendered in yellow; the fresh row isn't.
     expect(slowLine).toContain("\x1b[33m6m50s");
     expect(freshLine).not.toContain("\x1b[33m");
     renderer.dispose();
@@ -227,14 +225,12 @@ describe("ProgressRenderer board", () => {
     renderer.setKeyHints("esc stop");
     renderer.setStopping("cooperative");
     const lines = board(renderer);
-    // 4 done in 4 min → 6 left at ~1 min each.
     expect(lines[0]).toMatch(/4\/10\s+✓ 2\s+✗ 1\s+⏱ 1\s+4m00s · eta ~6m$/);
     expect(lines[1]).toContain("running 0 · queued 6");
     expect(lines[2]).toContain("⚠ stopping after in-flight rows · esc again to stop now");
     expect(lines.at(-1)).toBe("  esc stop");
     expect(lines.join("\n")).toMatch(/s2\.com\s+failed\s+1m00s · wrong answer/);
     expect(lines.join("\n")).toContain("… 1 more finished");
-    // No duration: the tail starts with the next part, not a stray separator.
     expect(lines.join("\n")).toMatch(/⏱ 30000000 s3\.com\s+max_turns\s*$/m);
     renderer.setStopping("aggressive");
     expect(board(renderer)[2]).toContain("✗ stopping now — closing in-flight sessions");
@@ -276,7 +272,6 @@ describe("ProgressRenderer board", () => {
     const renderer = new ProgressRenderer({ animated: true, stream: stderrLike, now: () => 0 });
     renderer.onPlanned(6);
     for (const [id, web] of CASES) renderer.onStart(suiteRow(id, web));
-    // stdout says 140 columns; the board's own stream says 72.
     for (const line of board(renderer)) expect(line.length).toBeLessThanOrEqual(72);
     renderer.dispose();
   });

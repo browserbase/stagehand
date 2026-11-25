@@ -6,7 +6,6 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/geniusee/");
-      // The locator engine prefix is required for XPath selectors.
       const locator = page.locator("xpath=/html/body/main/div[2]/div[2]/div[2]/table");
       const { data: scalability } = await stagehand.extract(
         "Extract the scalability comment in the table for Gemini (Google)",

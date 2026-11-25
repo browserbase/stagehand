@@ -9,7 +9,7 @@ export default defineBenchTask(
       const { data: result } = await stagehand.act("what is the capital of the moon?");
 
       return {
-        _success: !result.success, // We expect this to fail
+        _success: !result.success,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

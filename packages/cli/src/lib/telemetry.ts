@@ -76,9 +76,7 @@ export function captureCommandInvoked(CommandClass: Command.Class, cliVersion: s
 
   state.pendingInvokedCapture = getCliTelemetry(cliVersion)
     .capture("cli.command_invoked", commandInvokedProperties(command))
-    .catch(() => {
-      // Best-effort telemetry should never affect CLI behavior.
-    });
+    .catch(() => {});
 }
 
 export function recordCommandError(
@@ -112,18 +110,11 @@ export async function captureCommandCompleted(
         success,
       }),
     )
-    .catch(() => {
-      // Best-effort telemetry should never affect CLI behavior.
-    });
+    .catch(() => {});
 
   await Promise.allSettled([state.pendingInvokedCapture ?? Promise.resolve(), completionCapture]);
 }
 
-/**
- * Captures a `cli.command_not_found` event. Privacy: only the sanitized
- * attempted command id and the computed suggestion are sent — never raw argv,
- * which can contain URLs, selectors, or secrets.
- */
 export async function captureCommandNotFound(
   cliVersion: string,
   attemptedCommand: string | null,
@@ -134,9 +125,7 @@ export async function captureCommandNotFound(
       attempted_command: attemptedCommand ? resolveCommandPath(attemptedCommand) : null,
       suggested_command: suggestedCommand ? resolveCommandPath(suggestedCommand) : null,
     })
-    .catch(() => {
-      // Best-effort telemetry should never affect CLI behavior.
-    });
+    .catch(() => {});
 }
 
 function createCliTelemetry(options: CreateCliTelemetryOptions): CliTelemetry {

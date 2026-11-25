@@ -5,8 +5,6 @@ import { stripAnsi } from "../../tui/format.js";
 const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 afterEach(() => logSpy.mockClear());
 
-// The harness registry is imported lazily by the code under test; its first
-// cold import can take seconds when the whole suite runs in parallel.
 beforeAll(async () => {
   await import("../../framework/benchHarness.js");
 }, 60_000);
@@ -25,7 +23,6 @@ describe("printRunHelp", () => {
     expect(text).toContain("-v, --verbose");
     expect(text).toContain("--follow <id>");
     expect(text).toMatch(/esc stop · v logs off → all → one · \? help/);
-    // stagehand mounts nothing and gets no row.
     expect(text).not.toMatch(/\n\s+stagehand:/);
   });
 });

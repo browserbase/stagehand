@@ -19,18 +19,11 @@ export default defineBenchTask(
         };
       }
 
-      // The archive layout changes independently of the pagination link.
       const expectedLocators = [
         "xpath=//a[@href='/archive?page=2' and normalize-space(.)='Load more']",
         "xpath=//a[@href='/archive?page=2' and normalize-space(.)='Load more']/span",
       ];
 
-      // v3 compares backendNodeIds (first observation vs. each expected
-      // locator); the v4 Locator exposes no node identity
-      // so the same element-identity check is
-      // re-expressed in-page: resolve the observed selector and each
-      // expected selector and compare element references. Expected locators
-      // that fail to resolve are skipped, as in v3.
       const foundMatch =
         (await matchingSelector(page, observations[0].selector, expectedLocators)) !== null;
 

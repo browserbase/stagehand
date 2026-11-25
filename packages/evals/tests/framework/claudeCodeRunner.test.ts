@@ -136,15 +136,12 @@ describe("claude code runner helpers", () => {
         taskSpec: {
           id: "wv-1",
           instruction: plan.instruction,
-          // Malformed rubric — normalizeRubric throws inside the verifier
-          // path, exercising the integration-failure fallback.
           precomputedRubric: {} as never,
         },
         dataset: "webvoyager",
       },
     });
 
-    // Verification fails closed while preserving the separate agent report.
     expect(result._success).toBe(false);
     expect(result.agentReportedSuccess).toBe(true);
     expect(result.reasoning).toBe("done");

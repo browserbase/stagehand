@@ -4,7 +4,6 @@ import { Buffer } from "node:buffer";
 import { MAX_INPUT_FILE_BYTES } from "@browserbasehq/stagehand-browser-api/fileUpload";
 import type { BrowserApiPlatform } from "@browserbasehq/stagehand-browser-api/platform";
 
-/** Node host capabilities supplied through RPCClient; kept outside the shared browser API. */
 export const nodeBrowserApiPlatform: BrowserApiPlatform = {
   readInputFile,
   readTextFile: (path) => fs.readFile(path, "utf8"),

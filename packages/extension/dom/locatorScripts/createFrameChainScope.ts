@@ -4,7 +4,6 @@ import { captureRoleCandidates } from "./roleCandidates.js";
 
 export type FrameChainMatch = { id: number; isFrame: boolean };
 
-/** Operation-owned DOM identities, retained by one remote object per document. */
 export function createFrameChainScope() {
   const nodes: (Document | Element)[] = [document];
   const ids = new Map<Document | Element, number>([[document, 0]]);
@@ -28,7 +27,6 @@ export function createFrameChainScope() {
       if (selector.kind === "role")
         throw new Error("Role queries require native accessibility resolution");
       const shadowPresence = new Map<Document, boolean>();
-      // Keep groups separate for cross-document ordering before deduplication.
       return scopes.map((scopeId) =>
         queryAll(selector, [scopeFor(scopeId)], shadowPresence)
           .filter((node) => node instanceof Element)

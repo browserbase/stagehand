@@ -500,7 +500,6 @@ class BrowseCliPageHandle implements CorePageHandle {
   }
 
   async represent(): Promise<PageRepresentation> {
-    // BROWSE_SNAPSHOT_FULL=1 includes the ref maps in the snapshot.
     const full = process.env.BROWSE_SNAPSHOT_FULL === "1";
     const snapshot = await this.runCommandAfterSelecting<{
       tree: string;
@@ -515,7 +514,6 @@ class BrowseCliPageHandle implements CorePageHandle {
       metadata: {
         bytes: Buffer.byteLength(content, "utf8"),
         tokenEstimate: Math.ceil(content.length / 4),
-        // Count refs from xpathMap when present, else from the tree.
         refCount: snapshot.xpathMap
           ? Object.keys(snapshot.xpathMap).length
           : (content.match(/\[\d+-\d+\]/g)?.length ?? 0),
@@ -641,9 +639,7 @@ export class BrowseCliSession implements CoreSession {
 
     try {
       await this.runtime.runJson(["stop", "--force"]);
-    } catch {
-      // best-effort only
-    }
+    } catch {}
   }
 
   async getArtifacts(): Promise<Artifact[]> {

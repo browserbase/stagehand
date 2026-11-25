@@ -39,8 +39,6 @@ class ExtractResult(WireModel, Generic[ExtractData]):
 
 
 class _ExtractWireResult(WireModel):
-    """Internal extract response model that preserves arbitrary JSON values."""
-
     model_config = ConfigDict(extra="forbid")
 
     data: Any
@@ -103,7 +101,6 @@ class LocalBrowserLaunchOptions(WireModel):
 
 
 class LocalBrowserConnectOptions(WireModel):
-    # Headers may carry credentials, so validation errors never echo the input.
     model_config = ConfigDict(extra="forbid", strict=True, hide_input_in_errors=True)
 
     cdp_url: Annotated[str, Field(min_length=1)]

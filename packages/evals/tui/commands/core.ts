@@ -1,23 +1,3 @@
-/**
- * `evals config core` — configuration for the core (deterministic) tier's
- * tool adapter defaults. Namespaced under `config` so it lives beside run
- * defaults.
- *
- * Subcommands (what this module sees after `config core` is stripped):
- *   (none)                print current core section
- *   path                  print the config file path
- *   set <k> <v>           set tool or startup
- *   reset [key]           reset one key or the whole core section
- *   setup                 (placeholder — interactive wizard TODO)
- *
- * Scope is intentionally narrow: only `tool` and `startup` persist. Native
- * adapter options stay in code / env vars. Per-task overrides are not
- * supported — config applies globally to every core run.
- *
- * Validation uses the live adapter registry so `set startup` can only
- * accept values the currently-configured tool actually supports.
- */
-
 import { bold, cyan, dim, gray, green, red, yellow } from "../format.js";
 import {
   readConfig,
@@ -48,8 +28,6 @@ export async function handleCore(args: string[], entryDir: string): Promise<void
     return;
   }
 
-  // Per-sub help. Only intercepted at args[1] (immediately after the verb)
-  // so leaf values like `set tool --help` aren't swallowed as help.
   if (args[1] === "--help" || args[1] === "-h" || args[1] === "help") {
     const { printConfigCoreHelp } = await import("./help.js");
     await printConfigCoreHelp();
@@ -132,8 +110,6 @@ async function setCoreKey(entryDir: string, key: CoreKey, value: string): Promis
       return;
     }
 
-    // If changing tool invalidates the currently-set startup, reset it
-    // with a warning so the config never persists an inconsistent pair.
     if (core.startup) {
       const newTool = getCoreTool(value as (typeof validTools)[number]);
       if (!newTool.supportedStartupProfiles.includes(core.startup as never)) {
@@ -143,7 +119,6 @@ async function setCoreKey(entryDir: string, key: CoreKey, value: string): Promis
     }
     core.tool = value;
   } else if (key === "startup") {
-    // startup must be supported by the currently-configured tool.
     const toolSurface = core.tool as (typeof validTools)[number] | undefined;
     if (!toolSurface) {
       console.error(red("  Cannot set startup without a tool. Set core.tool first."));

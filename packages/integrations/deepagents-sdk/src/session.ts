@@ -99,9 +99,7 @@ export const spawnDeepagentsProcess: DeepagentsProcessSpawner = (spec) => {
         try {
           process.kill(-child.pid, signalName);
           return;
-        } catch {
-          // Fall back to the direct child if process-group signaling fails.
-        }
+        } catch {}
       }
       void child.kill(signalName);
     },
@@ -169,9 +167,7 @@ export async function runDeepagentsSession(input: {
   const sendSignal = (signal: NodeJS.Signals): void => {
     try {
       handle?.kill(signal);
-    } catch {
-      // best-effort only
-    }
+    } catch {}
   };
   const beginTermination = (): void => {
     if (!handle || processExited) return;
@@ -191,18 +187,12 @@ export async function runDeepagentsSession(input: {
       command,
       args: buildDeepagentsRunnerArgs(runnerDir),
       ...(input.session.cwd && { cwd: input.session.cwd }),
-      // The runner is the agent harness process itself (it needs PATH for uv
-      // and the model-provider keys), so it inherits the host env like the
-      // Codex/Claude SDK harnesses do. Browser-side allowlisting happens on
-      // the MCP server env carried inside mcpServers.
       env: input.session.env ?? inheritedEnv(),
     });
     if (input.signal?.aborted) forwardAbort();
     else input.signal?.addEventListener("abort", forwardAbort, { once: true });
 
-    handle.stdin.on("error", () => {
-      // Process startup/exit errors are reported through handle.exited.
-    });
+    handle.stdin.on("error", () => {});
     handle.stdin.end(
       JSON.stringify({
         prompt: input.prompt,
@@ -255,8 +245,6 @@ export async function runDeepagentsSession(input: {
           tokenUsage = extractDeepagentsTokenUsage(event);
         }
         if (event.type === "error") {
-          // A terminal stop classification (budget/recursion) must not be
-          // overwritten by a later generic exception (e.g. from teardown).
           const isTerminalKind =
             errorKind === "tool_step_budget" || errorKind === "recursion_limit";
           if (!isTerminalKind) {

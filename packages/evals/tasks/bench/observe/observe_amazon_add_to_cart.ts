@@ -10,7 +10,6 @@ export default defineBenchTask(
         "Find and click the 'Add to Cart' button",
       );
 
-      // Example of using performPlaywrightMethod if you have the xpath
       if (observations1.length > 0) {
         const action1 = observations1[0];
         await stagehand.act(action1);
@@ -20,7 +19,6 @@ export default defineBenchTask(
         "Find and click the 'Proceed to checkout' button",
       );
 
-      // Example of using performPlaywrightMethod if you have the xpath
       if (observations2.length > 0) {
         const action2 = observations2[0];
         await stagehand.act(action2);

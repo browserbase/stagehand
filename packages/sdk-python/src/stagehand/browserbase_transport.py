@@ -23,7 +23,6 @@ _OPERATION_PATHS: dict[Operation, str] = {
 }
 
 
-# These headers are supplied by the HTTP client or the SDK connection.
 _OMITTED_REQUEST_HEADERS = {
     "host",
     "content-length",
@@ -77,8 +76,6 @@ async def execute_browserbase_request(
     *,
     http_client: httpx.AsyncClient | None = None,
 ) -> BrowserbaseRequestResult:
-    """Execute one HTTP attempt; task cancellation propagates to the RPC owner."""
-    # Revalidate mutable header dictionaries at the boundary.
     params = BrowserbaseRequestParams.model_validate_json(
         params.model_dump_json(warnings="none"), strict=True
     )
@@ -120,7 +117,6 @@ async def execute_browserbase_request(
                 else nullcontext(http_client)
             ) as client:
                 response = await client.send(request)
-                # Preserve header bytes for the worker's Response instead of guessing UTF-8.
                 response_headers = dict(httpx.Headers(response.headers.raw, encoding="latin-1"))
                 # httpx decodes transfer bytes; these headers no longer describe the body.
                 response_headers.pop("content-encoding", None)

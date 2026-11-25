@@ -192,13 +192,9 @@ describe("Page.waitForSelector tests", () => {
       const startTime = Date.now();
       try {
         await page.waitForSelector("#nonexistent", { timeout: 500 });
-      } catch {
-        // Expected to timeout
-      }
+      } catch {}
       const elapsed = Date.now() - startTime;
 
-      // The operation must not return before its configured deadline. There is no upper wall-clock
-      // bound because scheduler contention is not part of the API contract.
       expect(elapsed).toBeGreaterThanOrEqual(450);
     });
   });
@@ -367,7 +363,6 @@ describe("Page.waitForSelector tests", () => {
         fixtureUrl(
           '<div id="open-host"></div>' +
             "<script>" +
-            // Inner closed component
             "class ClosedInner extends HTMLElement {" +
             "  constructor() {" +
             "    super();" +
@@ -376,7 +371,6 @@ describe("Page.waitForSelector tests", () => {
             "  }" +
             "}" +
             "customElements.define('closed-inner', ClosedInner);" +
-            // Outer open shadow
             'const openHost = document.getElementById("open-host");' +
             'const openShadow = openHost.attachShadow({mode: "open"});' +
             'openShadow.innerHTML = "<closed-inner></closed-inner>";' +
@@ -555,7 +549,6 @@ describe("Page.waitForSelector tests", () => {
           await new Promise((resolve) => setTimeout(resolve, 900));
           release();
           await checked;
-          // The button still arrives after the shorter shared deadline expires.
           await expect(
             page.waitForSelector("iframe >> #delayed", { timeout: 5_000 }),
           ).resolves.toBe(true);
@@ -654,7 +647,6 @@ describe("Page.waitForSelector tests", () => {
           encodeURIComponent('<div id="vis-hidden" style="visibility: hidden;">Hidden</div>'),
       );
 
-      // Should be attached but not visible
       const attached = await page.waitForSelector("#vis-hidden", {
         state: "attached",
       });
@@ -785,7 +777,6 @@ describe("Page.waitForSelector tests", () => {
           ),
         { waitUntil: "load", timeout: 30000 },
       );
-      // Small delay to ensure script starts
       await page.waitForTimeout(50);
 
       const result = await page.waitForSelector("#item-7", { timeout: 10000 });

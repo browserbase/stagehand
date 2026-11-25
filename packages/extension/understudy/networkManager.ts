@@ -16,24 +16,9 @@ import {
   WaitForIdleOptions,
 } from "../types/private/network.js";
 
-/**
- * Cross-session network tracker.
- *
- * Centralises network bookkeeping for a Page: every CDP session (top-level and OOPIF)
- * funnels `Network.*` events through here so higher-level waiters can reason about
- * in-flight requests across the entire frame tree. The manager exposes a simple
- * observer interface plus a "wait until idle" helper that resolves once no filtered
- * requests remain for a quiet window.
- */
-
-/**
- * Aggregates network information for all CDP sessions owned by a Page.
- */
 export class NetworkManager {
   private readonly pendingResponses = new Map<Response, Protocol.Network.ResourceType>();
 
-  // Captures from nested targets can replay before their parents' headers.
-  // Retain only completions without a local request, scoped to the child root.
   private readonly pendingDocumentCompletions = new Map<string, PendingDocumentCompletion>();
 
   constructor(private readonly page: Page) {}
@@ -46,12 +31,6 @@ export class NetworkManager {
 
   readonly documentRequestsByFrame = new Map<string, string>();
 
-  /**
-   * Begin tracking network traffic for a CDP session (top-level or OOPIF).
-   * A supplied capture transfers ownership here; its domains must already be enabled.
-   * The child root identifies document requests that can finish on this session after a process swap.
-   * Safe to call multiple times with the same session/capture.
-   */
   public trackSession(
     session: CDPSessionLike,
     pendingCapture?: SessionNetworkCapture,
@@ -149,7 +128,6 @@ export class NetworkManager {
     };
 
     const capture = pendingCapture ?? new SessionNetworkCapture(session);
-    // Register ownership before replay: observers may untrack or dispose during delivery.
     this.sessions.set(sid, {
       session,
       capture,
@@ -188,9 +166,6 @@ export class NetworkManager {
     }
   }
 
-  /**
-   * Stop tracking a session and discard any inflight bookkeeping owned by it.
-   */
   public untrackSession(rawSessionId: string | undefined): void {
     const sid = rawSessionId ?? "__main__";
     const entry = this.sessions.get(sid);
@@ -212,10 +187,6 @@ export class NetworkManager {
     }
   }
 
-  /**
-   * Register a passive observer for request lifecycle notifications.
-   * Returns a disposer that removes the observer.
-   */
   public addObserver(observer: NetworkObserver): () => void {
     this.observers.add(observer);
     return () => {
@@ -223,10 +194,6 @@ export class NetworkManager {
     };
   }
 
-  /**
-   * Resolve once no (filtered) requests are in flight for the given quiet window.
-   * The waiter automatically unregisters itself on completion or timeout.
-   */
   public waitForIdle(options: WaitForIdleOptions): WaitForIdleHandle {
     const startTime = options.startTime ?? Date.now();
     const idleTimeMs = options.idleTimeMs ?? DEFAULT_IDLE_WAIT;
@@ -308,14 +275,11 @@ export class NetworkManager {
       rejectFn = reject;
     });
 
-    // Requests that started inside the wait window but before this waiter was
-    // registered (for example during the load event) are still in flight.
     for (const info of this.requests.values()) {
       if (info.timestamp < startTime || !filter(info)) continue;
       tracked.add(info.requestKey);
     }
 
-    // Trigger initial idle check so that we still respect the quiet window
     maybeIdle();
 
     if (Number.isFinite(timeout)) {
@@ -331,9 +295,6 @@ export class NetworkManager {
     };
   }
 
-  /**
-   * Tear down all session listeners and clear observers/bookkeeping.
-   */
   public dispose(): void {
     for (const { detach } of this.sessions.values()) {
       detach();
@@ -351,7 +312,6 @@ export class NetworkManager {
     return this.addObserver({ onResponse: listener });
   }
 
-  /** Materialize one response for all interested observers; body retrieval stays lazy. */
   private emitResponse(
     event: Protocol.Network.ResponseReceivedEvent,
     session: CDPSessionLike,
@@ -383,7 +343,6 @@ export class NetworkManager {
     }
   }
 
-  /** Retire idle bookkeeping, preserving the original key across a session handoff. */
   private takeIdleRequest(
     session: CDPSessionLike,
     requestId: string,
@@ -416,10 +375,6 @@ export class NetworkManager {
     };
   }
 
-  /**
-   * Settle responses of a request whose document was replaced. Deliberately narrower than
-   * finishResponse: no cross-session handoff, which could record a bogus pending completion.
-   */
   private failReplacedResponses(session: CDPSessionLike, requestId: string): void {
     for (const response of this.pendingResponses.keys()) {
       if (response.finishedSettled) continue;
@@ -444,14 +399,12 @@ export class NetworkManager {
     );
     const localResponses = pending.filter((response) => response.session === session);
     if (localResponses.length) {
-      // Raw listeners cannot receive events that arrived before capture replay.
       for (const response of localResponses) response.markFinished(error);
       return;
     }
 
     const sid = this.sessionKey(session);
     const trackedSession = this.sessions.get(sid);
-    // A local request without headers may have failed; do not claim another session's response.
     if (trackedSession?.unfinishedRequests.has(requestId)) return;
     const frameId = trackedSession?.childMainFrameId;
     if (!frameId) return;
@@ -493,7 +446,6 @@ export class NetworkManager {
 
   private disposeResponsesForSession(session: CDPSessionLike, childMainFrameId?: string): void {
     for (const [response, type] of this.pendingResponses) {
-      // A child may detach before completion has transferred its document response.
       if (
         response.session !== session &&
         !(childMainFrameId && type === "Document" && response.frameId === childMainFrameId)
@@ -504,33 +456,28 @@ export class NetworkManager {
     }
   }
 
-  /** Fan-out helper when a tracked request starts. */
   emitStart(info: NetworkRequestInfo): void {
     for (const obs of this.observers) {
       obs.onRequestStarted?.(info);
     }
   }
 
-  /** Fan-out helper when a tracked request completes successfully. */
   emitFinish(info: NetworkRequestInfo): void {
     for (const obs of this.observers) {
       obs.onRequestFinished?.(info);
     }
   }
 
-  /** Fan-out helper when a tracked request fails mid-flight. */
   emitFailure(info: NetworkRequestInfo): void {
     for (const obs of this.observers) {
       obs.onRequestFailed?.(info);
     }
   }
 
-  /** Compute a stable key for a session (falls back to synthetic root id). */
   sessionKey(session: CDPSessionLike): string {
     return session.id ?? "__main__";
   }
 
-  /** Compose the unique key for tracking a request under a session. */
   requestKey(sessionId: string, requestId: string): string {
     return `${sessionId}:${requestId}`;
   }

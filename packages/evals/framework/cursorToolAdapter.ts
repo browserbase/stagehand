@@ -138,7 +138,6 @@ export async function prepareCursorToolAdapter(
               readPositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
             );
           } catch {
-            // best-effort only
           } finally {
             await fsp.rm(capturedCwd, { recursive: true, force: true });
           }

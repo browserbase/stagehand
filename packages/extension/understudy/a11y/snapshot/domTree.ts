@@ -4,7 +4,6 @@ import { type Progress, runLocatorStep } from "../../progress.js";
 import type { SessionDomIndex } from "../../../types/private/snapshot.js";
 import { buildChildXPathSegments, joinXPath, normalizeXPath } from "./xpathUtils.js";
 
-// starting from infinite depth (-1), exponentially shrink down to 1
 const DOM_DEPTH_ATTEMPTS = [-1, 256, 128, 64, 32, 16, 8, 4, 2, 1];
 const DESCRIBE_DEPTH_ATTEMPTS = [-1, 64, 32, 16, 8, 4, 2, 1];
 
@@ -24,7 +23,6 @@ export function shouldExpandNode(node: Protocol.DOM.Node): boolean {
   return declaredChildren > realizedChildren;
 }
 
-/** Merge an expanded DescribeNode payload back into the original shallow node. */
 export function mergeDomNodes(target: Protocol.DOM.Node, source: Protocol.DOM.Node): void {
   target.childNodeCount = source.childNodeCount ?? target.childNodeCount;
   target.children = source.children ?? target.children;
@@ -32,7 +30,6 @@ export function mergeDomNodes(target: Protocol.DOM.Node, source: Protocol.DOM.No
   target.contentDocument = source.contentDocument ?? target.contentDocument;
 }
 
-/** Helper that returns every nested collection we recurse through uniformly. */
 export function collectDomTraversalTargets(node: Protocol.DOM.Node): Protocol.DOM.Node[] {
   const targets: Protocol.DOM.Node[] = [];
   if (node.children) targets.push(...node.children);
@@ -41,10 +38,6 @@ export function collectDomTraversalTargets(node: Protocol.DOM.Node): Protocol.DO
   return targets;
 }
 
-/**
- * Rehydrate a truncated DOM tree by repeatedly calling DOM.describeNode with
- * decreasing depths. Any non-CBOR failure is surfaced directly.
- */
 export async function hydrateDomTree(
   session: CDPSessionLike,
   root: Protocol.DOM.Node,
@@ -113,11 +106,6 @@ export async function hydrateDomTree(
   }
 }
 
-/**
- * Attempt DOM.getDocument with progressively shallower depths until CBOR stops
- * complaining. When a shallower snapshot is returned we hydrate the missing
- * branches so downstream DOM traversals see the full tree shape.
- */
 export async function getDomTreeWithFallback(
   session: CDPSessionLike,
   pierce: boolean,
@@ -151,10 +139,6 @@ export async function getDomTreeWithFallback(
   throw new Error("CDP DOM.getDocument failed after adaptive depth retries");
 }
 
-/**
- * Build tag name and XPath maps for a single frame session.
- * EncodedId is produced by a frame-aware encoder provided by the caller.
- */
 export async function domMapsForSession(
   session: CDPSessionLike,
   frameId: string,
@@ -185,7 +169,6 @@ export async function domMapsForSession(
       }
     } catch {
       progress?.throwIfStopped();
-      // OOPIF or race → keep startNode = root
     }
   }
 
@@ -233,11 +216,6 @@ export async function domMapsForSession(
   return { tagNameMap, xpathMap, scrollableMap };
 }
 
-/**
- * Build an index of absolute XPath/tag metadata for an entire CDP session.
- * Once the index is cached, per-frame slices are derived without extra DOM
- * calls, which keeps snapshot capture linear in the number of frames.
- */
 export async function buildSessionDomIndex(
   session: CDPSessionLike,
   pierce: boolean,
@@ -335,10 +313,6 @@ export async function buildSessionDomIndex(
   };
 }
 
-/**
- * Relativize an absolute XPath against a document root's absolute path.
- * When the node lives outside the document we return the absolute path as-is.
- */
 export function relativizeXPath(baseAbs: string, nodeAbs: string): string {
   const base = normalizeXPath(baseAbs);
   const abs = normalizeXPath(nodeAbs);
@@ -364,7 +338,6 @@ function getAttr(attrs: string[] | undefined, name: string): string | undefined 
   return undefined;
 }
 
-/** Build an enriched tag name that includes the type attribute for inputs. */
 function enrichedTagName(node: Protocol.DOM.Node): string {
   const tag = String(node.nodeName).toLowerCase();
   if (tag === "input") {
@@ -374,7 +347,6 @@ function enrichedTagName(node: Protocol.DOM.Node): string {
   return tag;
 }
 
-/** Find a node by backendNodeId inside a DOM.getDocument tree. */
 export function findNodeByBackendId(
   root: Protocol.DOM.Node,
   backendNodeId: number,
