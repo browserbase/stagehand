@@ -548,6 +548,7 @@ _SCRIPT_NAMES = frozenset({
     "Tutg",
     "Ugaritic",
     "Ugar",
+    "Unknown",
     "Vai",
     "Vaii",
     "Vithkuqi",
@@ -562,6 +563,7 @@ _SCRIPT_NAMES = frozenset({
     "Yiii",
     "Zanabazar_Square",
     "Zanb",
+    "Zzzz",
 })
 
 _INVALID_MESSAGE = "Invalid cookie filter regular expression"
@@ -582,20 +584,38 @@ def validate_js_regexp(source: str, flags: str | None = None) -> None:
     parser.parse()
 
 
+_ID_START_CATEGORIES = frozenset({"Lu", "Ll", "Lt", "Lm", "Lo", "Nl"})
+_ID_CONTINUE_CATEGORIES = _ID_START_CATEGORIES | frozenset({"Mn", "Mc", "Nd", "Pc"})
+_OTHER_ID_START = frozenset({0x1885, 0x1886, 0x2118, 0x212E, 0x309B, 0x309C})
+_OTHER_ID_CONTINUE = frozenset({
+    0x00B7,
+    0x0387,
+    *range(0x1369, 0x1372),
+    0x19DA,
+    0x30FB,
+    0xFF65,
+})
+_ID_PATTERN_SYNTAX_EXCLUSIONS = frozenset({0x2E2F})
+
+
 def _is_id_start(cp: int) -> bool:
     if cp in (0x24, 0x5F):
         return True
-    ch = chr(cp)
-    return ch.isidentifier()
+    if cp in _ID_PATTERN_SYNTAX_EXCLUSIONS:
+        return False
+    if cp in _OTHER_ID_START:
+        return True
+    return unicodedata.category(chr(cp)) in _ID_START_CATEGORIES
 
 
 def _is_id_continue(cp: int) -> bool:
     if cp in (0x24, 0x5F, 0x200C, 0x200D):
         return True
-    ch = chr(cp)
-    if ch.isidentifier():
+    if cp in _ID_PATTERN_SYNTAX_EXCLUSIONS:
+        return False
+    if cp in _OTHER_ID_START or cp in _OTHER_ID_CONTINUE:
         return True
-    return unicodedata.category(ch) in {"Nd", "Mn", "Mc", "Pc"}
+    return unicodedata.category(chr(cp)) in _ID_CONTINUE_CATEGORIES
 
 
 class _JSRegExpParser:

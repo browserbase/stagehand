@@ -103,6 +103,20 @@ class WireModel(BaseModel):
             if name not in self.model_fields_set and not field.is_required() and value is not None:
                 self.model_fields_set.add(name)
 
+    @override
+    def __setattr__(self, name: str, value: object) -> None:
+        if name not in type(self).model_fields:
+            super().__setattr__(name, value)
+            return
+        prior_dict = self.__dict__.copy()
+        prior_fields_set = self.model_fields_set.copy()
+        try:
+            super().__setattr__(name, value)
+        except Exception:
+            object.__setattr__(self, "__dict__", prior_dict)
+            object.__setattr__(self, "__pydantic_fields_set__", prior_fields_set)
+            raise
+
 
 class CookieParamValidation(WireModel):
     @model_validator(mode="after")

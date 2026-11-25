@@ -213,6 +213,11 @@ def test_cookie_regex_character_class_range_parity(
         ("[^]", "u"),
         ("\\u{1F600}", "u"),
         ("\\p{L}", "u"),
+        ("\\p{Script=Unknown}", "u"),
+        ("\\p{sc=Zzzz}", "u"),
+        ("(?<\\u037a>x)", None),
+        ("(?<ͺ>x)", None),
+        ("(?<a·>x)", None),
         ("(?i:abc)", None),
         ("(?<a>x)|(?<a>y)", None),
         ("[[a-z]--[aeiou]]", "v"),
@@ -251,6 +256,7 @@ def test_cookie_regex_accepts_valid_js_patterns(source: str, flags: str | None) 
         ("(?i)foo", None),
         ("(?<a>x)(?<a>y)", None),
         ("(?<1>x)", None),
+        ("(?<\\u2e2f>x)", None),
         ("(?=a)+", "u"),
         ("(?<=a)?", None),
         ("\\a", "u"),
@@ -410,8 +416,12 @@ def test_page_screenshot_options_assignment_allows_valid_and_rejects_invalid_mut
 
     with pytest.raises(ValidationError, match="quality"):
         options.quality = 80
+    assert options.quality is None
+    assert "quality" not in options.model_fields_set
     with pytest.raises(ValidationError, match="fullPage and clip"):
         options.clip = models.PageScreenshotClip(x=0, y=0, width=10, height=10)
+    assert options.clip is None
+    assert "clip" not in options.model_fields_set
 
 
 @settings(max_examples=50)
