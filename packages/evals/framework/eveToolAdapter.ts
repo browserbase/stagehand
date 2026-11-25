@@ -47,16 +47,13 @@ type EveMcpConnect = (
 export interface PreparedEveToolAdapter {
   toolSurface: ToolSurface;
   startupProfile: StartupProfile;
-  /** The runner writes the agent definition via writeEveAgentDefinition before boot. */
   appRoot: string;
   env: Record<string, string>;
   promptInstructions: string;
-  /** Browser behind the mounted surface, resolved before the agent starts. */
   browserSession: BrowserSessionInfo;
   serverNames: string[];
   toolNames: string[];
   captureEvidence?: () => Promise<ProbeEvidence>;
-  /** Set once the mounted browser is gone for the rest of the run. */
   browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   recordObservation?: () => void;
@@ -463,7 +460,6 @@ export async function prepareEveToolAdapter(
               readPositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
             );
           } catch {
-            // Cleanup is best-effort, but temp-dir cleanup must run.
           } finally {
             await fsp.rm(capturedAppRoot, { recursive: true, force: true });
           }

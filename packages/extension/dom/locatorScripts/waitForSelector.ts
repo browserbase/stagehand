@@ -1,43 +1,24 @@
-/**
- * waitForSelector - Waits for an element matching a selector to reach a specific state.
- * Supports both CSS selectors and XPath expressions.
- * Uses MutationObserver for efficiency and the extension DOM API for closed shadow roots.
- *
- * NOTE: This function runs inside the page context. Keep it dependency-free
- * and resilient to exceptions.
- */
-
 import { resolveXPathFirst } from "./xpathResolver.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
 type WaitForSelectorState = "attached" | "detached" | "visible" | "hidden";
 
-/**
- * Check if a selector is an XPath expression.
- */
 const isXPath = (selector: string): boolean => {
   return selector.startsWith("xpath=") || selector.startsWith("/");
 };
 
-/**
- * Deep querySelector that pierces both open and closed shadow DOM.
- */
 const deepQuerySelector = (
   root: Document | ShadowRoot,
   selector: string,
   pierceShadow: boolean,
 ): Element | null => {
-  // Try regular querySelector first
   try {
     const el = root.querySelector(selector);
     if (el) return el;
-  } catch {
-    // ignore query errors
-  }
+  } catch {}
 
   if (!pierceShadow) return null;
 
-  // BFS queue to search all shadow roots (open and closed)
   const seenRoots = new WeakSet<Node>();
   const queue: Array<Document | ShadowRoot> = [root];
 
@@ -46,15 +27,11 @@ const deepQuerySelector = (
     if (!currentRoot || seenRoots.has(currentRoot)) continue;
     seenRoots.add(currentRoot);
 
-    // Try querySelector on this root
     try {
       const found = currentRoot.querySelector(selector);
       if (found) return found;
-    } catch {
-      // ignore query errors
-    }
+    } catch {}
 
-    // Walk all elements in this root to find shadow hosts
     try {
       const ownerDoc =
         currentRoot instanceof Document
@@ -69,24 +46,16 @@ const deepQuerySelector = (
           queue.push(shadowRoot);
         }
       }
-    } catch {
-      // ignore traversal errors
-    }
+    } catch {}
   }
 
   return null;
 };
 
-/**
- * Resolve XPath with shadow DOM piercing support.
- */
 const deepXPathQuery = (xpath: string, pierceShadow: boolean): Element | null => {
   return resolveXPathFirst(xpath, { pierceShadow });
 };
 
-/**
- * Find element by selector (CSS or XPath) with optional shadow DOM piercing.
- */
 const findElement = (selector: string, pierceShadow: boolean): Element | null => {
   if (isXPath(selector)) {
     return deepXPathQuery(selector, pierceShadow);
@@ -94,9 +63,6 @@ const findElement = (selector: string, pierceShadow: boolean): Element | null =>
   return deepQuerySelector(document, selector, pierceShadow);
 };
 
-/**
- * Check if element matches the desired state.
- */
 const checkState = (el: Element | null, state: WaitForSelectorState): boolean => {
   if (state === "detached") return el === null;
   if (state === "attached") return el !== null;
@@ -118,7 +84,6 @@ const checkState = (el: Element | null, state: WaitForSelectorState): boolean =>
     }
   }
 
-  // state === "visible"
   try {
     const style = window.getComputedStyle(el);
     const rect = el.getBoundingClientRect();
@@ -134,9 +99,6 @@ const checkState = (el: Element | null, state: WaitForSelectorState): boolean =>
   }
 };
 
-/**
- * Set up MutationObservers on all shadow roots to detect changes.
- */
 const setupShadowObservers = (
   callback: () => void,
   observers: MutationObserver[],
@@ -160,13 +122,11 @@ const setupShadowObservers = (
         attributeFilter: ["style", "class", "hidden", "disabled"],
       });
 
-      // Recurse into shadow root children
       for (const child of Array.from(shadowRoot.children)) {
         observeShadowRoots(child);
       }
     }
 
-    // Recurse into regular children
     for (const child of Array.from(node.children)) {
       observeShadowRoots(child);
     }
@@ -180,16 +140,6 @@ const setupShadowObservers = (
   return scan;
 };
 
-/**
- * Wait for an element matching the selector to reach the specified state.
- * Supports both CSS selectors and XPath expressions (prefix with "xpath=" or start with "/").
- *
- * @param selectorRaw - CSS selector or XPath expression to wait for
- * @param stateRaw - Element state: 'attached' | 'detached' | 'visible' | 'hidden'
- * @param timeoutRaw - Maximum time to wait in milliseconds; defaults to 30,000, zero is unlimited
- * @param pierceShadowRaw - Whether to search inside shadow DOM
- * @returns A disposable handle whose promise resolves when the condition is met
- */
 export function createSelectorWait(
   selectorRaw: string,
   stateRaw?: string,
@@ -290,7 +240,6 @@ export function createSelectorWait(
       );
     }
   });
-  // Installation and awaiting use separate CDP commands; observe an early rejection.
   void promise.catch(() => {});
   return { promise, dispose: () => dispose() };
 }

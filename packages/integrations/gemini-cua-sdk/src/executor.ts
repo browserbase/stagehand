@@ -262,8 +262,6 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
       denormalizeCoordinate(values[1], HEIGHT),
     ];
     const end = [denormalizeCoordinate(values[2], WIDTH), denormalizeCoordinate(values[3], HEIGHT)];
-    // Delegate the full gesture to the SDK, retaining the midpoint movement
-    // before the destination without relying on a raw CDP method on Page.
     await this.runWithTabs(
       `await batchStagehand.page.dragAndDrop(${start[0]}, ${start[1]}, ${end[0]}, ${end[1]}, { steps: 2 });`,
     );

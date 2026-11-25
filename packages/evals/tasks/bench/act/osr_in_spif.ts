@@ -4,16 +4,10 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 export default defineBenchTask(
   { name: "osr_in_spif" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
-    // this eval is designed to test whether stagehand can successfully
-    // click inside an OSR (open mode shadow) root that is inside an
-    // SPIF (same process iframe)
-
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/open-shadow-root-in-spif/");
       await stagehand.act("click the button");
 
-      // v3 used schemaless extract; v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug (#14).
       const { data: extraction } = await stagehand.extract(
         "extract the entire page text",
         z.object({ extraction: z.string() }),

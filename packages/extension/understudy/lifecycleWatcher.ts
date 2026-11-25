@@ -11,18 +11,6 @@ import {
   WaitForIdleHandle,
 } from "../types/private/network.js";
 
-/**
- * Coordinates page lifecycle waits (load/domcontentloaded/networkidle) while
- * following main-frame swaps and navigation aborts. Each navigation spawns a
- * one-off watcher that listens for relevant CDP events and resolves or rejects
- * depending on the requested `waitUntil` state.
- */
-
-/**
- * Small utility that mirrors Playwright's lifecycle watcher semantics. Bridges
- * main-frame lifecycle events with the NetworkManager's idle signal so callers
- * can await `load`, `domcontentloaded`, or `networkidle` with a single promise.
- */
 export class LifecycleWatcher {
   readonly page: Page;
   readonly mainSession: CDPSessionLike;
@@ -51,10 +39,6 @@ export class LifecycleWatcher {
   resolveNavigationStart!: (sameDocument: boolean) => void;
   navigationStartPromise: Promise<boolean>;
 
-  /**
-   * Create a watcher; callers should subsequently invoke {@link wait}.
-   * Without a `navigationCommandId` it waits on the current document instead of a new navigation.
-   */
   constructor(params: {
     page: Page;
     mainSession: CDPSessionLike;
@@ -88,9 +72,6 @@ export class LifecycleWatcher {
     if (this.navigationCommandId === undefined) {
       const loaderId = this.page.registry.frames.get(this.page.mainFrameId())?.lastSeen?.loaderId;
       this.setExpectedLoaderId(loaderId);
-      // Count requests the current document already has in flight. Without a known loader the
-      // idle filter falls back to matching by frame, which would also count requests left over
-      // from earlier documents, so only count requests that start from now on.
       if (loaderId) this.idleStartTime = 0;
       this.resolveNavigationStart(false);
     }
@@ -98,7 +79,6 @@ export class LifecycleWatcher {
     this.installSessionListeners();
   }
 
-  /** Hint the watcher with the loader id returned by Page.navigate. */
   public setExpectedLoaderId(loaderId: string | undefined): void {
     if (!loaderId) return;
     this.expectedLoaderId = loaderId;
@@ -107,7 +87,6 @@ export class LifecycleWatcher {
     this.idleStartTime = Date.now();
   }
 
-  /** Wait for the requested lifecycle state or throw on timeout/abort. */
   public async wait(): Promise<void> {
     const deadline = Date.now() + this.timeout;
 
@@ -154,7 +133,6 @@ export class LifecycleWatcher {
     }
   }
 
-  /** Cancel any outstanding network-idle waits and remove event listeners. */
   public dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
@@ -172,15 +150,12 @@ export class LifecycleWatcher {
     for (const fn of this.cleanupCallbacks) {
       try {
         fn();
-      } catch {
-        // ignore listener cleanup errors
-      }
+      } catch {}
     }
     this.cleanupCallbacks = [];
     this.abortReject = null;
   }
 
-  /** Subscribe to main-frame events to detect abort conditions. */
   installSessionListeners(): void {
     const onFrameNavigated = (evt: Protocol.Page.FrameNavigatedEvent) => {
       if (!evt?.frame?.id) return;
@@ -247,7 +222,6 @@ export class LifecycleWatcher {
     });
   }
 
-  /** Wait for a new-document or same-document main-frame navigation to begin. */
   async awaitNavigationStart(deadline: number): Promise<boolean> {
     if (this.abortError) throw this.abortError;
     if (this.navigationStarted) return this.sameDocumentNavigation;
@@ -267,7 +241,6 @@ export class LifecycleWatcher {
     }
   }
 
-  /** Wait for a main-frame load state, reporting timeouts against the caller's full budget. */
   async waitForMainLoadState(state: LoadState, deadline: number): Promise<void> {
     if (this.abortError) throw this.abortError;
     try {
@@ -282,7 +255,6 @@ export class LifecycleWatcher {
     }
   }
 
-  /** Compute remaining time until the shared deadline elapses. */
   timeRemaining(deadline: number): number {
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
@@ -291,7 +263,6 @@ export class LifecycleWatcher {
     return remaining;
   }
 
-  /** Await an operation but abort early if navigation replacement fires. */
   async awaitWithAbort<T>(operation: Promise<T>): Promise<T> {
     try {
       return await Promise.race([operation, this.abortPromise]);
@@ -301,7 +272,6 @@ export class LifecycleWatcher {
     }
   }
 
-  /** Only a watcher that belongs to a navigation command can be superseded by a newer one. */
   isSuperseded(): boolean {
     return (
       this.navigationCommandId !== undefined &&
@@ -309,7 +279,6 @@ export class LifecycleWatcher {
     );
   }
 
-  /** Mark the watcher as aborted and reject any pending waiters. */
   triggerAbort(error: Error): void {
     if (this.abortError) return;
     this.abortError = error;

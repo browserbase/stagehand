@@ -1,10 +1,3 @@
-/**
- * The hand-off chip — the single primary call-to-action every welcome
- * variant ends on. Paints the recommended command in an accented panel,
- * breathes while waiting for Enter, drains a thin line toward the
- * auto-advance, and resolves to the command (Enter) or null (Esc/timeout).
- */
-
 import { c, visibleLength } from "../format.js";
 import {
   BRAND,
@@ -21,10 +14,6 @@ import {
   type SkipSignal,
 } from "../wizardAnim.js";
 
-/**
- * Show "Try this" + the chip for `rec` (argv suffix without `evals`).
- * Returns `rec` if the user pressed Enter, else null.
- */
 export async function handoffChip(
   rec: string,
   signal: SkipSignal,
@@ -32,10 +21,6 @@ export async function handoffChip(
 ): Promise<string | null> {
   if (signal.cancelled) return null;
   ruleHeader(opts.title ?? "Try this", { eyebrow: opts.eyebrow ?? "next" });
-  // The recommended command lives in an accented chip — the single primary
-  // call-to-action of the whole wizard, so it gets the green border. While
-  // it waits for Enter the border breathes and a thin line under the hint
-  // drains toward the auto-advance, so the pause reads as alive, not stuck.
   const TIMEOUT_MS = opts.timeoutMs ?? 12_000;
   const cmd = `${c.bbBold}▸ evals ${rec}${c.reset}`;
   const inner = Math.max(visibleLength(cmd) + 6, 38);
@@ -51,7 +36,6 @@ export async function handoffChip(
     `  ${c.gray}${"─".repeat(Math.round(Math.max(0, Math.min(1, frac)) * drainWidth))}${c.reset}`;
 
   await revealLines(chip(c.bb), { signal, perLineMs: 90 });
-  // Off-TTY on either stream: show the command, don't sit waiting for a key.
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     process.stdout.write("\n");
     return null;
@@ -69,7 +53,6 @@ export async function handoffChip(
       block.paint([...chip(border), "", hint, drain(1 - t / TIMEOUT_MS)]);
     }, 80);
   }
-  // Ordinary keys don't count — keep waiting for Enter / Esc / the timeout.
   const deadline = Date.now() + TIMEOUT_MS;
   let key: string | null = null;
   do {

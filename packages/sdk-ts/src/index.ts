@@ -14,6 +14,8 @@ export {
   Locator,
   type LocatorOptions,
   type GetByTextOptions,
+  type GetByRoleOptions,
+  type AriaRole,
   type LocatorClickOptions,
   type LocatorHighlightOptions,
   type LocatorSendClickEventOptions,

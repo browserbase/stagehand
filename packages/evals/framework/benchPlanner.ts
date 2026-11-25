@@ -30,7 +30,6 @@ import {
 } from "./harnesses/toolSurfaceResolution.js";
 import { benchSuiteTaskName, listBenchSuiteTaskNames, type BenchSuiteName } from "./benchSuites.js";
 
-/** Suite builders keyed by short name; `satisfies` keeps this in lockstep with benchSuites.ts. */
 const SUITE_BUILDERS = {
   webvoyager: (models: AgentModelEntry[]) => buildWebVoyagerTestcases(models),
   onlineMind2Web: (models: AgentModelEntry[]) => buildOnlineMind2WebTestcases(models),
@@ -159,8 +158,6 @@ export function buildBenchMatrixRow(
     harnessImpl.supportedToolSurfaces.length === 0
       ? options.coreStartupProfile
       : resolveOptionalStartupProfile(toolSurface, environment, options.coreStartupProfile);
-  // Provider is derived from the model id ("provider/model") for metadata;
-  // there is no independent provider selector.
   const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
   const config = buildBenchHarnessConfig({
     harness,
@@ -217,10 +214,6 @@ export function generateBenchTestcases(
   benchTasks: DiscoveredTask[],
   options: BenchPlanOptions,
 ): Testcase[] {
-  // Agent suites run exclusively through the external harnesses — the
-  // stagehand harness has no agent loop. A selection that leaves nothing to
-  // run (suite name, agent category, dataset shorthand) errors with guidance
-  // instead of planning zero cases; broad targets simply omit the suites.
   const harness = options.harness ?? DEFAULT_BENCH_HARNESS;
   const harnessImpl = getBenchHarness(harness);
   let plannedTasks = benchTasks;
@@ -338,9 +331,6 @@ function withBenchMetadata(
   return {
     ...testcase,
     input: inputWithoutStagehandMode,
-    // Suite builders still emit Stagehand agent-mode tags (dom/hybrid/cua);
-    // stripping them keeps Braintrust tag filters from pooling external-
-    // harness rows with historical Stagehand agent runs.
     tags: [
       ...testcase.tags.filter((tag) => tag !== "dom" && tag !== "hybrid" && tag !== "cua"),
       `harness/${row.harness}`,
@@ -351,10 +341,6 @@ function withBenchMetadata(
       task: task.name,
       category: task.categories[0] ?? task.primaryCategory,
       categories: task.categories,
-      // Preserve the dataset row's fine-grained category (e.g. webtailbench's
-      // hotels_head / flights / jobs) that the suite builder set on the
-      // testcase. Only fall back to the directory category when the row didn't
-      // carry one — otherwise all three category fields collapse to "agent".
       task_category:
         (testcase.metadata.task_category as string | undefined) ??
         (row.params?.category as string | undefined) ??

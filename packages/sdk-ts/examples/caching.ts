@@ -6,7 +6,6 @@ import { browserbase, Stagehand } from "../src/index.js";
 const { BROWSERBASE_API_KEY, OPENAI_API_KEY } = process.env;
 if (!BROWSERBASE_API_KEY || !OPENAI_API_KEY) throw new Error();
 
-// Server-side caching requires a Browserbase browser session.
 const browser = await browserbase.launch({
   apiKey: BROWSERBASE_API_KEY,
 });
@@ -31,8 +30,6 @@ const stagehand = await Stagehand.create({
 const [page] = await browser.context.pages();
 await page.goto("https://aigrant.com");
 
-// With a threshold of 1, a single identical result is enough for the cache
-// to start serving hits, so the second call below is served from the cache.
 const extractCompanies = async () => {
   const start = performance.now();
   const result = await stagehand.extract(
@@ -43,8 +40,6 @@ const extractCompanies = async () => {
   return { result, durationMs: Math.round(performance.now() - start) };
 };
 
-// A miss reports why it missed; a hit reports how established the entry is
-// and the LLM tokens it saved. Absent entirely when caching did not run.
 const reportCache = ({ metadata }: { metadata: StagehandResultMetadata }) => {
   console.log(`Cache: ${JSON.stringify(metadata.cache ?? "disabled")}`);
 };

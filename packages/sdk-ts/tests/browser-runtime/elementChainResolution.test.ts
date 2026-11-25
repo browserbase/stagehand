@@ -69,8 +69,6 @@ describe("element chain resolution in the browser", () => {
     }
   });
 
-  // This extension page exposes the real registry and chrome.dom accessor in
-  // its main world, including access to roots created with mode: "closed".
   const evaluate = (body: string) =>
     page.evaluate(`(() => {
     const scripts = globalThis.__stagehandLocatorScripts;
@@ -552,7 +550,6 @@ describe("element chain resolution in the browser", () => {
       { steps: [css("iframe, .card"), css("button")] },
       { steps: [css(".missing"), { type: "frame", selector: { kind: "css", value: "button" } }] },
     ];
-    // Read the original page-side error before page.evaluate serializes it.
     expect(
       await evaluate(`return ${JSON.stringify(unsupported)}.map(chain => {
       try { scripts.resolveElementChain(chain); return null; }
@@ -716,7 +713,6 @@ describe("element chain resolution in the browser", () => {
         });
         expect(live.exceptionDetails).toBeUndefined();
         expect(live.result.value).toBe("b");
-        // Subsequent resolution and cleanup must not release the consumer's handle.
         await resolver.resolve(chain, { mode: "all" });
         const retained = await inspect<EvaluationResponse>("Runtime.callFunctionOn", {
           objectId: object.objectId,

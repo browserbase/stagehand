@@ -48,14 +48,10 @@ export interface PreparedPiToolAdapter {
   cwd: string;
   env: Record<string, string>;
   promptInstructions: string;
-  /** Browser behind the mounted surface, resolved before the agent starts. */
   browserSession: BrowserSessionInfo;
-  /** via:"mcp" mounts — bridged in-process by pi-sdk. */
   mcpServers?: Record<string, PiMcpServerSpec>;
-  /** via:"handles" mounts — the harness run tool hosted in-process by pi. */
   customTools?: PiToolDefinition[];
   captureEvidence?: () => Promise<ProbeEvidence>;
-  /** Set once the mounted browser is gone for the rest of the run. */
   browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   onToolResult?: (toolName: string) => void;
@@ -232,7 +228,6 @@ export async function preparePiToolAdapter(
               readPositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
             );
           } catch {
-            // Cleanup is best-effort, but temp-dir cleanup must run.
           } finally {
             await fsp.rm(capturedCwd, { recursive: true, force: true });
           }
@@ -265,7 +260,6 @@ function boundedCaptureEvidence(
   };
 }
 
-// Duplicated from claudeCodeToolAdapter.ts (private there); consolidate when a third harness needs it.
 async function executeCodeExposureSnippet(input: {
   code: string;
   handles: Record<string, unknown>;

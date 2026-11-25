@@ -16,7 +16,7 @@ describe("public locator chaining", () => {
   const modelCalls: string[] = [];
 
   beforeAll(async () => {
-    const child = `<section id="scope"><button id="save" onclick="this.dataset.clicked='yes'">Save target</button><button class="omit">Excluded choice</button></section><button>Outside child</button><div id="open"></div><div id="closed"></div><script>
+    const child = `<section id="scope"><button id="save" onclick="this.dataset.clicked='yes'"><span>Save target</span></button><button class="omit">Excluded choice</button></section><button>Outside child</button><div id="open"></div><div id="closed"></div><script>
       for (const mode of ['open', 'closed']) document.getElementById(mode).attachShadow({mode}).innerHTML = '<button>Shadow ' + mode + '</button>';
     </script>`;
     server = await startFixtureServer({
@@ -134,6 +134,39 @@ describe("public locator chaining", () => {
       mask: [shadows, page.locator(".card").locator("button")],
     });
     expect(screenshot.length).toBeGreaterThan(0);
+  });
+
+  it("exposes role locators for actions, positions, frames, shadows & masks", async () => {
+    const page = await firstPage(stagehand);
+    expect(await page.getByRole("button").count()).toBe(4);
+    expect(await page.getByRole("button", { name: "Save target" }).count()).toBe(0);
+    const cards = page.locator(".card");
+    expect(await cards.getByRole("button").nth(1).textContent()).toBe("B");
+    expect(await cards.nth(1).getByRole("button").nth(1).textContent()).toBe("C");
+    expect(
+      await page.getByRole("button", { name: "A", exact: true }).getByRole("button").count(),
+    ).toBe(0);
+    const save = page
+      .locator("#checkout")
+      .getByRole("button", { name: "Save target", exact: true });
+    await save.click({ timeout: 5000 });
+    expect(await page.locator("#checkout").locator("#save[data-clicked=yes]").count()).toBe(1);
+    expect(await save.getByText("Save target").textContent()).toBe("Save target");
+    expect(await save.locator("span").textContent()).toBe("Save target");
+    const shadows = page.locator("#checkout").getByRole("button", { name: "Shadow" });
+    expect(await shadows.count()).toBe(2);
+    expect(await shadows.nth(1).textContent()).toBe("Shadow closed");
+    expect(
+      await page
+        .locator("#nested")
+        .locator("iframe")
+        .getByRole("button", { name: "Save target" })
+        .count(),
+    ).toBe(1);
+    const unmasked = await page.screenshot();
+    const masked = await page.screenshot({ mask: [shadows] });
+    expect(masked.length).toBeGreaterThan(0);
+    expect(masked).not.toEqual(unmasked);
   });
 
   it("uses chained scopes & exclusions in act, observe & extract", async () => {

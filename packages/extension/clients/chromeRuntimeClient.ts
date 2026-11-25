@@ -8,7 +8,6 @@ const ChromeBindingSchema = z.custom<(message: string) => void>(
   "Chrome runtime binding is not installed",
 );
 
-/** JSON-RPC transport backed by Chrome's Runtime binding mechanism. */
 export class ChromeRuntimeClient {
   onmessage?: (
     message: unknown,

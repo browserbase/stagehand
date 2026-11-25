@@ -19,17 +19,10 @@ export function metricValue(value: unknown): MetricValue {
   return { count: 1, value: toFiniteNumber(value) };
 }
 
-/** How an external harness asks the agent to report its result. */
 export type EvalResultContract = "marker" | "structured_output";
 
-/**
- * Set to `structured_output` to give every harness the JSON answer format, so
- * harnesses that otherwise answer in one `EVAL_RESULT:` line are scored on the
- * same deliverable as the rest. Unset keeps each harness's own format.
- */
 export const RESULT_CONTRACT_ENV = "EVAL_RESULT_CONTRACT";
 
-/** The answer format a harness runs with: its own default unless the eval asks for JSON everywhere. */
 export function readResultContract(
   harnessDefault: EvalResultContract,
   env: NodeJS.ProcessEnv = process.env,
@@ -40,14 +33,12 @@ export function readResultContract(
   throw new Error(`${RESULT_CONTRACT_ENV} must be unset or "structured_output" (got "${value}").`);
 }
 
-/** Names the answer a harness's own instructions ask for, so they agree with the task prompt. */
 export function requestedResult(resultContract: EvalResultContract): string {
   return resultContract === "marker"
     ? "the requested EVAL_RESULT line"
     : "the requested JSON report";
 }
 
-/** Shared output schema used by harnesses that enforce structured output. */
 export const EVAL_RESULT_SCHEMA = {
   type: "object",
   properties: {
@@ -66,19 +57,13 @@ export interface ParsedEvalResult {
   raw: string;
 }
 
-/** Parse either supported external-harness self-report format. */
 export function parseEvalResult(raw: string): ParsedEvalResult {
-  // Intentionally accept both report shapes for every external harness so
-  // marker and structured-output runners share the same resilient parser.
   const markerPattern = /^\s*(?:\*\*)?EVAL_RESULT:/gmu;
   const markerMatches = [...raw.matchAll(markerPattern)];
   const markerMatch = markerMatches.at(-1);
   const markerIndex = markerMatch?.index ?? -1;
   const resultText =
     markerIndex >= 0 ? raw.slice(markerIndex + (markerMatch?.[0].length ?? 0)).trim() : raw.trim();
-  // Without a marker the report may trail free-form narration ("I'll open
-  // the site...\n\n{...}"): a report-shaped object that ends the message is
-  // the agent's conclusion. One quoted mid-prose is not.
   const candidates =
     markerIndex >= 0
       ? [resultText, resultText.split(/\r?\n/, 1)[0]?.trim(), extractFirstJsonObject(resultText)]
@@ -92,11 +77,6 @@ export function parseEvalResult(raw: string): ParsedEvalResult {
   return { success: false, raw };
 }
 
-/**
- * The answer the verifier should grade: the structured report's finalAnswer
- * when the agent produced one, otherwise its last message. Remove recognized
- * eval reports without discarding legitimate JSON task deliverables.
- */
 export function resolveFinalAnswer(
   parsed: Pick<ParsedEvalResult, "finalAnswer">,
   lastMessage: string | undefined,
@@ -107,14 +87,12 @@ export function resolveFinalAnswer(
   return stripped || undefined;
 }
 
-/** Remove eval report envelopes, preserving unrelated JSON content. */
 export function stripEmbeddedEvalReports(text: string): string {
   let output = text;
   for (const span of extractJsonObjects(text)) {
     if (isEvalResultJson(span)) output = output.replace(span, "");
   }
   output = output.replace(/^[ \t]*(?:\*\*)?EVAL_RESULT:[ \t]*(?:\*\*)?[ \t]*$/gmu, "");
-  // Drop the now-empty Markdown fence that wrapped a removed report.
   output = output.replace(/^[ \t]*```[\w-]+[ \t]*\n\s*```[ \t]*$/gmu, "");
   return output.replace(/\n{3,}/gu, "\n\n");
 }
@@ -125,7 +103,6 @@ export interface ExternalHarnessPromptInput {
   resultContract: EvalResultContract;
 }
 
-/** Build the stable prompt shared by external harness SDK runners. */
 export function buildExternalHarnessPrompt({
   plan,
   toolInstructions,
@@ -160,7 +137,6 @@ export function buildExternalHarnessPrompt({
     .join("\n");
 }
 
-/** Normalized token usage reported by an external harness SDK. */
 export interface ExternalHarnessUsage {
   inputTokens: number;
   outputTokens: number;
@@ -168,11 +144,6 @@ export interface ExternalHarnessUsage {
   cacheCreationInputTokens?: number;
   reasoningOutputTokens?: number;
   totalTokens: number;
-  /**
-   * `false` when the SDK exposed no usage at all (cursor; codex after an
-   * aborted turn with no rollout to recover from). Zeros with `reported: false`
-   * are treated as unknown, never as a free run.
-   */
   reported?: boolean;
 }
 
@@ -196,14 +167,8 @@ export interface ExternalHarnessToolAdapterLike {
   browserSessionLoss?: () => BrowserSessionLoss | undefined;
 }
 
-/** harnessStopReason recorded when the mounted browser died before the agent finished. */
 export const BROWSER_SESSION_LOST_STOP_REASON = "browser_session_lost";
 
-/**
- * Collapse a harness's normalized status + stop reason into why the run ended.
- * Every SDK reports `completed | max_turns | sdk_error`; the stop reason is the
- * only place aborts and browser loss are distinguishable from other errors.
- */
 export function deriveTerminationReason(
   outcome: Pick<ExternalHarnessSessionOutcome<unknown>, "status" | "stopReason">,
 ): TerminationReason {
@@ -227,27 +192,18 @@ export interface ExternalHarnessTrajectoryInput<TRaw> {
 
 export interface RunExternalHarnessTaskInput<TRaw> {
   harness: string;
-  /** Execution implementation; absence on historical rows means unknown. */
   implementation?: { name: string; version: number; sdkVersion?: string };
   plan: ExternalHarnessTaskPlan;
-  /** Configured model id, used to price the normalized token usage. */
   model?: string;
   logger: EvalLogger;
   toolAdapter?: ExternalHarnessToolAdapterLike;
   verifier?: ExternalHarnessVerifierConfig;
   resultContract: EvalResultContract;
   fallbackErrorMessage: string;
-  /**
-   * The step (or turn) budget the session was started with, emitted as the
-   * `step_budget` metric so rows can be grouped by it in Braintrust.
-   */
   stepBudget?: number;
-  /** The harness's actual budget counter; different SDKs count different units. */
   stepBudgetUnit?: "tool_calls" | "successful_tool_calls" | "model_steps" | "agent_steps" | "turns";
   configuration?: Record<string, unknown>;
-  /** Harness-specific result parser; defaults to the strict parseEvalResult. */
   parseResult?: (raw: string) => ParsedEvalResult;
-  /** Use a native system/developer channel when the harness exposes one. */
   systemPromptMode?: "native" | "task_prefix";
   runSession: (
     prompt: string,
@@ -256,11 +212,6 @@ export interface RunExternalHarnessTaskInput<TRaw> {
   toTrajectory: (input: ExternalHarnessTrajectoryInput<TRaw>, taskSpec: TaskSpec) => Trajectory;
 }
 
-/**
- * Run the harness-agnostic lifecycle around one external SDK session. Evidence
- * capture is bounded because terminal probes are best-effort and must never
- * leave an otherwise completed benchmark hanging indefinitely.
- */
 export async function runExternalHarnessTask<TRaw>({
   harness,
   implementation,
@@ -293,15 +244,11 @@ export async function runExternalHarnessTask<TRaw>({
     ...(stepBudgetUnit && { stepBudgetUnit }),
   };
   const startedAt = performance.now();
-  // CLI-only harnesses without a system-instruction channel receive the same
-  // eval policy as a task prefix. Native channels must not also get the prefix.
   const sessionOutcome = await runSession(
     systemPromptMode === "native" ? prompt : `${EVAL_SYSTEM_PROMPT}\n\n${prompt}`,
     systemPromptMode === "native" ? EVAL_SYSTEM_PROMPT : "",
   );
   const agentWallMs = performance.now() - startedAt;
-  // A run that outlived its browser has no trustworthy self-report: the agent
-  // was answering terminal "Browser session lost" errors, not the task.
   const browserSessionLoss = toolAdapter?.browserSessionLoss?.();
   if (browserSessionLoss) {
     logger.warn({
@@ -378,8 +325,6 @@ export async function runExternalHarnessTask<TRaw>({
     billing_channel: cost.billing_channel,
     ...(cost.cost_pricing && { cost_pricing: cost.cost_pricing }),
     ...(cost.cost_usd !== undefined && { cost_usd: cost.cost_usd }),
-    // Deprecated compatibility aliases; consumers should use the normalized
-    // harnessStatus / harnessStopReason fields for newly registered harnesses.
     [`${prefix}Status`]: outcome.status,
     ...(sanitizedStopReason && { [`${prefix}StopReason`]: sanitizedStopReason }),
     logs: logger.getLogs(),
@@ -423,9 +368,6 @@ export async function runExternalHarnessTask<TRaw>({
       if (implementation) trajectory.harnessImplementation = implementation;
       trajectory.harnessConfiguration = harnessConfiguration;
       if (cost.cost_pricing) trajectory.cost_pricing = cost.cost_pricing;
-      // The readable step trace is derived from the normalized trajectory so
-      // every harness logs the same shape; a formatting bug must never fail
-      // the grade.
       try {
         emitTrajectoryTrace(logger, {
           trajectory,
@@ -475,12 +417,8 @@ export async function runExternalHarnessTask<TRaw>({
   const result: TaskResult = {
     ...gradedResult,
     metrics: { ...gradedMetrics, ...facadeMetrics, ...timing },
-    // Re-read so the trace and verifier lines logged after baseResult was
-    // built ship with the row.
     logs: logger.getLogs(),
   };
-  // Execution failures remain visible in harnessStatus/terminationReason. The
-  // verifier can still establish a completed task from the captured evidence.
   return result;
 }
 
@@ -491,15 +429,6 @@ function withTerminationReason(
   return { ...trajectory, terminationReason };
 }
 
-/**
- * How often the agent actually reached the mounted browser surface. A run that
- * "passes" with zero facade calls answered from somewhere else (curl, another
- * MCP server, prior knowledge), which the rubric verifier cannot see.
- *
- * Failed calls remain failures even when their text claims session loss. The
- * run-level loss signal is runner-owned; normalized steps do not currently
- * carry trusted per-call loss attribution.
- */
 export function buildFacadeToolCallMetrics(
   trajectory: Pick<Trajectory, "steps">,
   isFacadeTool: (name: string) => boolean,
@@ -518,7 +447,6 @@ export function buildFacadeToolCallMetrics(
   };
 }
 
-/** Wall-clock split so agent speed is never confounded with verifier speed. */
 export function buildTimingMetrics(timing: {
   agentWallMs: number;
   evidenceMs: number;
@@ -536,12 +464,6 @@ export function formatSeconds(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-/**
- * Convention-independent token buckets (the efficiency axis) plus the single
- * billed cost column `cost_usd` — reported by the harness's channel, else
- * computed at provider list price for direct-API harnesses, else absent
- * rather than zero. Unreported usage gets no usage_* metrics rather than zeros.
- */
 export function buildUsageCostMetrics(
   usage: NormalizedUsage,
   cost: BilledCost,
@@ -557,12 +479,10 @@ export function buildUsageCostMetrics(
   };
 }
 
-/** Convert a registered harness id to its deprecated TaskResult field prefix. */
 export function legacyHarnessFieldPrefix(harness: string): string {
   return harness.replace(/_([a-z0-9])/g, (_, character: string) => character.toUpperCase());
 }
 
-/** Add portable external-harness metrics without replacing native metrics. */
 export function buildNormalizedHarnessMetrics(
   outcome: Pick<ExternalHarnessSessionOutcome<unknown>, "usage" | "costUsd" | "metrics">,
 ): Record<string, MetricValue> {
@@ -600,7 +520,6 @@ function extractFirstJsonObject(value: string): string | undefined {
   return extractJsonObjects(value)[0];
 }
 
-/** Every top-level balanced `{...}` span in document order (not validated). */
 function extractJsonObjects(value: string): string[] {
   const spans: string[] = [];
   let start = -1;
@@ -676,7 +595,6 @@ function tryParseEvalJson(candidate: string): Omit<ParsedEvalResult, "raw"> | un
   }
 }
 
-/** Matches the integration packages while avoiding a runner-specific dependency. */
 function stringifyError(value: unknown): string {
   if (!value) return "";
   if (value instanceof Error) return value.message;

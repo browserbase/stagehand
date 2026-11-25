@@ -114,7 +114,6 @@ describe("claudeCuaAdapter", () => {
     expect(trajectory.steps[0]!.actionArgs).toEqual({ url: "https://example.com" });
     expect(trajectory.steps[0]!.toolOutput).toMatchObject({ ok: true });
     expect(trajectory.steps[0]!.probeEvidence).toEqual({ url: "https://example.com/" });
-    // Only the first member of a turn carries the turn's reasoning.
     expect(trajectory.steps[1]!.reasoning).toBe("");
     expect(trajectory.steps[1]!.agentEvidence.modalities).toContainEqual({
       type: "image",

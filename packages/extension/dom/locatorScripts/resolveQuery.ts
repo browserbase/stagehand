@@ -9,7 +9,6 @@ export type SelectorResolution =
   | { mode: "range"; start: number; end: number }
   | { mode: "all" };
 
-/** Only the requested slice crosses CDP; count never exports node handles. */
 export function resolveQuery(
   query: SelectorQuery,
   resolution: SelectorResolution,

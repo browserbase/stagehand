@@ -1,18 +1,3 @@
-/**
- * Response
- * -----------------
- *
- * This module implements a Playwright-inspired response wrapper that exposes
- * navigation metadata and helpers for retrieving HTTP response bodies. The
- * abstraction is consumed by navigation routines (e.g. `Page.goto`) so callers
- * can synchronously inspect status codes, lazily fetch body text, or await the
- * network layer finishing the request. The implementation is built directly on
- * Chrome DevTools Protocol primitives – it holds the originating `requestId`
- * so it can request payloads via `Network.getResponseBody`, and it listens for
- * `responseReceivedExtraInfo`, `loadingFinished`, and `loadingFailed` events to
- * hydrate the richer header view and resolve callers waiting on completion.
- */
-
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import type { Frame } from "./frame.js";
@@ -29,12 +14,6 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes;
 }
 
-/**
- * Minimal deferred helper that lets navigation tracking hand out a promise and
- * later control the resolution from event callbacks. Each response owns a
- * single deferred covering the "finished" promise so consumers can mirror
- * Playwright's `response.finished()` behaviour.
- */
 type Deferred<T> = {
   promise: Promise<T>;
   resolve: (value: T) => void;
@@ -51,23 +30,14 @@ function createDeferred<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
-/** Normalise header names to lowercase for case-insensitive lookups. */
 function normaliseHeaderName(name: string): string {
   return name.toLowerCase();
 }
 
-/**
- * Split multi-value header strings into discrete values while trimming. An
- * empty value is kept: the header was still sent, so it must stay visible.
- */
 function splitHeaderValues(value: string): string[] {
   return value.split(/\r?\n/).map((part) => part.trim());
 }
 
-/**
- * Parse an HTTP header text block (as emitted by CDP) into an ordered array of
- * name/value pairs while preserving the wire casing.
- */
 function parseHeadersText(headersText: string | undefined): Array<{ name: string; value: string }> {
   if (!headersText) return [];
   const lines = headersText.split(/\r?\n/);
@@ -83,15 +53,9 @@ function parseHeadersText(headersText: string | undefined): Array<{ name: string
   return entries;
 }
 
-/**
- * Thin wrapper around CDP response metadata that mirrors the ergonomics of
- * Playwright's `Response` class. The class intentionally keeps the same method
- * names so upstream integrations can transition with minimal code changes.
- *
- * TODO(protocol): Keep this class internal. If clients need navigation response
- * metadata, define a JSON-safe Zod result in protocol and map this live CDP
- * state into that result instead of exposing this object.
- */
+// TODO(protocol): Keep this class internal. If clients need navigation response
+// metadata, define a JSON-safe Zod result in protocol and map this live CDP
+// state into that result instead of exposing this object.
 export class Response {
   readonly page: Page;
   private _session: CDPSessionLike;
@@ -138,12 +102,6 @@ export class Response {
   extraInfoHeaders: Protocol.Network.Headers | null = null;
   extraInfoHeadersText: string | undefined;
 
-  /**
-   * Build a response wrapper from the CDP notification associated with a
-   * navigation. The constructor captures the owning page/session so follow-up
-   * methods (body/text/json) can query CDP on-demand. The `response` payload is
-   * the raw `Protocol.Network.Response` object emitted by Chrome.
-   */
   constructor(params: {
     page: Page;
     session: CDPSessionLike;
@@ -182,28 +140,23 @@ export class Response {
     this.installLifecycleListeners();
   }
 
-  /** URL associated with the navigation request. */
   url(): string {
     return this.response.url;
   }
 
-  /** HTTP status code reported by Chrome. */
   status(): number {
     return this.response.status;
   }
 
-  /** Human-readable status text that accompanied the response. */
   statusText(): string {
     return this.response.statusText;
   }
 
-  /** Convenience predicate that checks for 2xx statuses. */
   ok(): boolean {
     const status = this.status();
     return status >= 200 && status <= 299;
   }
 
-  /** Returns the Stagehand frame object that initiated the navigation. */
   frame(): Frame | null {
     if (!this.frameId) return null;
     try {
@@ -213,28 +166,18 @@ export class Response {
     }
   }
 
-  /** Indicates whether the response was serviced by a Service Worker. */
   fromServiceWorker(): boolean {
     return this.fromServiceWorkerFlag;
   }
 
-  /**
-   * Returns TLS security metadata when provided by the browser. In practice
-   * this includes certificate issuer, protocol, and validity interval.
-   */
   async securityDetails(): Promise<Protocol.Network.SecurityDetails | null> {
     return this.response.securityDetails ?? null;
   }
 
-  /** Returns the resolved server address for the navigation when available. */
   async serverAddr(): Promise<ServerAddr | null> {
     return this.serverAddress ?? null;
   }
 
-  /**
-   * Returns the response headers normalised to lowercase keys. Matches the
-   * behaviour of Playwright's `headers()` by eliding duplicate header entries.
-   */
   headers(): Record<string, string> {
     return { ...this.headersObject };
   }
@@ -255,14 +198,12 @@ export class Response {
     return { ...map };
   }
 
-  /** Returns a concatenated header string for the supplied header name. */
   async headerValue(name: string): Promise<string | null> {
     const values = await this.headerValues(name);
     if (!values.length) return null;
     return values.join(", ");
   }
 
-  /** Returns all values for a header (case-insensitive lookup). */
   async headerValues(name: string): Promise<string[]> {
     const lower = normaliseHeaderName(name);
     if (this.extraInfoHeaders) {
@@ -275,10 +216,6 @@ export class Response {
     return values ? [...values] : [];
   }
 
-  /**
-   * Returns header entries preserving their original wire casing and ordering.
-   * Falls back to the CDP object when the raw header text is unavailable.
-   */
   async headersArray(): Promise<Array<{ name: string; value: string }>> {
     if (this.headersArrayCache) return [...this.headersArrayCache];
 
@@ -327,31 +264,20 @@ export class Response {
     return new TextEncoder().encode(result.body);
   }
 
-  /** Decodes the response body as UTF-8 text. */
   async text(): Promise<string> {
     const bytes = await this.body();
     return new TextDecoder().decode(bytes);
   }
 
-  /** Parses the response body as JSON and throws if parsing fails. */
   async json<T = unknown>(): Promise<T> {
     const text = await this.text();
     return JSON.parse(text) as T;
   }
 
-  /**
-   * Resolves once the underlying network request completes or fails. Mirrors
-   * Playwright's behaviour by resolving to `null` on success and to an `Error`
-   * instance when Chrome reports `Network.loadingFailed`.
-   */
   async finished(): Promise<null | Error> {
     return this.finishedDeferred.promise;
   }
 
-  /**
-   * Internal helper invoked when CDP reports extra header information. This
-   * keeps the cached header views in sync with the richer metadata.
-   */
   public applyExtraInfo(event: Protocol.Network.ResponseReceivedExtraInfoEvent): void {
     this.extraInfoHeaders = event.headers;
     this.extraInfoHeadersText = event.headersText;
@@ -373,7 +299,6 @@ export class Response {
     return this._session;
   }
 
-  /** Follow a document request into its iframe session before completing it. */
   public updateSession(session: CDPSessionLike): void {
     if (this.finishedSettled || session === this._session) return;
     this.removeLifecycleListeners();
@@ -381,7 +306,6 @@ export class Response {
     this.installLifecycleListeners();
   }
 
-  /** Marks the response as finished and resolves the `finished()` promise. */
   public markFinished(error: Error | null): void {
     if (this.finishedSettled) return;
     this.finishedSettled = true;
@@ -393,11 +317,6 @@ export class Response {
     }
   }
 
-  /**
-   * Releases the session listeners retained by this response. Unfinished
-   * responses are settled with an error so callers already waiting on
-   * `finished()` or a lazy body read cannot hang after their handle is removed.
-   */
   public dispose(error = new Error("Response was disposed")): void {
     this.markFinished(error);
   }

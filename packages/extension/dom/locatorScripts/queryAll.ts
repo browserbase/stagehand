@@ -3,7 +3,6 @@ import { collectCssMatches, collectTextMatches } from "./selectors.js";
 import { collectXPathMatches } from "./xpathResolver.js";
 import { collectNormalizedTextMatches } from "./textQuery.js";
 
-/** Collect within one execution context, in scope order, deduplicated by DOM identity. */
 export function queryAll(
   query: SelectorQuery,
   scopes: readonly (Document | Element)[] = [document],

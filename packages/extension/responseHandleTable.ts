@@ -19,11 +19,6 @@ export class ResponseHandleNotFoundError extends Error {
   }
 }
 
-/**
- * Retains live understudy responses for one Stagehand runtime. Handles are
- * opaque RPC identities; CDP request and session identifiers never leave the
- * server-side Response object.
- */
 export class ResponseHandleTable {
   private readonly handlesByResponse = new WeakMap<Response, string>();
   private readonly entries = new Map<string, ResponseHandleEntry>();
