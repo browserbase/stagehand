@@ -41,9 +41,16 @@ export type CuaFacadeTools = Pick<
   "run" | "runActions" | "snapshot" | "screenshot"
 >;
 
+export type StagehandCuaScreenshotOptions = {
+  type?: "png" | "jpeg";
+  quality?: number;
+};
+
 export interface StagehandCuaExecutorOptions {
   tools: CuaFacadeTools;
   logger: HarnessLogger;
+  /** Format used for screenshots returned to the CUA model. Defaults to PNG. */
+  screenshot?: StagehandCuaScreenshotOptions;
   /** Runs after a member that may have changed the page; transient evidence failures are ignored. */
   onMutation?: (toolUseId: string) => Promise<void>;
   /** Runner-owned loss telemetry for hosts that call the facade over a bridge. */
@@ -595,7 +602,7 @@ await batchStagehand.page.scroll(Math.round(__vp.w / 2), Math.round(__vp.h / 2),
   // ---------------------------------------------------------------------------
 
   private async screenshot(): Promise<CuaToolResult> {
-    const image = await this.options.tools.screenshot({ type: "png" });
+    const image = await this.options.tools.screenshot(this.screenshotOptions());
     return { content: [imageBlock(image.data, image.mimeType)] };
   }
 
@@ -610,16 +617,35 @@ await batchStagehand.page.scroll(Math.round(__vp.w / 2), Math.round(__vp.h / 2),
     if (width <= 0 || height <= 0) {
       throw new Error("zoom region must have positive width and height.");
     }
+    const screenshotOptions = this.screenshotOptions();
+    const screenshotParams = {
+      ...screenshotOptions,
+      clip: { x: x0, y: y0, width, height },
+    };
+    const mimeType = screenshotOptions.type === "jpeg" ? "image/jpeg" : "image/png";
     // Base64 is produced inside the batch: its return value must be JSON.
     const base64 = await this.options.tools.run(
-      `const __bytes = await page.screenshot({ type: "png", clip: { x: ${x0}, y: ${y0}, width: ${width}, height: ${height} } });
+      `const __bytes = await page.screenshot(${JSON.stringify(screenshotParams)});
 const __u8 = __bytes instanceof Uint8Array ? __bytes : new Uint8Array(__bytes);
 let __bin = "";
 for (let __i = 0; __i < __u8.length; __i += 0x8000) __bin += String.fromCharCode.apply(null, __u8.subarray(__i, __i + 0x8000));
 return btoa(__bin);`,
     );
     if (typeof base64 !== "string" || !base64) throw new Error("zoom returned no image");
-    return { content: [imageBlock(base64, "image/png")] };
+    return { content: [imageBlock(base64, mimeType)] };
+  }
+
+  private screenshotOptions(): Required<Pick<StagehandCuaScreenshotOptions, "type">> &
+    Pick<StagehandCuaScreenshotOptions, "quality"> {
+    const type = this.options.screenshot?.type ?? "png";
+    const quality =
+      type === "jpeg" && this.options.screenshot?.quality !== undefined
+        ? Math.round(this.options.screenshot.quality)
+        : undefined;
+    return {
+      type,
+      ...(quality === undefined ? {} : { quality }),
+    };
   }
 
   private async readPage(input: Record<string, unknown>): Promise<CuaToolResult> {
