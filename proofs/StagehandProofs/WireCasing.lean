@@ -441,7 +441,7 @@ def toWireTree (opaqueKeys : List String) (v : JsonVal) : JsonVal :=
   transformJson toWireKey opaqueKeys v
 
 def fromWireTree (opaqueKeys : List String) (v : JsonVal) : JsonVal :=
-  transformJson fromWireKey (opaqueKeys.map toWireKey) v
+  transformJson fromWireKey (opaqueKeys ++ opaqueKeys.map toWireKey) v
 
 def lookupField (k : String) : List (String × JsonVal) → Option JsonVal
   | [] => none
@@ -585,5 +585,24 @@ theorem opaqueKey_nested_subtree_preserved
         exact ih opaqueKey child subtree hopaque hps_notop hlook
     | jnull | jbool _ | jint _ | jstr _ | jarr _ =>
       simp [lookupPath] at hlook
+
+theorem fromWireTree_preserves_api_and_wire_opaque_entries
+    (opaqueKeys : List String) (fields : List (String × JsonVal))
+    (k : String) (v : JsonVal) (hopaque : k ∈ opaqueKeys) :
+    ((k, v) ∈ fields →
+      (fromWireKey k, v) ∈
+        transformFields fromWireKey (opaqueKeys ++ opaqueKeys.map toWireKey) fields) ∧
+    ((toWireKey k, v) ∈ fields →
+      (fromWireKey (toWireKey k), v) ∈
+        transformFields fromWireKey (opaqueKeys ++ opaqueKeys.map toWireKey) fields) := by
+  constructor
+  · intro hmem
+    exact transformFields_preserves_opaque_entry fromWireKey
+      (opaqueKeys ++ opaqueKeys.map toWireKey) fields k v hmem
+      (List.mem_append_left _ hopaque)
+  · intro hmem
+    exact transformFields_preserves_opaque_entry fromWireKey
+      (opaqueKeys ++ opaqueKeys.map toWireKey) fields (toWireKey k) v hmem
+      (List.mem_append_right _ (List.mem_map_of_mem hopaque))
 
 end StagehandProofs.WireCasing

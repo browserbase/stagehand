@@ -171,10 +171,21 @@ theorem protocol_prerelease_symmetric (c s : SemVer)
 
 def stagehandRuntimeName : String := "stagehand"
 
+inductive MarkerProtocolField where
+  | empty
+  | nonEmptyInvalid
+  | valid (version : SemVer)
+  deriving DecidableEq, Repr
+
+def MarkerProtocolField.toOption : MarkerProtocolField → Option SemVer
+  | .empty => none
+  | .nonEmptyInvalid => none
+  | .valid v => some v
+
 inductive MarkerInput where
   | missing
   | unreadable
-  | readable (serverName : String) (protocolVersion : Option SemVer)
+  | readable (serverName : String) (serverVersion : String) (protocolVersion : MarkerProtocolField)
   deriving DecidableEq, Repr
 
 inductive RuntimeIncompatibilityReason where
@@ -194,33 +205,62 @@ def negotiateRuntimeCompatibility
   match marker with
   | .missing => .missingMarker
   | .unreadable => .unreadableMarker
-  | .readable serverName reported =>
-    if serverName != stagehandRuntimeName then
+  | .readable serverName serverVersion reported =>
+    if serverName.isEmpty || serverVersion.isEmpty || reported == .empty then
+      .unreadableMarker
+    else if serverName != stagehandRuntimeName then
       .incompatible .runtimeNameMismatch
     else
-      match checkProtocolCompatibility required reported with
+      match checkProtocolCompatibility required reported.toOption with
       | .compatible => .compatible
       | .incompatible reason => .incompatible (.protocol reason)
 
+theorem runtime_negotiation_empty_fields_unreadable
+    (required : Option SemVer) (serverName serverVersion : String) (reported : MarkerProtocolField)
+    (h : serverName.isEmpty = true ∨ serverVersion.isEmpty = true ∨ reported = .empty) :
+    negotiateRuntimeCompatibility required (.readable serverName serverVersion reported) =
+      .unreadableMarker := by
+  unfold negotiateRuntimeCompatibility
+  rcases h with h1 | h2 | h3
+  · simp [h1]
+  · simp [h2]
+  · subst h3; simp
+
 theorem runtime_negotiation_compatible_iff (required : Option SemVer) (marker : MarkerInput) :
     negotiateRuntimeCompatibility required marker = .compatible ↔
-      ∃ reported, marker = .readable stagehandRuntimeName reported ∧
-        checkProtocolCompatibility required reported = .compatible := by
+      ∃ serverVersion reported,
+        serverVersion.isEmpty = false ∧
+        marker = .readable stagehandRuntimeName serverVersion (.valid reported) ∧
+        checkProtocolCompatibility required (some reported) = .compatible := by
   constructor
   · intro h
     cases marker with
     | missing => simp [negotiateRuntimeCompatibility] at h
     | unreadable => simp [negotiateRuntimeCompatibility] at h
-    | readable name reported =>
+    | readable name ver reported =>
       unfold negotiateRuntimeCompatibility at h
-      by_cases hname : name = stagehandRuntimeName
-      · subst hname
-        simp at h
-        cases hcompat : checkProtocolCompatibility required reported with
-        | compatible => exact ⟨reported, rfl, hcompat⟩
-        | incompatible r => simp [hcompat] at h
-      · simp [hname] at h
-  · rintro ⟨reported, rfl, hcompat⟩
-    simp [negotiateRuntimeCompatibility, hcompat]
+      by_cases hempty : (name.isEmpty || ver.isEmpty || (reported == .empty)) = true
+      · simp [hempty] at h
+      · simp only [hempty, Bool.false_eq_true, ↓reduceIte] at h
+        have hver : ver.isEmpty = false := by
+          cases hv : ver.isEmpty with
+          | false => rfl
+          | true => simp [hv] at hempty
+        by_cases hname : name = stagehandRuntimeName
+        · subst hname
+          simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte] at h
+          cases reported with
+          | empty => simp at hempty
+          | nonEmptyInvalid =>
+            simp [MarkerProtocolField.toOption, protocol_invalid_server] at h
+          | valid sv =>
+            simp only [MarkerProtocolField.toOption] at h
+            cases hcompat : checkProtocolCompatibility required (some sv) with
+            | compatible => exact ⟨ver, sv, hver, rfl, hcompat⟩
+            | incompatible r => simp [hcompat] at h
+        · simp [hname] at h
+  · rintro ⟨ver, reported, hver, rfl, hcompat⟩
+    have hst : stagehandRuntimeName.isEmpty = false := by decide
+    simp [negotiateRuntimeCompatibility, hst, hver, MarkerProtocolField.toOption, hcompat]
 
 end StagehandProofs.ProtocolVersion

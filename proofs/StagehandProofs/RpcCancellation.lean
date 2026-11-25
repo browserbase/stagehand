@@ -34,6 +34,7 @@ structure RpcState where
   closed : Bool
   clientConnected : Bool
   pending : List (ReqId × ClientReq)
+  inFlight : List (ReqId × Bool)
   settled : List (ReqId × Outcome)
   settlementCount : ReqId → Nat
   cancelQueue : List ReqId
@@ -60,6 +61,7 @@ def initState : RpcState where
   closed := false
   clientConnected := true
   pending := []
+  inFlight := []
   settled := []
   settlementCount := fun _ => 0
   cancelQueue := []
@@ -114,17 +116,23 @@ def step (s : RpcState) : RpcEvent → RpcState
       let id := s.nextId
       { s with
         nextId := id + 1
-        pending := (id, { dispatch := .inFlight, aborted := false, cancelNotified := false }) :: s.pending }
+        pending := (id, { dispatch := .inFlight, aborted := false, cancelNotified := false }) :: s.pending
+        inFlight := (id, false) :: s.inFlight }
   | .dispatchSuccess id =>
-    match lookupAssoc id s.pending with
+    match lookupAssoc id s.inFlight with
     | none => s
-    | some req =>
-      let req' := { req with dispatch := .dispatched, cancelNotified := req.cancelNotified || (req.aborted && !s.closed) }
+    | some wasAborted =>
       { s with
-        pending := updateKey id (fun _ => req') s.pending
-        cancelQueue := if req.aborted && !s.closed then id :: s.cancelQueue else s.cancelQueue }
+        inFlight := removeKey id s.inFlight
+        pending := updateKey id
+          (fun req => { req with dispatch := .dispatched, cancelNotified := req.cancelNotified || (wasAborted && !s.closed) })
+          s.pending
+        cancelQueue := if wasAborted && !s.closed then id :: s.cancelQueue else s.cancelQueue }
   | .dispatchFail id =>
-    settleOne s id .rejectedDispatchFailed
+    match lookupAssoc id s.inFlight with
+    | none => s
+    | some _ =>
+      settleOne { s with inFlight := removeKey id s.inFlight } id .rejectedDispatchFailed
   | .clientAbort id isTimeout =>
     match lookupAssoc id s.pending with
     | none => s
@@ -133,6 +141,8 @@ def step (s : RpcState) : RpcEvent → RpcState
       let s1 := settleOne s id out
       if req.dispatch == .dispatched && !s.closed then
         { s1 with cancelQueue := id :: s1.cancelQueue }
+      else if req.dispatch == .inFlight then
+        { s1 with inFlight := updateKey id (fun _ => true) s1.inFlight }
       else
         s1
   | .dropCancel id =>
@@ -515,17 +525,24 @@ theorem step_preserves_wellFormed (s : RpcState) (e : RpcEvent) (hwf : WellForme
         · intro hdc; rw [hconn] at hdc; cases hdc
   | dispatchSuccess id =>
     dsimp only [step]
-    cases hlp : lookupAssoc id s.pending with
+    cases hlp : lookupAssoc id s.inFlight with
     | none => exact hwf
-    | some req =>
+    | some wasAborted =>
       refine ⟨?_, hwf.settledNodup, ?_, hwf.settledBound, ?_, hwf.countSettled, hwf.countUnsettled, ?_, ?_⟩
       · rw [map_fst_updateKey]; exact hwf.pendingNodup
       · intro k hk; rw [hasKey_updateKey] at hk; exact hwf.pendingBound k hk
       · intro k ⟨hp, hs⟩; rw [hasKey_updateKey] at hp; exact hwf.disjoint k ⟨hp, hs⟩
-      · intro hcl; rw [hwf.closedEmpty hcl] at hlp; simp [lookupAssoc] at hlp
-      · intro hdc; rw [hwf.disconnectedEmpty hdc] at hlp; simp [lookupAssoc] at hlp
+      · intro hcl; rw [hwf.closedEmpty hcl]; rfl
+      · intro hdc; rw [hwf.disconnectedEmpty hdc]; rfl
   | dispatchFail id =>
-    exact settleOne_preserves_wellFormed s id .rejectedDispatchFailed hwf
+    dsimp only [step]
+    cases lookupAssoc id s.inFlight with
+    | none => exact hwf
+    | some _ =>
+      have h1 : WellFormed { s with inFlight := removeKey id s.inFlight } :=
+        ⟨hwf.pendingNodup, hwf.settledNodup, hwf.pendingBound, hwf.settledBound,
+          hwf.disjoint, hwf.countSettled, hwf.countUnsettled, hwf.closedEmpty, hwf.disconnectedEmpty⟩
+      exact settleOne_preserves_wellFormed _ id .rejectedDispatchFailed h1
   | clientAbort id isTimeout =>
     dsimp only [step]
     cases hlp : lookupAssoc id s.pending with
@@ -537,7 +554,10 @@ theorem step_preserves_wellFormed (s : RpcState) (e : RpcEvent) (hwf : WellForme
       split
       · exact ⟨h1.pendingNodup, h1.settledNodup, h1.pendingBound, h1.settledBound,
           h1.disjoint, h1.countSettled, h1.countUnsettled, h1.closedEmpty, h1.disconnectedEmpty⟩
-      · exact h1
+      · split
+        · exact ⟨h1.pendingNodup, h1.settledNodup, h1.pendingBound, h1.settledBound,
+            h1.disjoint, h1.countSettled, h1.countUnsettled, h1.closedEmpty, h1.disconnectedEmpty⟩
+        · exact h1
   | dropCancel id =>
     exact ⟨hwf.pendingNodup, hwf.settledNodup, hwf.pendingBound, hwf.settledBound,
       hwf.disjoint, hwf.countSettled, hwf.countUnsettled, hwf.closedEmpty, hwf.disconnectedEmpty⟩
@@ -635,9 +655,16 @@ theorem step_preserves_settlement (s : RpcState) (e : RpcEvent) (id : ReqId) (ou
     · cases preAborted <;> simp [h1, hlook]
   | dispatchSuccess reqId =>
     dsimp only [step]
-    cases lookupAssoc reqId s.pending <;> exact hlook
+    cases lookupAssoc reqId s.inFlight <;> exact hlook
   | dispatchFail reqId =>
-    exact settleOne_preserves_outcome s id reqId out .rejectedDispatchFailed hwf hlook
+    dsimp only [step]
+    cases lookupAssoc reqId s.inFlight with
+    | none => exact hlook
+    | some _ =>
+      have hwf' : WellFormed { s with inFlight := removeKey reqId s.inFlight } :=
+        ⟨hwf.pendingNodup, hwf.settledNodup, hwf.pendingBound, hwf.settledBound,
+          hwf.disjoint, hwf.countSettled, hwf.countUnsettled, hwf.closedEmpty, hwf.disconnectedEmpty⟩
+      exact settleOne_preserves_outcome _ id reqId out .rejectedDispatchFailed hwf' hlook
   | clientAbort reqId isTimeout =>
     dsimp only [step]
     cases hlp : lookupAssoc reqId s.pending with
@@ -646,7 +673,9 @@ theorem step_preserves_settlement (s : RpcState) (e : RpcEvent) (id : ReqId) (ou
       simp only
       have h := settleOne_preserves_outcome s id reqId out
         (if isTimeout then .rejectedTimeout else .rejectedAbort) hwf hlook
-      split <;> exact h
+      split
+      · exact h
+      · split <;> exact h
   | dropCancel _ => exact hlook
   | serverReceiveRequest _ =>
     dsimp only [step]; split <;> exact hlook
@@ -694,19 +723,21 @@ theorem step_closed_stays_closed (s : RpcState) (e : RpcEvent) (hcl : s.closed =
   | clientSend preAborted => simp [step, hcl]
   | dispatchSuccess reqId =>
     dsimp only [step]
-    cases lookupAssoc reqId s.pending <;> simp [hcl]
+    cases lookupAssoc reqId s.inFlight <;> simp [hcl]
   | dispatchFail reqId =>
     dsimp only [step]
-    unfold settleOne
-    cases lookupAssoc reqId s.pending <;> simp [hcl]
+    cases lookupAssoc reqId s.inFlight with
+    | none => exact hcl
+    | some _ =>
+      unfold settleOne
+      cases lookupAssoc reqId s.pending <;> simp [hcl]
   | clientAbort reqId isTimeout =>
     dsimp only [step]
     cases lookupAssoc reqId s.pending with
     | none => exact hcl
     | some req =>
       simp only [hcl, Bool.not_true, Bool.and_false, Bool.false_eq_true, ↓reduceIte]
-      unfold settleOne
-      cases lookupAssoc reqId s.pending <;> simp [hcl]
+      split <;> (unfold settleOne; cases lookupAssoc reqId s.pending <;> simp [hcl])
   | dropCancel _ => exact hcl
   | serverReceiveRequest _ => simp [step, hcl]
   | serverReceiveCancel _ => exact hcl
@@ -753,5 +784,20 @@ theorem disjoint_pending_settled (trace : List RpcEvent) (id : ReqId) :
     ¬(hasKey (runTrace initState trace).pending id = true ∧
       hasKey (runTrace initState trace).settled id = true) :=
   (runTrace_preserves_wellFormed initState trace initState_wellFormed).disjoint id
+
+theorem in_flight_abort_queues_cancel_on_dispatch_success
+    (s : RpcState) (isTimeout : Bool)
+    (hwf : WellFormed s) (hopen : s.closed = false) (hconn : s.clientConnected = true) :
+    let id := s.nextId
+    let s' := runTrace s [.clientSend false, .clientAbort id isTimeout, .dispatchSuccess id]
+    id ∈ s'.cancelQueue ∧
+    lookupAssoc id s'.settled = some (if isTimeout then .rejectedTimeout else .rejectedAbort) ∧
+    s'.settlementCount id = 1 := by
+  have hfresh_s : hasKey s.settled s.nextId = false := by
+    cases h : hasKey s.settled s.nextId with
+    | false => rfl
+    | true => exact absurd (hwf.settledBound s.nextId h) (Nat.lt_irrefl _)
+  have hcount0 : s.settlementCount s.nextId = 0 := hwf.countUnsettled s.nextId hfresh_s
+  simp [runTrace, step, settleOne, lookupAssoc, updateKey, incCount, hopen, hconn, hcount0]
 
 end StagehandProofs.RpcCancellation

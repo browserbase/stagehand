@@ -392,14 +392,18 @@ describe("wire-casing adversarial property tests", () => {
 
   it("round-trips 100% of declared property names in schemas.ts and stagehand.v4.json losslessly", async () => {
     const allApiKeys = new Set<string>();
-    for (const exported of Object.values(protocolSchemas)) {
+    for (const [exportName, exported] of Object.entries(protocolSchemas)) {
       if (exported && typeof exported === "object" && "_zod" in exported) {
         try {
           collectPropertyNames(
             z.toJSONSchema(exported as z.ZodType, { io: "input", unrepresentable: "any" }),
             allApiKeys,
           );
-        } catch {}
+        } catch (error) {
+          throw new Error(`Failed to convert exported schema ${exportName} to JSON Schema`, {
+            cause: error,
+          });
+        }
       }
     }
     expect(allApiKeys.size).toBeGreaterThan(200);
