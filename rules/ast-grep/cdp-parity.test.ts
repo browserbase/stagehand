@@ -2,6 +2,11 @@ import { readFile } from "node:fs/promises";
 import python from "@ast-grep/lang-python";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { describe, expect, it } from "vitest";
+import {
+  EXTENSION_BUILD_ID_FILE,
+  EXTENSION_BUILD_ID_GLOBAL,
+  STAGEHAND_EXTENSION_BUILD_ID,
+} from "../../packages/extension/version.ts";
 
 registerDynamicLanguage({ python });
 
@@ -60,7 +65,7 @@ const runtimeBindingTokens = {
 
 const pages = {
   typescript: {
-    file: new URL("../../packages/sdk-ts/src/page.ts", import.meta.url),
+    file: new URL("../../packages/shared/browser-api/src/page.ts", import.meta.url),
     typeName: "Page",
     method: "on",
   },
@@ -73,7 +78,7 @@ const pages = {
 
 const subscriptions = {
   typescript: {
-    file: new URL("../../packages/sdk-ts/src/page.ts", import.meta.url),
+    file: new URL("../../packages/shared/browser-api/src/page.ts", import.meta.url),
     typeName: "CDPSubscription",
     method: "unsubscribe",
   },
@@ -162,6 +167,15 @@ describe("CDP clients retain the same core behavior", () => {
       );
       expect(source, `${language} must discover service workers`).toContain("service_worker");
       expect(source, `${language} must resolve browser HTTP endpoints`).toContain("/json/version");
+      expect(source, `${language} must read the extension's build identity file`).toContain(
+        `chrome.runtime.getURL("${EXTENSION_BUILD_ID_FILE}")`,
+      );
+      expect(source, `${language} must read the worker's build identity`).toContain(
+        `globalThis.${EXTENSION_BUILD_ID_GLOBAL}`,
+      );
+      expect(source, `${language} must recognize an unstamped build identity`).toContain(
+        `"${STAGEHAND_EXTENSION_BUILD_ID}"`,
+      );
     }
   });
 });

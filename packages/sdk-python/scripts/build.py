@@ -9,6 +9,7 @@ from pathlib import Path
 
 SDK_ROOT = Path(__file__).resolve().parents[1]
 EXTENSION_ROOT = SDK_ROOT.parent / "extension" / "dist"
+EXTENSION_BUILD_INFO = SDK_ROOT.parent / "extension" / "artifacts" / "extension-build.json"
 
 
 def clean_distribution_directory(output_directory: Path) -> None:
@@ -23,7 +24,7 @@ def clean_distribution_directory(output_directory: Path) -> None:
 
 
 def main() -> None:
-    if not (EXTENSION_ROOT / "manifest.json").is_file():
+    if not (EXTENSION_ROOT / "manifest.json").is_file() or not EXTENSION_BUILD_INFO.is_file():
         raise SystemExit("Stagehand extension is not built; run the root `just build` command.")
 
     with tempfile.TemporaryDirectory(prefix="stagehand-python-build-") as temporary_directory:
@@ -45,6 +46,10 @@ def main() -> None:
         shutil.copytree(
             EXTENSION_ROOT,
             staged_sdk / "src" / "stagehand" / "_extension",
+        )
+        shutil.copy2(
+            EXTENSION_BUILD_INFO,
+            staged_sdk / "src" / "stagehand" / "_extension_build.json",
         )
         subprocess.run(
             [

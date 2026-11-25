@@ -9,19 +9,25 @@ import type { RuntimeDescriptor } from "@browserbasehq/stagehand-protocol/types"
 import { ChromeRuntimeClient } from "./clients/chromeRuntimeClient.js";
 import { RPCClient } from "./clients/rpcClient.js";
 import { RPCRouter } from "./rpcRouter.js";
+import { injectContentScriptIntoOpenTabs } from "./service-worker-lifecycle/content-script-injection.js";
 import { installServiceWorkerHeartbeat } from "./service-worker-lifecycle/heartbeat-manager.js";
 import { createStagehandRuntime, type StagehandRuntime } from "./runtime.js";
 import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.js";
 import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
 import { BrowserContext } from "./understudy/context.js";
 import { DomainPolicyDnrManager } from "./understudy/domainPolicyDnr.js";
-import { STAGEHAND_RUNTIME_VERSION } from "./version.js";
+import {
+  EXTENSION_BUILD_ID_GLOBAL,
+  STAGEHAND_EXTENSION_BUILD_ID,
+  STAGEHAND_RUNTIME_VERSION,
+} from "./version.js";
 import type { CallbackBatchRuntimeAttachments } from "./callbackBatch.js";
 import { ClientLifecycle } from "./clientLifecycle.js";
 
 export type StagehandServiceWorkerScope = {
   __stagehandClientLifecycle?: (input: unknown) => Promise<void>;
   __stagehand_runtime?: RuntimeDescriptor;
+  [EXTENSION_BUILD_ID_GLOBAL]?: string;
   __stagehandReceiveFromHost?: (
     raw: unknown,
     runtimeAttachments?: CallbackBatchRuntimeAttachments,
@@ -141,6 +147,8 @@ export function startStagehandServiceWorker(
     // Only a successful attach may serve a new client's reverse requests.
     if (action === "attach") rpcClient?.acceptClient();
   };
+  // Kept out of the runtime descriptor: released SDKs parse that descriptor strictly.
+  scope[EXTENSION_BUILD_ID_GLOBAL] = STAGEHAND_EXTENSION_BUILD_ID;
   scope.__stagehand_runtime = {
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     serverInfo: {
@@ -156,5 +164,7 @@ export function startStagehandServiceWorker(
 
 if (typeof chrome !== "undefined") {
   installServiceWorkerHeartbeat();
+  // Every worker start, since onInstalled misses re-enable; a rerun in a live world is a no-op.
+  void injectContentScriptIntoOpenTabs(chrome);
   startStagehandServiceWorker();
 }

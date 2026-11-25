@@ -142,6 +142,7 @@ describe("Page WebMCP invocation lifecycle", () => {
     await expect(
       page.invokeWebMCPTool("frame-2", "search", {
         input: { searchQuery: "Stagehand" },
+        toolId: "child-tool-id",
       }),
     ).resolves.toStrictEqual({
       invocationId: "child-invocation",
@@ -156,7 +157,7 @@ describe("Page WebMCP invocation lifecycle", () => {
         method: "WebMCP.invokeTool",
         params: {
           frameId: "frame-2",
-          toolName: "search",
+          toolId: "child-tool-id",
           input: { searchQuery: "Stagehand" },
         },
       },

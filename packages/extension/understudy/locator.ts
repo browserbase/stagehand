@@ -19,7 +19,11 @@ import {
 } from "../dom/locatorScripts/scripts.js";
 import type { Frame } from "./frame.js";
 import { type Progress, runLocatorStep } from "./progress.js";
-import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver.js";
+import {
+  FrameSelectorResolver,
+  type SelectorQuery,
+  type ResolvedNodeBatch,
+} from "./selectorResolver.js";
 import { bytesToBase64, normalizeInputFiles } from "./fileUploadUtils.js";
 import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
@@ -948,34 +952,18 @@ export class Locator {
    * Resolve all matching nodes for this locator.
    * If the locator is narrowed via nth(), only that index is returned.
    */
-  public async resolveNodesForMask(progress: Progress): Promise<
-    Array<{
-      nodeId: Protocol.DOM.NodeId | null;
-      objectId: Protocol.Runtime.RemoteObjectId;
-    }>
-  > {
+  public async resolveNodesForMask(progress: Progress): Promise<ResolvedNodeBatch> {
     const session = this.frame.session;
-
     await progress.run("enabling runtime", () => session.send("Runtime.enable"));
     await progress.run("enabling DOM", () => session.send("DOM.enable"));
-
-    if (this.nthIndex >= 0) {
-      const resolved = await this.selectorResolver.resolveAtIndex(
-        this.selectorQuery,
-        this.nthIndex,
-        progress,
-      );
-      if (!resolved) {
-        throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
-      }
-      return [resolved];
-    }
-
-    const resolved = await this.selectorResolver.resolveAll(this.selectorQuery, {}, progress);
-    if (!resolved.length) {
+    const options = this.nthIndex >= 0 ? { start: this.nthIndex, limit: 1 } : {};
+    const batch = await this.selectorResolver.resolveAll(this.selectorQuery, options, progress);
+    if (!batch.nodes.length) {
+      await batch.release();
+      progress.throwIfStopped();
       throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
     }
-    return resolved;
+    return batch;
   }
 
   /** Compute a center point from a BoxModel content quad */

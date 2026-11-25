@@ -38,9 +38,12 @@ export function filterCookies(cookies: Cookie[], urls: string[]): Cookie[] {
   const parsed = CookieUrlsSchema.parse(urls).map((url) => new URL(url));
   return cookies.filter((c) => {
     for (const url of parsed) {
-      let domain = c.domain;
-      if (!domain.startsWith(".")) domain = "." + domain;
-      if (!("." + url.hostname).endsWith(domain)) continue;
+      // A leading dot permits subdomains; host-only cookies require an exact match.
+      if (
+        url.hostname !== c.domain &&
+        !(c.domain.startsWith(".") && ("." + url.hostname).endsWith(c.domain))
+      )
+        continue;
       // Path must match on a "/" boundary: cookie path "/foo" should match
       // "/foo" and "/foo/bar" but NOT "/foobar".
       const p = url.pathname;
