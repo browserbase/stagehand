@@ -176,6 +176,7 @@ export class NetworkManager {
       }
       this.sessions.get(stored.sessionId)?.unfinishedRequests.delete(stored.requestId);
       this.respondedRequestKeys.delete(stored.requestKey);
+      this.recordCompletedRequest(stored.sessionId, stored.requestId);
       this.removeIdleRequest(stored);
       this.emitFinish({ ...stored, timestamp: receivedAt });
     };
@@ -238,11 +239,17 @@ export class NetworkManager {
         },
         "Network.requestServedFromCache": (event) => {
           if (!event?.requestId) return;
-          unfinishedRequests.delete(event.requestId);
+          const hadLocalUnfinished = unfinishedRequests.delete(event.requestId);
           this.respondedRequestKeys.delete(this.requestKey(sid, event.requestId));
+          if (hadLocalUnfinished) {
+            this.recordCompletedRequest(sid, event.requestId);
+          }
           const info = this.takeIdleRequest(session, event.requestId);
           if (!info) return;
-          this.sessions.get(info.sessionId)?.unfinishedRequests.delete(event.requestId);
+          if (info.sessionId !== sid) {
+            this.sessions.get(info.sessionId)?.unfinishedRequests.delete(event.requestId);
+            this.recordCompletedRequest(info.sessionId, event.requestId);
+          }
           this.respondedRequestKeys.delete(info.requestKey);
           this.emitFinish(info);
         },
