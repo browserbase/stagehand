@@ -183,8 +183,9 @@ describe("prompt locators through the TypeScript SDK", () => {
     await expect(
       page.locator("#application").locator(prompt("Resume PDF")).setInputFiles([]),
     ).rejects.toThrow("Could not find an element");
-    expect(requests).toHaveLength(1);
-    expect(requests[0]!.candidates).toHaveLength(1);
+    // A no_match gets one re-capture after the page settles.
+    expect(requests).toHaveLength(2);
+    expect(requests.map((request) => request.candidates.length)).toEqual([1, 1]);
   });
 
   it("keeps refusal and invalid IDs from dispatching an action", async () => {

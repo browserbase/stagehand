@@ -14,6 +14,7 @@ import {
   actionForLocatorOperation,
   type ApcLocatorOperation,
 } from "./annotatedPageContent/candidates.js";
+import type { ApcAction } from "./annotatedPageContent/actions.js";
 import type { ApcScope } from "./annotatedPageContent/scopes.js";
 import { resolveLocatorChain, type ChainTarget } from "./locatorChain.js";
 import type { Page } from "./page.js";
@@ -60,6 +61,40 @@ export async function resolvePromptLocator(
     throw new UnsupportedPromptLocatorError("A frame step requires a preceding iframe query");
   }
 
+  const request: PromptRequest = {
+    prompt: terminal.selector.value,
+    action,
+    operation,
+    prefix,
+    frameStep: terminal.type === "frame",
+  };
+  const target = await captureAndChoose(page, request, choose, progress);
+  if (target) return target;
+  // Content can render after the first capture (late iframes, client-side forms). A miss
+  // costs one settle wait and one more capture; a hit costs nothing extra.
+  await progress.run("waiting for the page to settle before re-capture", () =>
+    waitForDomNetworkQuiet(page.mainFrame(), page.logger, RECAPTURE_SETTLE_TIMEOUT_MS, progress),
+  );
+  progress.throwIfStopped();
+  return captureAndChoose(page, request, choose, progress);
+}
+
+type PromptRequest = {
+  prompt: string;
+  action: ApcAction;
+  operation: ApcLocatorOperation;
+  prefix: LocatorChain["steps"];
+  frameStep: boolean;
+};
+
+/** Each attempt resolves its own scope, so a re-capture never uses nodes a page update replaced. */
+async function captureAndChoose(
+  page: Page,
+  request: PromptRequest,
+  choose: ChoosePromptTarget,
+  progress: Progress,
+): Promise<ChainTarget | null> {
+  const { prompt, action, operation, prefix, frameStep } = request;
   let scopes: ApcScope[] | undefined;
   if (prefix.length) {
     const targets = await progress.run("resolving prompt locator scope", () =>
@@ -74,34 +109,13 @@ export async function resolvePromptLocator(
         }),
       );
       const isFrame = /^(iframe|frame)$/i.test(node.localName || node.nodeName);
-      if (terminal.type === "frame" && !isFrame) {
+      if (frameStep && !isFrame) {
         throw new UnsupportedPromptLocatorError("A frame step requires an iframe or frame element");
       }
       scopes.push(isFrame ? { type: "frame", target } : { type: "element", target });
     }
   }
 
-  const prompt = terminal.selector.value;
-  const target = await captureAndChoose(page, prompt, action, operation, scopes, choose, progress);
-  if (target) return target;
-  // Content can render after the first capture (late iframes, client-side forms). A miss
-  // costs one settle wait and one more capture; a hit costs nothing extra.
-  await progress.run("waiting for the page to settle before re-capture", () =>
-    waitForDomNetworkQuiet(page.mainFrame(), page.logger, RECAPTURE_SETTLE_TIMEOUT_MS, progress),
-  );
-  progress.throwIfStopped();
-  return captureAndChoose(page, prompt, action, operation, scopes, choose, progress);
-}
-
-async function captureAndChoose(
-  page: Page,
-  prompt: string,
-  action: NonNullable<ReturnType<typeof actionForLocatorOperation>>,
-  operation: ApcLocatorOperation,
-  scopes: ApcScope[] | undefined,
-  choose: ChoosePromptTarget,
-  progress: Progress,
-): Promise<ChainTarget | null> {
   const capture = await progress.run("preparing prompt locator candidates", () =>
     page.queryAnnotatedPageContentCandidates(
       { operation, ...(scopes ? { scopes } : {}) },

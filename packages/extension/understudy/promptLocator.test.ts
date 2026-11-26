@@ -189,6 +189,24 @@ describe("prompt locator resolution", () => {
     expect(h.choose).toHaveBeenCalledTimes(3);
   });
 
+  it("resolves the scope again for the re-capture", async () => {
+    const h = harness();
+    const stale = { frame: h.frame, backendNodeId: 7 };
+    const replacement = { frame: h.frame, backendNodeId: 8 };
+    vi.spyOn(locatorChain, "resolveLocatorChain")
+      .mockResolvedValueOnce([stale])
+      .mockResolvedValueOnce([replacement]);
+    h.query.mockResolvedValueOnce({ ...h.capture, candidates: [] });
+    const scoped: LocatorChain = {
+      steps: [{ type: "query", selector: { type: "css", value: "#form" } }, ...chain.steps],
+    };
+    await resolvePromptLocator(h.page, scoped, "click", h.choose, budget());
+    expect(h.query.mock.calls.map(([options]) => options?.scopes)).toEqual([
+      [{ type: "element", target: stale }],
+      [{ type: "element", target: replacement }],
+    ]);
+  });
+
   it("does not wait or re-capture when the first capture selects a target", async () => {
     const h = harness();
     await resolvePromptLocator(h.page, chain, "click", h.choose, budget());
