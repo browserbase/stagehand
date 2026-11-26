@@ -1,29 +1,31 @@
-/**
- * TypeScript SDK-owned schemas. They extend protocol schemas with SDK-only values such as local/CDP
- * connection options, JavaScript callbacks, and Page instances. Those values are consumed by the
- * SDK and never cross the RPC boundary. Other language SDKs should follow the same pattern around
- * the shared wire params.
- */
-
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
 import type { ClientOptions } from "@browserbasehq/sdk";
-import * as ProtocolSchemas from "@browserbasehq/stagehand-protocol/schemas";
 import type { StagehandLog } from "@browserbasehq/stagehand-protocol/types";
 import {
-  ActOptionsSchema,
   BrowserbaseRegionSchema,
-  ExtractOptionsSchema,
   LLMGenerateParamsSchema,
   LLMGenerateResultSchema,
   ModelConfigSchema,
-  ObserveOptionsSchema,
   StagehandInitParamsSchema,
   StagehandLogLevelSchema,
 } from "@browserbasehq/stagehand-protocol/schemas";
-import { Page } from "./page.js";
-import { Locator } from "./locator.js";
 import { isStagehandBrowser, type StagehandBrowser } from "./browser/index.js";
+
+export {
+  StagehandClientActOptionsSchema,
+  StagehandClientObserveOptionsSchema,
+  StagehandClientExtractOptionsSchema,
+  WebMCPToolsOptionsSchema,
+  WebMCPInvokeOptionsSchema,
+  WebMCPResultOptionsSchema,
+  type StagehandClientActOptions,
+  type StagehandClientObserveOptions,
+  type StagehandClientExtractOptions,
+  type WebMCPToolsOptions,
+  type WebMCPInvokeOptions,
+  type WebMCPResultOptions,
+} from "@browserbasehq/stagehand-browser-api/schemas";
 
 export const LocalBrowserLaunchOptionsSchema = z
   .strictObject({
@@ -55,7 +57,6 @@ export const LocalBrowserLaunchOptionsSchema = z
   })
   .meta({ id: "LocalBrowserLaunchOptions" });
 
-// Validate the whole map before record parsing so errors never contain header names or values.
 const CDPHeadersSchema = z.preprocess(
   (value) => {
     try {
@@ -78,7 +79,6 @@ const CDPHeadersSchema = z.preprocess(
         )
       )
         return null;
-      // Parse a snapshot so Zod cannot invoke getters or proxy traps a second time.
       return Object.fromEntries(entries);
     } catch {
       return null;
@@ -156,10 +156,6 @@ type BrowserbaseLaunchOptionsOutput = Browserbase.SessionCreateParams & {
   clientOptions?: BrowserbaseClientOptions;
 };
 
-/**
- * Browserbase owns the session option surface. Keep this object loose so newly added SDK options
- * pass through without requiring a Stagehand protocol or schema update.
- */
 export const BrowserbaseLaunchOptionsSchema = z
   .looseObject({
     apiKey: z.string().min(1),
@@ -245,7 +241,6 @@ export const BrowserbaseFetchResultSchema = z
   })
   .meta({ id: "BrowserbaseFetchResult" });
 
-/** Data returned by the Browserbase SDK after creating a session. */
 export const BrowserbaseSessionCreateResultSchema = z
   .object({
     id: z.string(),
@@ -253,7 +248,6 @@ export const BrowserbaseSessionCreateResultSchema = z
   })
   .meta({ id: "BrowserbaseSessionCreateResult" });
 
-/** Data returned by the Browserbase SDK when retrieving a session. */
 export const BrowserbaseSessionRetrieveResultSchema = z
   .object({
     id: z.string(),
@@ -262,7 +256,6 @@ export const BrowserbaseSessionRetrieveResultSchema = z
   })
   .meta({ id: "BrowserbaseSessionRetrieveResult" });
 
-/** Normalized connection data shared by Browserbase launch and connect flows. */
 export const BrowserbaseSessionConnectionSchema = z
   .strictObject({
     sessionId: z.string().trim().min(1),
@@ -270,12 +263,6 @@ export const BrowserbaseSessionConnectionSchema = z
     region: BrowserbaseRegionSchema.optional(),
   })
   .meta({ id: "BrowserbaseSessionConnection" });
-
-export const WebMCPToolsOptionsSchema = ProtocolSchemas.WebMCPToolsOptionsSchema.partial();
-
-export const WebMCPInvokeOptionsSchema = ProtocolSchemas.WebMCPInvokeOptionsSchema.partial();
-
-export const WebMCPResultOptionsSchema = ProtocolSchemas.WebMCPResultOptionsSchema;
 
 /** An LLM callback implemented locally by the SDK consumer. It never crosses the wire. */
 export const ClientLLMSchema = z
@@ -309,24 +296,6 @@ export const StagehandClientLoggingConfigSchema = z
     onLog: StagehandClientOnLogSchema.optional(),
   })
   .meta({ id: "StagehandClientLoggingConfig" });
-
-export const StagehandClientActOptionsSchema = ActOptionsSchema.extend({
-  locator: z.instanceof(Locator).optional(),
-  ignoreLocators: z.array(z.instanceof(Locator)).optional(),
-  page: z.instanceof(Page).optional(),
-}).meta({ id: "StagehandClientActOptions" });
-
-export const StagehandClientObserveOptionsSchema = ObserveOptionsSchema.extend({
-  locator: z.instanceof(Locator).optional(),
-  ignoreLocators: z.array(z.instanceof(Locator)).optional(),
-  page: z.instanceof(Page).optional(),
-}).meta({ id: "StagehandClientObserveOptions" });
-
-export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.extend({
-  locator: z.instanceof(Locator).optional(),
-  ignoreLocators: z.array(z.instanceof(Locator)).optional(),
-  page: z.instanceof(Page).optional(),
-}).meta({ id: "StagehandClientExtractOptions" });
 
 export const StagehandClientCreateConfigSchema = z
   .strictObject(StagehandInitParamsSchema.shape)
@@ -382,9 +351,6 @@ export type StagehandClientLoggingConfig = z.input<typeof StagehandClientLogging
 export type ResolvedStagehandClientLoggingConfig = z.output<
   typeof StagehandClientLoggingConfigSchema
 >;
-export type StagehandClientActOptions = z.input<typeof StagehandClientActOptionsSchema>;
-export type StagehandClientObserveOptions = z.input<typeof StagehandClientObserveOptionsSchema>;
-export type StagehandClientExtractOptions = z.input<typeof StagehandClientExtractOptionsSchema>;
 export type LocalBrowserLaunchOptions = z.infer<typeof LocalBrowserLaunchOptionsSchema>;
 export interface LocalBrowserConnectOptions extends z.infer<
   typeof LocalBrowserConnectOptionsSchema
@@ -412,6 +378,3 @@ export type ResolvedStagehandClientCreateConfig = z.output<
 >;
 export type StagehandCreateOptions = z.input<typeof StagehandCreateOptionsSchema>;
 export type ResolvedStagehandCreateOptions = z.output<typeof StagehandCreateOptionsSchema>;
-export type WebMCPToolsOptions = z.infer<typeof WebMCPToolsOptionsSchema>;
-export type WebMCPInvokeOptions = z.infer<typeof WebMCPInvokeOptionsSchema>;
-export type WebMCPResultOptions = z.infer<typeof WebMCPResultOptionsSchema>;

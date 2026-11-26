@@ -9,7 +9,7 @@ import type {
   LocalBrowserConnectOptions,
   LocalBrowserLaunchOptions,
 } from "../clientSchemas.js";
-import type { BrowserContext } from "../browserContext.js";
+import type { BrowserContext } from "@browserbasehq/stagehand-browser-api/browserContext";
 
 export type {
   BrowserbaseClientOptions,
@@ -88,13 +88,11 @@ type BrowserHandleInternals = {
   claimed: boolean;
   attachment: unknown;
   context?: BrowserContext;
-  /** Closes the attached Stagehand instance; disconnect() runs it before dropping the connection. */
   closeStagehand?: () => Promise<void>;
   close: () => Promise<void> | void;
   invalidate: () => Promise<void> | void;
   disconnect: () => Promise<void> | void;
   connected: () => boolean;
-  /** What close() does after an unexpectedly lost connection. */
   closeWithoutConnection: () => Promise<void> | void;
   state: "open" | "disconnected" | "closed";
   disconnectPromise?: Promise<void>;
@@ -149,7 +147,6 @@ class StagehandBrowserHandle implements StagehandBrowser {
       const closePromise = Promise.resolve()
         .then(internals.closeWithoutConnection)
         .catch((error: unknown) => {
-          // Releasing over the Browserbase API can fail transiently: allow a retry.
           if (internals.closePromise === closePromise) internals.closePromise = undefined;
           throw error;
         });
@@ -173,7 +170,6 @@ class StagehandBrowserHandle implements StagehandBrowser {
           }
         })
         .catch((error: unknown) => {
-          // Still connected means nothing was let go: keep the handle usable for a retry.
           if (internals.connected()) {
             internals.state = "open";
             internals.disconnectPromise = undefined;
@@ -187,10 +183,6 @@ class StagehandBrowserHandle implements StagehandBrowser {
 
 const DISCONNECT_STAGEHAND_TIMEOUT_MS = 10_000;
 
-/**
- * stagehand.close() waits for in-flight work without a deadline; disconnect() stops
- * waiting after timeoutMs and lets go anyway, which also ends that work.
- */
 async function closeStagehandWithin(
   closeStagehand: (() => Promise<void>) | undefined,
   timeoutMs: number,
@@ -207,25 +199,20 @@ async function closeStagehandWithin(
     ]);
   } finally {
     clearTimeout(timer);
-    // Settles once the connection closes; never leave its rejection unhandled.
     closing.catch(() => undefined);
   }
 }
 
 const BROWSER_DISCONNECTED_MESSAGE = "The browser is disconnected; connect() again to close it";
 
-/** @internal */
 export function createStagehandBrowserHandle<Attachment>(options: {
   provider: StagehandBrowserProvider;
   origin: StagehandBrowserOrigin;
   attachment: Attachment;
   close: () => Promise<void> | void;
   invalidate?: () => Promise<void> | void;
-  /** Closes only the connection; defaults to doing nothing. */
   disconnect?: () => Promise<void> | void;
-  /** Whether the connection is still open; defaults to true. */
   connected?: () => boolean;
-  /** What close() does after an unexpectedly lost connection; defaults to doing nothing. */
   closeWithoutConnection?: () => Promise<void> | void;
   sessionId?: string;
   cdpUrl?: string;
@@ -248,7 +235,6 @@ export function createStagehandBrowserHandle<Attachment>(options: {
   );
 }
 
-/** @internal */
 export function claimStagehandBrowserHandle<Attachment>(browser: StagehandBrowser): Attachment {
   const internals = requireBrowserHandleInternals(browser);
   if (internals.state !== "open" || !internals.connected()) {
@@ -261,7 +247,6 @@ export function claimStagehandBrowserHandle<Attachment>(browser: StagehandBrowse
   return internals.attachment as Attachment;
 }
 
-/** @internal */
 export function invalidateStagehandBrowserHandle(browser: StagehandBrowser): Promise<void> {
   const internals = requireBrowserHandleInternals(browser);
   if (internals.state !== "open") {
@@ -272,13 +257,11 @@ export function invalidateStagehandBrowserHandle(browser: StagehandBrowser): Pro
   return internals.closePromise;
 }
 
-/** @internal */
 export function releaseStagehandBrowserHandle(browser: StagehandBrowser): void {
   const internals = requireBrowserHandleInternals(browser);
   internals.claimed = false;
 }
 
-/** @internal */
 export function attachStagehandBrowserContext(
   browser: StagehandBrowser,
   context: BrowserContext,
@@ -295,7 +278,6 @@ export function attachStagehandBrowserContext(
   internals.closeStagehand = closeStagehand;
 }
 
-/** @internal */
 export function detachStagehandBrowserContext(browser: StagehandBrowser): void {
   const internals = requireBrowserHandleInternals(browser);
   internals.context = undefined;

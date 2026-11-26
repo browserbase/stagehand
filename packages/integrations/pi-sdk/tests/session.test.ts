@@ -376,7 +376,6 @@ describe("pi SDK session", () => {
     expect((image.bytes as Buffer).equals(png)).toBe(true);
     expect(image.data).toBeUndefined();
     expect(image.mimeType).toBe("image/png");
-    // The original event object handed to pi is left intact.
     expect(toolResult.content[1]).toMatchObject({ data: base64 });
 
     const toolMessage = result.events.find(

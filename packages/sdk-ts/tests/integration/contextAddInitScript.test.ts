@@ -37,9 +37,7 @@ const waitForPopupPage = async (
       if (popup) return popup;
       const active = await ctx.activePage();
       if (active && !knownTargetIds.has(active.pageId)) return active;
-    } catch {
-      // keep polling
-    }
+    } catch {}
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   throw new Error("Popup page was not created");
@@ -276,7 +274,6 @@ describe("context.addInitScript", () => {
     const page = await firstPage(stagehand);
 
     await ctx.addInitScript(() => {
-      // installed before any navigation
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-expect-error
       window.sayHelloFromStagehand = () => "hello from stagehand";

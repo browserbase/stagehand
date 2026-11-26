@@ -17,16 +17,8 @@ export { outputJson } from "../output.js";
 const defaultBrowserbaseApiUrl = "https://api.browserbase.com";
 const browserbaseSettingsUrl = "https://browserbase.com/settings";
 
-// Kick off install-id resolution at module load so the value is usually cached
-// by the time a cloud request runs. Resolution is best-effort and never throws.
 void resolveInstallId(process.env).catch(() => undefined);
 
-/**
- * Attribution headers stamped onto cloud (Search/Fetch) requests so CLI usage
- * is attributable to an install. `x-bb-client` is always sent;
- * `x-bb-install-id` is included only when already resolved (we never block a
- * request on disk I/O) and never sent as an empty string.
- */
 function attributionHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     "x-bb-client": `browse-cli/${getCliVersion()}`,
@@ -90,7 +82,12 @@ export async function withBrowserbaseApi<T>(
   operation: () => Promise<T>,
 ): Promise<T> {
   try {
-    return await operation();
+    const result = await operation();
+    setRunTelemetryCompletion({
+      httpStatus: 200,
+      requestHadHttpResponse: true,
+    });
+    return result;
   } catch (error) {
     rethrowBrowserbaseApiError(error, command);
   }

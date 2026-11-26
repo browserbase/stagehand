@@ -9,19 +9,25 @@ import type { RuntimeDescriptor } from "@browserbasehq/stagehand-protocol/types"
 import { ChromeRuntimeClient } from "./clients/chromeRuntimeClient.js";
 import { RPCClient } from "./clients/rpcClient.js";
 import { RPCRouter } from "./rpcRouter.js";
+import { injectContentScriptIntoOpenTabs } from "./service-worker-lifecycle/content-script-injection.js";
 import { installServiceWorkerHeartbeat } from "./service-worker-lifecycle/heartbeat-manager.js";
 import { createStagehandRuntime, type StagehandRuntime } from "./runtime.js";
 import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.js";
 import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
 import { BrowserContext } from "./understudy/context.js";
 import { DomainPolicyDnrManager } from "./understudy/domainPolicyDnr.js";
-import { STAGEHAND_RUNTIME_VERSION } from "./version.js";
+import {
+  EXTENSION_BUILD_ID_GLOBAL,
+  STAGEHAND_EXTENSION_BUILD_ID,
+  STAGEHAND_RUNTIME_VERSION,
+} from "./version.js";
 import type { CallbackBatchRuntimeAttachments } from "./callbackBatch.js";
 import { ClientLifecycle } from "./clientLifecycle.js";
 
 export type StagehandServiceWorkerScope = {
   __stagehandClientLifecycle?: (input: unknown) => Promise<void>;
   __stagehand_runtime?: RuntimeDescriptor;
+  [EXTENSION_BUILD_ID_GLOBAL]?: string;
   __stagehandReceiveFromHost?: (
     raw: unknown,
     runtimeAttachments?: CallbackBatchRuntimeAttachments,
@@ -75,7 +81,6 @@ export function startStagehandServiceWorker(
       },
       emitLog: (log) => {
         void rpcClient?.notify(StagehandNotifications.log, log).catch((error: unknown) => {
-          // The JSON-RPC log sink itself failed, so no Stagehand logger is safe here.
           // oxlint-disable-next-line no-console
           console.error("[stagehand] Failed to emit log notification", error);
         });
@@ -84,7 +89,6 @@ export function startStagehandServiceWorker(
         void rpcClient
           ?.notify(StagehandNotifications.pageCDPEvent, notification)
           .catch((error: unknown) => {
-            // This notification cannot safely report its own delivery failure over JSON-RPC.
             // oxlint-disable-next-line no-console
             console.error("[stagehand] Failed to emit page CDP event notification", error);
           });
@@ -93,7 +97,6 @@ export function startStagehandServiceWorker(
         void rpcClient
           ?.notify(StagehandNotifications.pageEvent, notification)
           .catch((error: unknown) => {
-            // This notification cannot safely report its own delivery failure over JSON-RPC.
             // oxlint-disable-next-line no-console
             console.error("[stagehand] Failed to emit page event notification", error);
           });
@@ -123,7 +126,6 @@ export function startStagehandServiceWorker(
     closeConnection: () => activeRuntime.disconnectBrowser(),
     disposeClient: () => activeRuntime.disposeStagehandInstance(),
     onError: (error) => {
-      // The client transport may be gone; do not report through RPC.
       // oxlint-disable-next-line no-console
       console.error("Stagehand client lifecycle cleanup failed", error);
     },
@@ -134,13 +136,13 @@ export function startStagehandServiceWorker(
     try {
       await lifecycle.handle(input);
     } catch (error) {
-      // A failed detach leaves the SDK handle open: keep serving its reverse requests.
       if (action === "detach") rpcClient?.acceptClient();
       throw error;
     }
-    // Only a successful attach may serve a new client's reverse requests.
     if (action === "attach") rpcClient?.acceptClient();
   };
+  // Kept out of the runtime descriptor: released SDKs parse that descriptor strictly.
+  scope[EXTENSION_BUILD_ID_GLOBAL] = STAGEHAND_EXTENSION_BUILD_ID;
   scope.__stagehand_runtime = {
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     serverInfo: {
@@ -156,5 +158,7 @@ export function startStagehandServiceWorker(
 
 if (typeof chrome !== "undefined") {
   installServiceWorkerHeartbeat();
+  // Every worker start, since onInstalled misses re-enable; a rerun in a live world is a no-op.
+  void injectContentScriptIntoOpenTabs(chrome);
   startStagehandServiceWorker();
 }

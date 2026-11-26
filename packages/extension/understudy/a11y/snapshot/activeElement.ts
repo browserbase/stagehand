@@ -4,12 +4,6 @@ import { executionContexts } from "../../executionContextRegistry.js";
 import { documentHasFocusStrict, nodeToAbsoluteXPath } from "../../../dom/a11yScripts/index.js";
 import { absoluteXPathForBackendNode, normalizeXPath, prefixXPath } from "./xpathUtils.js";
 
-/**
- * Compute the absolute XPath for the currently focused element.
- * - Detects which frame has focus via document.hasFocus().
- * - Finds the deepest activeElement (dives into shadow DOM).
- * - Builds an absolute, cross-frame XPath by prefixing iframe hosts.
- */
 export async function computeActiveElementXpath(page: Page): Promise<string | null> {
   const tree = page.getFullFrameTree();
   const parentByFrame = new Map<string, string | null>();
@@ -41,9 +35,7 @@ export async function computeActiveElementXpath(page: Page): Promise<string | nu
         focusedFrameId = fid;
         break;
       }
-    } catch {
-      //
-    }
+    } catch {}
   }
   if (!focusedFrameId) focusedFrameId = page.mainFrameId();
   const focusedSession = page.getSessionForFrame(focusedFrameId);
@@ -91,17 +83,13 @@ export async function computeActiveElementXpath(page: Page): Promise<string | nu
       });
       try {
         await focusedSession.send("Runtime.releaseObject", { objectId });
-      } catch {
-        //
-      }
+      } catch {}
       const xp = result?.value || "";
       return typeof xp === "string" && xp ? xp : null;
     } catch {
       try {
         await focusedSession.send("Runtime.releaseObject", { objectId });
-      } catch {
-        //
-      }
+      } catch {}
       return null;
     }
   })();
@@ -122,9 +110,7 @@ export async function computeActiveElementXpath(page: Page): Promise<string | nu
         const xp = await absoluteXPathForBackendNode(parentSess, backendNodeId);
         if (xp) prefix = prefix ? prefixXPath(prefix, xp) : normalizeXPath(xp);
       }
-    } catch {
-      //
-    }
+    } catch {}
     cur = parent;
   }
 

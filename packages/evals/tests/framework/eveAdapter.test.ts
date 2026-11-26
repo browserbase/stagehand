@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { EveEvent } from "@browserbasehq/stagehand-integrations-eve-sdk";
+import type { EveEvent } from "@browserbasehq/stagehand-integrations-eve-harness";
 import type { TaskSpec } from "stagehand-v3";
 import { eveAdapter } from "../../framework/harnesses/eveAdapter.js";
 
@@ -149,7 +149,6 @@ describe("Eve trajectory adapter", () => {
       ["stagehand__snapshot", "Let's get a snapshot of the home page."],
       ["stagehand__run", "Let me close the cookie dialog."],
     ]);
-    // Tool-call narration is not a conclusion, so it never becomes the answer.
     expect(trajectory.finalAnswer).toBeUndefined();
   });
 

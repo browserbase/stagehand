@@ -1,7 +1,7 @@
 import {
   runCursorSdkAgentSession,
   type CursorSdkAgentFactory,
-} from "@browserbasehq/stagehand-integrations-cursor-sdk";
+} from "@browserbasehq/stagehand-integrations-cursor";
 import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -75,8 +75,6 @@ export async function runCursor(
           env: buildAllowlistedEnv(env),
         },
       },
-      // The example prints one final result; the reusable SDK owns event logging,
-      // cancellation, disposal, settings isolation and its disposable local store.
       logger: { log: () => {}, warn: () => {}, error: () => {} },
       signal: controller.signal,
       ...(options.createAgent && { createAgent: options.createAgent }),

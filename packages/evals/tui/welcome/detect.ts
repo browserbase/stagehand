@@ -1,20 +1,9 @@
-/**
- * Machine detection for the welcome flows — agent-benchmark edition.
- *
- * Agent benchmarks (agent/webvoyager, onlineMind2Web, webtailbench,
- * odysseysbench) need a model provider key AND a browser (local Chrome or
- * Browserbase). The plan says whether a REAL run is possible here; when it
- * isn't, flows replay scripted trajectories of real benchmark tasks instead
- * and the hand-off tells the user exactly what unlocks the real thing.
- */
-
 import { resolveLocalChromeExecutablePath } from "../../core/targets/localChrome.js";
 import { snapshotEnv, type EnvSnapshot } from "../welcomeStatus.js";
 
 export type Provider = "openai" | "anthropic" | "google";
 export type Browser = "local" | "browserbase";
 
-/** Executable agent-suite harnesses and the key each one needs. */
 export type AgentHarness = "claude_code" | "codex";
 
 export type Plan =
@@ -22,9 +11,7 @@ export type Plan =
   | { kind: "scripted"; reason: string };
 
 export type Recommendation = {
-  /** argv suffix without `evals`, or null when the next step is an env change only. */
   command: string | null;
-  /** One human line. */
   line: string;
 };
 
@@ -56,20 +43,15 @@ export function detectMachine(): Machine {
   return { keys, providers, chrome, browserbase, plan, recommend };
 }
 
-/** The command the hand-off runs: three real WebVoyager cases through the harness the key can drive. */
 export function firstRunCommand(plan: Extract<Plan, { kind: "real" }>): string {
-  // Always explicit: evals.config.json may default `env` to the other one.
   return `run ${FIRST_BENCH_TARGET} -l 3 --harness ${plan.harness} -e ${plan.browser === "browserbase" ? "browserbase" : "local"}`;
 }
 
-/** Pure: can this machine run a real agent benchmark, and what should it do next? */
 export function derivePlan(m: { chrome: boolean; browserbase: boolean; providers: Provider[] }): {
   plan: Plan;
   recommend: Recommendation;
 } {
   const browser: Browser | null = m.chrome ? "local" : m.browserbase ? "browserbase" : null;
-  // Agent suites run through an external harness; each is tied to a provider.
-  // Anthropic → claude_code, OpenAI → codex. A Google key alone can't drive one.
   const harnessFor: Array<[Provider, AgentHarness]> = [
     ["anthropic", "claude_code"],
     ["openai", "codex"],

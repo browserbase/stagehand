@@ -15,7 +15,6 @@ export const buildWebTailBenchTestcases = (models: string[] | AgentModelEntry[])
 
   const lines = readJsonlFile(webtailbenchFilePath);
 
-  // Use EVAL_MAX_K if set, otherwise fall back to EVAL_WEBTAILBENCH_LIMIT or default to 25
   const maxCases = process.env.EVAL_MAX_K
     ? Number(process.env.EVAL_MAX_K)
     : process.env.EVAL_WEBTAILBENCH_LIMIT
@@ -30,11 +29,6 @@ export const buildWebTailBenchTestcases = (models: string[] | AgentModelEntry[])
     ques: string;
     category?: string;
     web?: string;
-    /**
-     * Per-task rubric ported from microsoft/WebTailBench-v1-rubrics.tsv
-     * via packages/evals/scripts/backfill-webtailbench-rubrics.ts.
-     * When present, the verifier uses these upstream criteria directly.
-     */
     precomputed_rubric?: unknown;
     [key: string]: unknown;
   };
@@ -47,8 +41,6 @@ export const buildWebTailBenchTestcases = (models: string[] | AgentModelEntry[])
 
   const candidates = parseJsonlRows(lines, isWebTailBenchRow);
 
-  // EVAL_WEBTAILBENCH_IDS restricts the suite to exactly those task IDs,
-  // preserving the order given and ignoring sampling / limit knobs.
   const explicitIds = process.env.EVAL_WEBTAILBENCH_IDS
     ? process.env.EVAL_WEBTAILBENCH_IDS.split(",")
         .map((s) => s.trim())

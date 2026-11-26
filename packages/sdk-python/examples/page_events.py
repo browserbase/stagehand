@@ -42,7 +42,7 @@ async def main() -> None:
                     event_method = event.method
                     console_event.set()
 
-            subscription = await page.on("console", handle_console)
+            subscription = await page.on_console(handle_console)
             await page.goto("https://example.com")
             await page.evaluate('console.log("stagehand-page-on-example"); "emitted"')
             await asyncio.wait_for(console_event.wait(), timeout=10)

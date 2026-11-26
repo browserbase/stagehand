@@ -1,9 +1,8 @@
-"""Stagehand Python SDK."""
-
 from ._generated.input_types import (
     Action as ActionInput,
 )
 from ._generated.input_types import (
+    AriaRole,
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     CookieParam,
@@ -80,8 +79,10 @@ from .file_upload import FileInput, FilePayload
 from .locator import Locator
 from .page import (
     CDPSubscription,
+    ConsoleListener,
     Page,
     PageEventListener,
+    ResponseListener,
     ToolsAddedListener,
     ToolsRemovedListener,
     WebMCPToolIdentity,
@@ -96,6 +97,7 @@ from .webmcp import (
 )
 
 __all__ = [
+    "AriaRole",
     "ActResult",
     "ActResultData",
     "Action",
@@ -146,7 +148,9 @@ __all__ = [
     "Page",
     "PageCDPEvent",
     "PageDragAndDropRoutePoint",
+    "ConsoleListener",
     "PageEventListener",
+    "ResponseListener",
     "ToolsAddedListener",
     "ToolsRemovedListener",
     "WebMCPToolIdentity",

@@ -57,10 +57,8 @@ export async function ensurePrivateDir(dir: string): Promise<void> {
       throw error;
     });
   try {
-    // Inspect and chmod the same directory, even if its pathname is replaced.
     const entry = await handle.stat();
     if (!entry.isDirectory()) failInvalidDirectory(dir);
-    // Root must also reject foreign ownership: chmod does not change the owner.
     if (uid !== undefined && entry.uid !== uid) {
       fail(
         `Refusing to use ${dir}: it is owned by another user. Set BROWSE_DAEMON_DIR to a directory you own.`,
@@ -94,8 +92,6 @@ async function ensureTrustedParents(dir: string, uid: number): Promise<void> {
   const inspect = async (parent: string, createMissing: boolean) => {
     const entry = await fs.lstat(parent).catch(async (error: NodeJS.ErrnoException) => {
       if (error.code !== "ENOENT" || !createMissing) throw error;
-      // The ancestor is already trusted. Inspect even an entry created by a
-      // concurrent process instead of assuming mkdir established ownership.
       await fs.mkdir(parent, { mode: PRIVATE_DIR_MODE }).catch((error: NodeJS.ErrnoException) => {
         if (error.code !== "EEXIST") throw error;
       });
@@ -195,8 +191,6 @@ export async function cleanupDaemonFiles(
   const files = [getSocketPath(session), getPidPath(session)];
   if (includeLock) files.push(getLockPath(session));
   for (const file of files) {
-    // Keep validation outside the best-effort unlink handler. Ownership loss
-    // must abort cleanup, including when it happens between artifact deletions.
     await ensureRuntimeDir();
     await fs.unlink(file).catch(() => undefined);
   }

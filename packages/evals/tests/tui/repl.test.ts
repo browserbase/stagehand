@@ -19,7 +19,6 @@ describe("muteReadlineEcho", () => {
     rl.line = "vv?";
     unmute();
     expect(rl._writeToOutput).toBe(original);
-    // End first, then Ctrl-U: clears both sides of wherever the cursor was.
     expect(writes).toEqual([
       { ctrl: true, name: "e" },
       { ctrl: true, name: "u" },

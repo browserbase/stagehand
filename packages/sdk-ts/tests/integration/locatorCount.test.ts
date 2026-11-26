@@ -60,7 +60,6 @@ describe("Locator count() method tests", () => {
     const locator = page.locator("text=Click me");
     const count = await locator.count();
 
-    // Case-insensitive substring match: also matches "Don't click me"
     expect(count).toBe(3);
   });
 

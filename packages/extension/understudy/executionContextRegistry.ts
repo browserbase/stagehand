@@ -6,7 +6,6 @@ type FrameId = Protocol.Page.FrameId;
 type ExecId = Protocol.Runtime.ExecutionContextId;
 
 export type ReadinessOptions = {
-  /** Retry failed readiness attempts within progress, or return after one attempt. */
   readinessRetries?: "until-deadline" | "none";
 };
 
@@ -20,10 +19,12 @@ export type LocatorWorld = {
 
 const STAGEHAND_FALLBACK_WORLD_NAME = "__stagehand_locator_fallback__";
 
+// A world left in an open tab by an unloaded copy of the extension keeps chrome.dom but loses chrome.runtime.id.
 export const STAGEHAND_EXTENSION_WORLD_HEALTH_EXPRESSION = `
   globalThis.__stagehandExtensionWorld?.name === "stagehand" &&
   globalThis.__stagehandExtensionWorld?.version === "stagehand.v4" &&
-  typeof globalThis.chrome?.dom?.openOrClosedShadowRoot === "function"
+  typeof globalThis.chrome?.dom?.openOrClosedShadowRoot === "function" &&
+  typeof globalThis.chrome?.runtime?.id === "string"
 `;
 
 export class ExecutionContextRegistry {
@@ -41,7 +42,6 @@ export class ExecutionContextRegistry {
     this.fallbackInstallerSource.set(session, source);
   }
 
-  /** Wire listeners for this session. Call BEFORE Runtime.enable. */
   attachSession(session: CDPSessionLike): void {
     const onCreated = (evt: Protocol.Runtime.ExecutionContextCreatedEvent): void => {
       const aux = (evt.context.auxData ?? {}) as {
@@ -50,8 +50,6 @@ export class ExecutionContextRegistry {
       };
       if (aux.isDefault === true && typeof aux.frameId === "string") {
         this.register(session, aux.frameId as FrameId, evt.context.id);
-        // The packaged extension blank page loads the locator bundle directly,
-        // so its privileged Stagehand context is also its main world.
         this.registerExtensionCandidate(session, aux.frameId as FrameId, evt.context.id);
       } else if (typeof aux.frameId === "string") {
         this.registerExtensionCandidate(session, aux.frameId as FrameId, evt.context.id);
@@ -96,10 +94,6 @@ export class ExecutionContextRegistry {
     return this.fallbackByFrame.get(session)?.get(frameId) ?? null;
   }
 
-  /** With progress, timeout limits each extension probe, not the whole wait.
-   * Callers that handle failure themselves can disable retries without losing
-   * the caller's deadline. Without progress, readiness makes a single attempt.
-   */
   async waitForLocatorWorld(
     session: CDPSessionLike,
     frameId: FrameId,
@@ -123,7 +117,6 @@ export class ExecutionContextRegistry {
         progress?.throwIfStopped();
         if (progress && isCdpClosedError(extensionError)) throw extensionError;
         if (await this.isFallbackEligible(session, frameId, progress)) {
-          // Installation is shared. Only this caller's wait belongs to its progress.
           return this.fallbackWorld(
             await runLocatorStep(progress, "installing locator helpers", () =>
               this.createFallbackWorld(session, frameId),
@@ -456,7 +449,6 @@ export class ExecutionContextRegistry {
         closedShadowRoots: value?.closedShadowRoots === true,
       };
     } catch (error) {
-      // Shared installation must retain closure errors for every waiting caller.
       if (isCdpClosedError(error)) throw error;
       return { ready: false, kind: "unavailable", closedShadowRoots: false };
     }
@@ -470,31 +462,35 @@ export class ExecutionContextRegistry {
     session: CDPSessionLike,
     contextId: ExecId,
     progress?: Progress,
-  ): Promise<{ ready: boolean; marker: boolean; domApi: string }> {
+  ): Promise<{ ready: boolean; marker: boolean; domApi: string; runtimeId: string }> {
     try {
       const response = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
         expression: `({
           ready: Boolean(${STAGEHAND_EXTENSION_WORLD_HEALTH_EXPRESSION}),
           marker: globalThis.__stagehandExtensionWorld?.version === "stagehand.v4",
           domApi: typeof globalThis.chrome?.dom?.openOrClosedShadowRoot,
+          runtimeId: typeof globalThis.chrome?.runtime?.id,
         })`,
         contextId,
         returnByValue: true,
         awaitPromise: true,
       });
-      if (response.exceptionDetails) return { ready: false, marker: false, domApi: "exception" };
+      if (response.exceptionDetails) {
+        return { ready: false, marker: false, domApi: "exception", runtimeId: "exception" };
+      }
       const value = response.result.value as
-        | { ready?: unknown; marker?: unknown; domApi?: unknown }
+        | { ready?: unknown; marker?: unknown; domApi?: unknown; runtimeId?: unknown }
         | undefined;
       return {
         ready: value?.ready === true,
         marker: value?.marker === true,
         domApi: typeof value?.domApi === "string" ? value.domApi : "unknown",
+        runtimeId: typeof value?.runtimeId === "string" ? value.runtimeId : "unknown",
       };
     } catch (error) {
       progress?.throwIfStopped();
       if (progress && isCdpClosedError(error)) throw error;
-      return { ready: false, marker: false, domApi: "unavailable" };
+      return { ready: false, marker: false, domApi: "unavailable", runtimeId: "unavailable" };
     }
   }
 }

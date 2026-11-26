@@ -12,27 +12,19 @@ export default defineConfig({
       "packages/evals/tests/**/*.test.ts",
       "packages/integrations/core/tests/**/*.test.ts",
       "packages/integrations/middleware/tests/**/*.test.ts",
-      "packages/integrations/claude-agent-sdk/tests/**/*.test.ts",
       "packages/integrations/claude-cua-sdk/tests/**/*.test.ts",
       "packages/integrations/gemini-cua-sdk/tests/**/*.test.ts",
-      "packages/integrations/codex-sdk/tests/**/*.test.ts",
-      "packages/integrations/mastra-sdk/tests/**/*.test.ts",
       "packages/integrations/pi-sdk/tests/**/*.test.ts",
-      "packages/integrations/eve-sdk/tests/**/*.test.ts",
       "packages/integrations/deepagents-sdk/tests/**/*.test.ts",
-      "packages/integrations/fx-sdk/tests/**/*.test.ts",
-      "packages/integrations/cursor-sdk/tests/**/*.test.ts",
+      "packages/integrations/fx/tests/**/*.test.ts",
       "packages/extension/tests/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
+      "packages/shared/browser-api/tests/**/*.test.ts",
       "packages/extension/understudy/**/*.test.ts",
       "rules/ast-grep/**/*.test.ts",
       "rules/oxlint/**/*.test.ts",
       "scripts/**/*.test.ts",
     ],
-    // Integration specs launch real Chrome and are owned solely by
-    // vitest.integration.config.ts, driven through `pnpm run test:integration`. Without this
-    // they would also be swept up by the packages/sdk-ts/tests/** glob above and run as part
-    // of the cacheable unit suite.
     exclude: ["**/node_modules/**", "**/dist/**", "packages/sdk-ts/tests/integration/**"],
   },
 });

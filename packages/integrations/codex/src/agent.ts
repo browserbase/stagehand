@@ -2,7 +2,7 @@ import {
   isolatedCodexEnv,
   loadCodexSdk,
   runCodexSession,
-} from "@browserbasehq/stagehand-integrations-codex-sdk";
+} from "@browserbasehq/stagehand-integrations-codex";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -15,8 +15,6 @@ import { fileURLToPath } from "node:url";
  * harness uses.
  */
 export function buildCodexConfig(): Record<string, unknown> {
-  // Resolved here (not at module load) so a missing build surfaces through
-  // handleFailure instead of an uncaught module error.
   const serverPath = fileURLToPath(
     import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),
   );
@@ -75,8 +73,6 @@ async function main(): Promise<void> {
       logger,
       thread: {
         workingDirectory: cwd,
-        // The browser work happens in the MCP server; the local sandbox can stay
-        // read-only.
         sandboxMode: "read-only",
         // Headless policy chosen empirically: "on-failure" lets MCP tool calls
         // complete; "never" and "untrusted" auto-cancel them ("user cancelled
@@ -88,8 +84,6 @@ async function main(): Promise<void> {
     if (result.status !== "completed") {
       if (result.diagnosticPath)
         process.stderr.write(`Codex diagnostic saved: ${result.diagnosticPath}\n`);
-      // Surface any answer the agent produced before the abnormal stop; a
-      // budget/max-turns stop usually still carries a useful final message.
       throw (
         result.iterationError ??
         new Error(

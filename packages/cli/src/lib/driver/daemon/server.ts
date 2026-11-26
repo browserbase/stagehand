@@ -1,6 +1,7 @@
 import net from "node:net";
 import readline from "node:readline";
 
+import { classifyDriverError } from "../error-classifier.js";
 import { DriverError } from "../errors.js";
 import { DriverSessionManager } from "../session-manager.js";
 import type { ConnectionTarget } from "../types.js";
@@ -213,13 +214,22 @@ function formatError(error: unknown): {
   error: string;
   httpStatus?: number;
 } {
-  const message = error instanceof Error ? error.message : String(error);
   if (error instanceof DriverError) {
     return {
       code: error.code,
-      error: message,
+      error: error.message,
       ...(error.httpStatus !== undefined ? { httpStatus: error.httpStatus } : {}),
     };
   }
-  return { error: message };
+
+  const classified = classifyDriverError(error);
+  if (classified) {
+    return {
+      code: classified.code,
+      error: classified.message,
+      ...(classified.httpStatus !== undefined ? { httpStatus: classified.httpStatus } : {}),
+    };
+  }
+
+  return { error: error instanceof Error ? error.message : String(error) };
 }

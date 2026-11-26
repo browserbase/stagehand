@@ -47,25 +47,16 @@ export interface PreparedClaudeCodeToolAdapter {
   allowedTools: string[];
   settingSources: string[];
   promptInstructions: string;
-  /** Browser behind the mounted surface, resolved before the agent starts. */
   browserSession: BrowserSessionInfo;
   mcpServers?: Record<string, unknown>;
   canUseTool?: (
     toolName: string,
     input: Record<string, unknown>,
   ) => Promise<Record<string, unknown>>;
-  /** Best-effort evidence from the currently running tool surface. */
   captureEvidence?: () => Promise<ProbeEvidence>;
-  /** Set once the mounted browser is gone for the rest of the run. */
   browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
-  /**
-   * Runner calls this on every completed tool_result with the originating
-   * tool name; MCP-mounted surfaces use it to record per-step observations
-   * (their tool calls never pass through harness code).
-   */
   onToolResult?: (toolName: string) => void;
-  /** Which tool names consume observation indexes in the trajectory adapter. */
   observedToolMatcher?: (toolName: string) => boolean;
   cleanup: () => Promise<void>;
 }
@@ -76,7 +67,6 @@ export interface PreparedBrowseCliHarnessAdapter {
   cwd: string;
   env: Record<string, string>;
   promptInstructions: string;
-  /** browse_cli owns its daemon; the Browserbase session id is not reported. */
   browserSession: BrowserSessionInfo;
   metadata: BrowseCliToolMetadata;
   cleanup: () => Promise<void>;
@@ -101,13 +91,6 @@ export const CLAUDE_CODE_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade_legacy",
 ];
 
-// The CLI skill below is written for interactive use and covers surface
-// (install, Browse.sh discovery, Browserbase cloud/Functions/templates) that
-// does not apply inside the eval harness. This addendum is inserted right
-// after the CLI skill's frontmatter — before the model reads any of the
-// conflicting examples in the body — at install time, so the harness ships
-// one source of truth (the real, maintained browse skill) instead of a
-// second copy that drifts.
 const EVAL_HARNESS_ADDENDUM = `
 ## Eval Harness Addendum
 
@@ -134,8 +117,6 @@ the guidance below:
   requested by the harness prompt.
 `;
 
-// The addendum's last rule names the marker line; a JSON run must not be told
-// to answer in two formats.
 function evalHarnessAddendum(resultContract: EvalResultContract): string {
   return resultContract === "marker"
     ? EVAL_HARNESS_ADDENDUM
@@ -318,11 +299,6 @@ export async function prepareBrowseCliHarnessAdapter(
     [
       "#!/usr/bin/env bash",
       "set -euo pipefail",
-      // The mode flag (--local/--remote) selects the environment when the daemon
-      // is first started and must be explicit so a set BROWSERBASE_API_KEY does
-      // not silently auto-select remote. It is only accepted by the driver
-      // commands, so skip it for the few subcommands that reject it (stop,
-      // status). The session name is safe on every command.
       "cmd=${1:-}",
       "mode=()",
       'if [[ "$cmd" != "stop" && "$cmd" != "status" ]]; then',
@@ -351,10 +327,6 @@ export async function prepareBrowseCliHarnessAdapter(
   };
 }
 
-/**
- * Starts a CoreTool once and mounts the returned agent binding. The harness
- * switches only on the binding modality, never on the tool surface identity.
- */
 async function prepareMountedCoreToolAdapter(
   input: ClaudeCodeToolAdapterInput & {
     toolSurface: ToolSurface;
@@ -368,8 +340,6 @@ async function prepareMountedCoreToolAdapter(
       browserSession: runtime.browserSession,
     };
   } catch (error) {
-    // Same bound as normal teardown — a hung cleanup must not wedge the row
-    // on the setup-failure path either.
     await withTimeout(
       runtime.cleanup(),
       readPositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
@@ -378,14 +348,6 @@ async function prepareMountedCoreToolAdapter(
   }
 }
 
-/**
- * The generic mount point for handle bindings: wraps the binding's handles in
- * the harness's MCP "run" tool, whose executor runs
- * snippet code in an AsyncFunction scope over the handle names plus
- * startUrl, task, and console. Surface specifics (handles, prompt
- * instructions, run-tool copy, snippet task/console bindings, cleanup) all
- * come from the mount — this function owns only harness mechanics.
- */
 async function prepareAgentMountAdapter(
   running: Awaited<ReturnType<typeof startAgentToolRuntime>>["running"],
   cleanupRuntime: () => Promise<void>,
@@ -414,10 +376,6 @@ async function prepareAgentMountAdapter(
     const recorder = running.captureEvidence
       ? new ObservationRecorder(running.captureEvidence)
       : undefined;
-    // handles mounts wrap the surface in the harness's run tool (which owns
-    // per-step observation); mcp mounts pass the agent's own server spec
-    // through, and observation is triggered from the runner's tool_result
-    // stream instead.
     const mcpServers = handlesMount
       ? await buildCodeExposureRunMcpServers({
           handles: handlesMount.handles,
@@ -493,7 +451,6 @@ async function prepareAgentMountAdapter(
               readPositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
             );
           } catch {
-            // Cleanup is best-effort, but temp-dir cleanup must run.
           } finally {
             await fsp.rm(cleanupCwd, { recursive: true, force: true });
           }
@@ -596,9 +553,6 @@ async function executeCodeExposureSnippet(input: {
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
     ...args: string[]
   ) => (...values: unknown[]) => Promise<unknown>;
-  // Snippet scope = the exposure's handle names plus startUrl/task/console.
-  // Object.keys/Object.values over the same object are guaranteed to align,
-  // so names — not positions — bind the values.
   const fn = new AsyncFunction(
     ...Object.keys(input.handles),
     "startUrl",
@@ -655,32 +609,11 @@ export async function installBrowseSkill(cwd: string): Promise<void> {
   );
 }
 
-// Inserts `addition` immediately after the skill's YAML frontmatter (so
-// frontmatter parsing is unaffected) and before the rest of the body, so the
-// eval-harness rules are the first thing the model reads rather than a
-// caveat appended after conflicting examples.
-//
-// Frontmatter *boundary detection* is delegated to gray-matter rather than a
-// hand-rolled regex: the regex here already needed a CRLF patch and still
-// fails silently on BOM-prefixed files or a `---` line embedded inside a
-// YAML multiline string, corrupting the installed skill by prepending the
-// addendum before the frontmatter instead of after it.
-//
-// We deliberately do NOT use `matter.stringify()` to rebuild the file: it
-// re-serializes the parsed data through js-yaml, which can reformat the
-// frontmatter (e.g. collapsing/re-wrapping a folded `description: >` block)
-// and would silently rewrite the shipped skill on every install. Instead we
-// only use gray-matter to find the frontmatter/body boundary, then
-// reassemble from the ORIGINAL raw string so the frontmatter block that
-// ships is byte-identical to the frontmatter block in the source file.
 export function insertAfterFrontmatter(markdown: string, addition: string): string {
   let parsed: matter.GrayMatterFile<string>;
   try {
     parsed = matter(markdown);
   } catch {
-    // Unterminated/invalid YAML frontmatter -- fall back to the same
-    // no-frontmatter behavior below instead of throwing during skill
-    // install.
     return `${addition}\n${markdown}`;
   }
 

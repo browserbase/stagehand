@@ -503,6 +503,7 @@ async function createFullGraphSmokeExtension(): Promise<string> {
       }),
     ),
   );
+  await rm(path.join(extensionDir, "build-id.txt"), { force: true });
 
   const extensionEntryPath = fileURLToPath(
     new URL("../../../extension/service-worker.ts", import.meta.url),

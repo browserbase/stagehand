@@ -1,15 +1,3 @@
-/**
- * Welcome design a — Arena.
- *
- * Competition is the most legible frame for a leaderboard product: three
- * models attempt the SAME real benchmark task in parallel lanes; whoever gets
- * there correctly wins. The race is a deterministic replay of a real
- * WebVoyager case (agentScript.ts) with illustrative per-model pacing and
- * generic model names, drawn as continuous motion on an fx Canvas: runners ease along
- * their tracks and leave glow trails, finishes burst, podium blocks rise.
- * Palette semantics: accuracy = brand, speed = cyan, cost = amber, fail = rose.
- */
-
 import { c } from "../format.js";
 import { markFirstRunComplete } from "../welcomeState.js";
 import {
@@ -52,7 +40,6 @@ import { runInside } from "./dialogue.js";
 import * as clack from "@clack/prompts";
 import type { WelcomeRunContext, WizardOutcome } from "./types.js";
 
-/** Slowest lane (speedMul 1.6 × ~9s case) lands at ~8s. */
 const TIME_SCALE = 0.55;
 const FPS = 24;
 const BURST_MS = 650;
@@ -68,7 +55,6 @@ const BADGE: Record<StepKind, { label: string; color: RGB }> = {
   judge: { label: "JUDGE", color: PALETTE.slate },
 };
 
-/** Lane identities from the non-metric part of the palette. */
 const LANE_COLORS: RGB[] = [PALETTE.brand, PALETTE.white, PALETTE.teal];
 
 type Lane = {
@@ -83,10 +69,6 @@ type Lane = {
 
 type Burst = { x: number; y: number; at: number; color: RGB; seeds: Array<[number, number]> };
 
-/**
- * Every screen shares the section rules' right edge (ruleHeader draws them at
- * wizardWidth()) and their 2-column left indent, so nothing juts past a rule.
- */
 function canvasWidth(): number {
   return wizardWidth();
 }
@@ -112,8 +94,6 @@ function buildLanes(cs: ScriptedCase): Lane[] {
     let passes = true;
     let failReason = "";
     if (i === 2) {
-      // Fastest lane, wrong filter: it settles for the broad "Used" filter,
-      // so its cheapest listing is an Acceptable one — deterministic fail.
       const rewrite: Partial<Record<string, string>> = {
         'click "Used - Good" under Condition': 'click "Used" under Condition',
         '4 "Used - Good" listings · sort: Featured': "11 used listings · sort: Featured",
@@ -147,7 +127,6 @@ function fmtCost(usd: number): string {
   return `$${usd.toFixed(3)}`;
 }
 
-/** Current step index for a lane at race time t. */
 function stepAt(lane: Lane, t: number): { idx: number; frac: number } {
   let acc = 0;
   for (let i = 0; i < lane.steps.length; i++) {
@@ -158,18 +137,12 @@ function stepAt(lane: Lane, t: number): { idx: number; frac: number } {
   return { idx: lane.steps.length - 1, frac: 1 };
 }
 
-/**
- * Runner progress 0→1: each step owns an equal slice of the track and the
- * runner eases through it, so motion is continuous, never a teleport.
- */
 function runnerProgress(lane: Lane, t: number): number {
   if (t >= lane.totalMs) return 1;
   const { idx, frac } = stepAt(lane, t);
   const n = lane.steps.length;
   return (idx + ease.inOutSine(clamp01(frac))) / n;
 }
-
-// ─── Drawing helpers ────────────────────────────────────────────────────
 
 function drawBox(
   cv: Canvas,
@@ -186,11 +159,9 @@ function drawBox(
     cv.put(x + w - 1, y + r, "│", color);
   }
   cv.text(x, y + h - 1, `╰${"─".repeat(w - 2)}╯`, color);
-  // The title never reaches the corner: clip it to the top border's span.
   if (title) cv.text(x + 2, y, ` ${fit(title, w - 6)} `, PALETTE.brand);
 }
 
-/** Copy columns [0, wipeX) of `full` into a fresh canvas with a bright leading edge. */
 function wipeFrame(full: Canvas, wipeX: number): Canvas {
   const cv = new Canvas(full.width, full.height);
   const edge = Math.floor(wipeX);
@@ -217,11 +188,8 @@ function buildTaskCard(cs: ScriptedCase, w: number): Canvas {
   return cv;
 }
 
-// ─── Race ───────────────────────────────────────────────────────────────
-
 const LANE_ROWS = 4;
 const finishPostX = (w: number): number => w - 1;
-/** Clip to `max` columns, ending on an ellipsis rather than mid-word. */
 const fit = (text: string, max: number): string =>
   text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
 
@@ -235,7 +203,7 @@ function drawRace(
 ): void {
   const w = cv.width;
   const trackX = 4;
-  const finishX = finishPostX(w); // the post sits on the right edge
+  const finishX = finishPostX(w);
   const trackLen = finishX - trackX;
 
   lanes.forEach((lane, li) => {
@@ -243,7 +211,6 @@ function drawRace(
     const done = t >= lane.totalMs;
     const laneColor = done && !lane.passes ? PALETTE.rose : lane.color;
 
-    // Row 0: identity + live clock / verdict chip.
     cv.text(
       2,
       y0,
@@ -264,7 +231,6 @@ function drawRace(
       cv.text(w - clock.length, y0, clock, METRIC.speed);
     }
 
-    // Row 1: track, trail, runner, finish post.
     const p = runnerProgress(lane, t);
     const rx = trackX + p * (trackLen - 1);
     for (let x = trackX; x < finishX; x++) cv.put(x, y0 + 1, "─", PALETTE.deep);
@@ -279,7 +245,6 @@ function drawRace(
     const pulse = 0.35 + 0.2 * Math.sin(time * 4 + li);
     cv.put(finishX, y0 + 1, "┃", ramp(GLOW, raceEnd ? 0.3 : pulse));
 
-    // Row 2: current step with a kind badge (or the judge line).
     if (done) {
       cv.text(4, y0 + 2, "JUDGE", PALETTE.slate);
       if (lane.passes) {
@@ -303,7 +268,6 @@ function drawRace(
     }
   });
 
-  // Finish bursts: particles expanding from the finish post, fading.
   for (const b of bursts) {
     const age = time * 1000 - b.at;
     if (age < 0 || age > BURST_MS) continue;
@@ -312,7 +276,6 @@ function drawRace(
     for (const [dx, dy] of b.seeds) {
       const x = Math.round(b.x + dx * k * 9);
       const y = Math.round(b.y + dy * k * 1.6);
-      // Sparks live in empty cells only — never on top of a name, chip, or step text.
       if (y < 0 || y >= cv.height || x < 0 || x >= cv.width || cv.glyphs[y][x] !== " ") continue;
       cv.put(x, y, glowGlyph(alpha), mixRgb(b.color, PALETTE.mint, 0.4 * alpha));
     }
@@ -323,40 +286,27 @@ function raceHeight(lanes: Lane[]): number {
   return 1 + lanes.length * LANE_ROWS;
 }
 
-// ─── Podium ─────────────────────────────────────────────────────────────
-
 type Ranked = Lane & { rank: number; finishMs: number };
 
 function rankLanes(lanes: Lane[]): Ranked[] {
-  return (
-    [...lanes]
-      // accuracy (pass before fail), then speed, then cost — the podium's three columns
-      .sort((a, b) =>
-        a.passes !== b.passes
-          ? a.passes
-            ? -1
-            : 1
-          : a.totalMs - b.totalMs || a.costUsd - b.costUsd,
-      )
-      .map((l, i) => ({ ...l, rank: i + 1, finishMs: l.totalMs }))
-  );
+  return [...lanes]
+    .sort((a, b) =>
+      a.passes !== b.passes ? (a.passes ? -1 : 1) : a.totalMs - b.totalMs || a.costUsd - b.costUsd,
+    )
+    .map((l, i) => ({ ...l, rank: i + 1, finishMs: l.totalMs }));
 }
 
 const PODIUM_H = 12;
 const BLOCK_W = 18;
-const BLOCK_HEIGHTS = [5, 3.5, 2.5]; // rank 1, 2, 3 (rows)
+const BLOCK_HEIGHTS = [5, 3.5, 2.5];
 
-/** t: 0→1 over the podium animation. */
 function drawPodium(cv: Canvas, ranked: Ranked[], t: number, time: number): void {
   const w = cv.width;
   const floorY = 7;
-  // Blocks end on the right edge; the legend keeps the left margin clear.
-  // Narrow (static) output shrinks the blocks rather than overlapping them.
   const LEGEND_W = 10;
   const blockW = Math.max(8, Math.min(BLOCK_W, Math.floor((w - LEFT - LEGEND_W - 2) / 3)));
   const gap = Math.max(1, Math.floor((w - LEFT - LEGEND_W - blockW * 3) / 2));
   const first = w - blockW * 3 - gap * 2;
-  // Classic arrangement: 2nd left, 1st center, 3rd right.
   const order = [ranked[1], ranked[0], ranked[2]];
   order.forEach((l, slot) => {
     const x = first + slot * (blockW + gap);
@@ -386,7 +336,6 @@ function drawPodium(cv: Canvas, ranked: Ranked[], t: number, time: number): void
         l.passes ? PALETTE.white : PALETTE.rose,
       );
     }
-    // Metrics fade in beneath the floor.
     const fade = ease.inOutSine(clamp01((t - 0.38 - slot * 0.05) / 0.2));
     if (fade > 0) {
       const acc = l.passes ? "✓ 100%" : "✗   0%";
@@ -414,8 +363,6 @@ function drawPodium(cv: Canvas, ranked: Ranked[], t: number, time: number): void
   );
 }
 
-// ─── Flow ───────────────────────────────────────────────────────────────
-
 export async function runArena(ctx: WelcomeRunContext): Promise<WizardOutcome> {
   setCursorHidden(true);
   try {
@@ -434,14 +381,11 @@ async function flow(ctx: WelcomeRunContext): Promise<WizardOutcome> {
   const cs = loadScriptedCases()[0];
   const lanes = buildLanes(cs);
   const w = canvasWidth();
-  // The intro owns its keys; our skip listener arms only after it returns,
-  // so an Esc inside the intro never skips the run as well.
   const opening = await runIntro();
   if (opening.aborted) return cancelled();
   const intro = listenForSkip();
   const signal: SkipSignal = intro.signal;
   try {
-    // 2. Task card — horizontal wipe.
     ruleHeader("The task", { eyebrow: "one real benchmark case" });
     const card = buildTaskCard(cs, w);
     const cardBlock = new LiveBlock();
@@ -457,11 +401,7 @@ async function flow(ctx: WelcomeRunContext): Promise<WizardOutcome> {
     await sleep(1400, signal);
     if (signal.aborted) return cancelled();
 
-    // 3. Countdown — each number pops with an expanding ring.
     ruleHeader("The run", { eyebrow: "three models · one real task" });
-    // The countdown and the run share one slot: the numbers pop in the
-    // middle of the (still empty) lanes region, then the lanes repaint over
-    // them — no blank band between the two.
     const raceBlock = new LiveBlock();
     const raceH = raceHeight(lanes);
     for (const label of ["3", "2", "1", "go"]) {
@@ -498,7 +438,6 @@ async function flow(ctx: WelcomeRunContext): Promise<WizardOutcome> {
       });
     }
 
-    // 4. The run.
     const maxT = Math.max(...lanes.map((l) => l.totalMs));
     const raceMs = maxT + BURST_MS + 200;
     const rand = seeded(0xa2e4a);
@@ -543,7 +482,6 @@ async function flow(ctx: WelcomeRunContext): Promise<WizardOutcome> {
       );
     }
 
-    // 5. Podium rises.
     ruleHeader("Podium", { eyebrow: "accuracy · speed · cost" });
     const ranked = rankLanes(lanes);
     const podiumBlock = new LiveBlock();
@@ -577,8 +515,6 @@ async function flow(ctx: WelcomeRunContext): Promise<WizardOutcome> {
     intro.release();
   }
 
-  // 6. Look inside — the winner's run, narrated by the agent (clack owns stdin
-  // for the question; the transcript gets its own skip listener).
   if (process.stdin.isTTY && process.stdout.isTTY) {
     setCursorHidden(false);
     const pick = await clack.select({
@@ -609,7 +545,6 @@ async function flow(ctx: WelcomeRunContext): Promise<WizardOutcome> {
     }
   }
 
-  // 7. Hand-off
   const m = detectMachine();
   const tail = listenForSkip();
   let runNext: string | null = null;

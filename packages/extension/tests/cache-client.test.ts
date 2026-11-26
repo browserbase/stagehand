@@ -1,11 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { CacheClient, CacheGetResponseSchema } from "../clients/cacheClient.js";
 
-/**
- * The cache client is the only place the API's wire shape is validated, and
- * cache-service tests mock past it — so a renamed or malformed field would
- * otherwise only surface in production.
- */
 describe("CacheGetResponseSchema", () => {
   it("parses a hit carrying token savings in the API's shape", () => {
     const parsed = CacheGetResponseSchema.parse({

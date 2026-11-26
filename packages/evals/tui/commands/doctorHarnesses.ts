@@ -1,22 +1,3 @@
-/**
- * `evals doctor` — Harnesses / Verifier / Browserbase / Environment probes.
- *
- * Built from the harness registry: every executable harness gets a row of
- * cheap, read-only probes (binary or runtime resolvable, provider key
- * present, extra per-harness requirement). Network probes run only with
- * `--probe` and validate the key against the provider's models endpoint so a
- * dead key is caught here instead of as a silent `sdk_error` in a run.
- *
- * Every failed probe carries the exact command that fixes it. Verdict rule:
- * only requested harnesses (`--harness` or `defaults.harness`) — and, when
- * one was requested, the verifier and Browserbase rows — can change the
- * verdict; the rest of the matrix is informational (see
- * harnessMatrixReasons).
- *
- * fx and cursor are not probed yet: their auth state lives inside the CLI and
- * the status subcommands have not been confirmed by the owners.
- */
-
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -32,17 +13,13 @@ export type ProbeStatus = "ok" | "warn" | "fail" | "skipped" | "unknown";
 
 export interface Probe {
   status: ProbeStatus;
-  /** Short cell text, e.g. `sdk`, `ANTHROPIC_API_KEY`, `401`, `heap 4096 MB < 12288`. */
   label: string;
-  /** Longer explanation printed under the row when the probe is not ok. */
   detail?: string;
-  /** Exact remediation command. */
   fix?: string;
 }
 
 export interface HarnessProbeRow {
   harness: string;
-  /** Requested via --harness or the config default: failures fail the verdict. */
   required: boolean;
   binary: Probe;
   key: Probe;
@@ -55,7 +32,6 @@ export interface NamedProbeRow {
   name: "verifier" | "browserbase";
   probes: Probe[];
   status: ProbeStatus;
-  /** Effective judge (verifier row only). */
   detail?: string;
 }
 
@@ -71,14 +47,11 @@ export interface HarnessMatrix {
   verifier: NamedProbeRow;
   browserbase: NamedProbeRow;
   environment: EnvironmentReport;
-  /** Harnesses excluded from this pass. */
   skipped: string[];
 }
 
-/** Harnesses whose auth lives inside a third-party CLI; not probed yet. */
 export const UNPROBED_HARNESSES: ReadonlySet<string> = new Set(["fx", "cursor"]);
 
-/** In-process harnesses that need the heap flag past this concurrency. */
 const HEAP_HARNESSES: ReadonlySet<string> = new Set(["mastra", "pi"]);
 const HEAP_MIN_MB = 12288;
 const HEAP_CONCURRENCY_THRESHOLD = 5;
@@ -92,24 +65,15 @@ const PROVIDER_KEY_ENV: Record<string, string[]> = {
 export interface HarnessProbeOptions {
   config?: ConfigFile;
   env?: NodeJS.ProcessEnv;
-  /** `--harness a,b` narrows the rows; `all`/undefined probes every executable harness. */
   requested?: string[];
-  /** Run network probes. */
   probe?: boolean;
   fetchImpl?: typeof fetch;
-  /** Package resolvability check; defaults to createRequire from the evals package. */
   resolvePackage?: (specifier: string) => boolean;
-  /** Executable lookup on PATH; defaults to a PATH scan. */
   which?: (binary: string) => string | undefined;
   execArgv?: string[];
   envReport?: EvalsEnvReport;
-  /** Effective global concurrency for the heap check. */
   concurrency?: number;
 }
-
-// ---------------------------------------------------------------------------
-// Primitive checks
-// ---------------------------------------------------------------------------
 
 /**
  * Is `specifier` installed for the evals package or any integration package?
@@ -126,16 +90,12 @@ function defaultResolvePackage(specifier: string): boolean {
     for (const entry of fs.readdirSync(integrations, { withFileTypes: true })) {
       if (entry.isDirectory()) roots.push(path.join(integrations, entry.name));
     }
-  } catch {
-    // no integrations dir in this checkout
-  }
+  } catch {}
   for (const root of roots) {
     try {
       createRequire(path.join(root, "package.json")).resolve(specifier);
       return true;
-    } catch {
-      // ESM-only or absent: check the tree directly
-    }
+    } catch {}
     if (fs.existsSync(path.join(root, "node_modules", specifier, "package.json"))) return true;
   }
   return false;
@@ -148,9 +108,7 @@ function defaultWhich(binary: string, env: NodeJS.ProcessEnv = process.env): str
     try {
       fs.accessSync(candidate, fs.constants.X_OK);
       return candidate;
-    } catch {
-      // keep looking
-    }
+    } catch {}
   }
   return undefined;
 }
@@ -173,7 +131,6 @@ function isWritableDir(dir: string): boolean {
   }
 }
 
-/** `--max-old-space-size=N` from NODE_OPTIONS or execArgv, in MB. */
 export function readMaxOldSpaceMb(env: NodeJS.ProcessEnv, execArgv: string[]): number | undefined {
   const sources = [...(env.NODE_OPTIONS ?? "").split(/\s+/), ...execArgv];
   let found: number | undefined;
@@ -209,7 +166,6 @@ function keyProbe(
   };
 }
 
-/** Line number of `NAME=` in an env file, for the remediation message. Never reads values out. */
 function envKeyLine(filePath: string, name: string): number | undefined {
   try {
     const lines = fs.readFileSync(filePath, "utf-8").split("\n");
@@ -219,10 +175,6 @@ function envKeyLine(filePath: string, name: string): number | undefined {
     return undefined;
   }
 }
-
-// ---------------------------------------------------------------------------
-// Network probes (only with --probe)
-// ---------------------------------------------------------------------------
 
 type ProviderProbeResult = { ok: boolean; status?: number; error?: string };
 
@@ -257,11 +209,6 @@ async function probeProvider(
   }
 }
 
-/**
- * Judge model is still served: GET the model itself (`models/<id>`) on the
- * provider's models API, so a retired judge (404) fails here instead of
- * failing every rubric criterion mid-run.
- */
 async function probeJudge(
   modelName: string,
   apiKey: string,
@@ -329,10 +276,6 @@ function probeFromResult(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Rows
-// ---------------------------------------------------------------------------
-
 function worst(...statuses: ProbeStatus[]): ProbeStatus {
   const order: ProbeStatus[] = ["fail", "warn", "unknown", "ok", "skipped"];
   for (const status of order) if (statuses.includes(status)) return status;
@@ -343,10 +286,6 @@ function skipped(label = "—"): Probe {
   return { status: "skipped", label };
 }
 
-/**
- * How many sessions of a harness actually run at once: the global cap, cut
- * down by the provider's width (EVAL_PROVIDER_CONCURRENCY over config).
- */
 function effectiveWidth(
   globalConcurrency: number,
   provider: string | undefined,
@@ -364,8 +303,6 @@ function effectiveWidth(
       provider,
     );
   } catch {
-    // A malformed EVAL_PROVIDER_CONCURRENCY fails the run at plan time; here
-    // fall back to the global cap rather than masking the rest of the report.
     return globalConcurrency;
   }
 }
@@ -395,13 +332,6 @@ function heapProbe(
   };
 }
 
-/**
- * The models a run of this harness would call, in the planner's order:
- * `EVAL_<HARNESS>_MODELS` (which `harnesses.<h>.models` feeds when the env
- * twin is unset), then the harness's defaults. Stagehand has no harness
- * defaults; its matrix is `defaults.model` (the `-m` default) or the shared
- * category list, which honours `EVAL_MODELS`.
- */
 async function resolveHarnessModels(
   harness: string,
   env: NodeJS.ProcessEnv,
@@ -429,7 +359,6 @@ async function resolveHarnessModels(
   return getBenchHarness(harness).defaultModels ?? [];
 }
 
-/** One cell for several providers: the worst probe wins, labels join when all are ok. */
 function combineProbes(probes: Probe[]): Probe {
   if (probes.length === 1) return probes[0];
   const bad = probes.find((probe) => probe.status === worst(...probes.map((p) => p.status)));
@@ -453,7 +382,6 @@ async function buildHarnessRow(
   const globalConcurrency = options.concurrency ?? config?.defaults.concurrency ?? 3;
 
   const models = await resolveHarnessModels(harness, env, config);
-  // Every provider the harness's model matrix calls needs a working key.
   const providers = [
     ...new Set(models.map((model) => providerFromModel(model)).filter(Boolean)),
   ] as string[];
@@ -545,12 +473,12 @@ async function buildHarnessRow(
       );
       break;
     case "eve":
-      binary = resolvePackage("@browserbasehq/stagehand-integrations-eve-sdk")
+      binary = resolvePackage("@browserbasehq/stagehand-integrations-eve-harness")
         ? { status: "ok", label: "sdk" }
         : {
             status: "fail",
             label: "sdk missing",
-            detail: "@browserbasehq/stagehand-integrations-eve-sdk not resolvable.",
+            detail: "@browserbasehq/stagehand-integrations-eve-harness not resolvable.",
             fix: "pnpm install",
           };
       break;
@@ -611,8 +539,6 @@ function fileForKey(name: string, report: EvalsEnvReport | undefined): string | 
 async function buildVerifierRow(
   options: Required<Pick<HarnessProbeOptions, "env" | "fetchImpl">> & HarnessProbeOptions,
 ): Promise<NamedProbeRow> {
-  // Same rule the run applies: EVAL_VERIFIER_MODEL wins, then verifier.model
-  // from config, then the default.
   const configModel = options.config?.verifier?.model?.trim();
   const judge = resolveVerifierModel(
     configModel && !options.env.EVAL_VERIFIER_MODEL?.trim()
@@ -658,7 +584,6 @@ async function buildVerifierRow(
   };
 }
 
-/** `add A and B to <pkg>/.env or export them in your shell`. */
 function addEnvKeysFix(names: string[]): string {
   const them = names.length === 1 ? "it" : "them";
   return `add ${names.join(" and ")} to ${path.join(getPackageRootDir(), ".env")} or export ${them} in your shell`;
@@ -723,7 +648,6 @@ function buildEnvironmentReport(
   env: NodeJS.ProcessEnv,
   report: EvalsEnvReport | undefined,
 ): EnvironmentReport {
-  // Same rule the runner applies: VERIFIER_PERSIST_TRAJECTORIES wins over CI.
   const persist = env.VERIFIER_PERSIST_TRAJECTORIES?.toLowerCase();
   const ci = Boolean(env.CI) && persist !== "1" && persist !== "true";
   return {
@@ -738,10 +662,6 @@ function buildEnvironmentReport(
     status: ci || (report?.shadowed.length ?? 0) > 0 ? "warn" : "ok",
   };
 }
-
-// ---------------------------------------------------------------------------
-// Entry
-// ---------------------------------------------------------------------------
 
 export async function buildHarnessMatrix(
   options: HarnessProbeOptions = {},
@@ -758,7 +678,6 @@ export async function buildHarnessMatrix(
   };
   const executable = listExecutableBenchHarnesses();
   const requested = options.requested?.filter((h) => h !== "all");
-  // `--harness all` asks for every row, so every row's failures count.
   const allRequested = options.requested?.includes("all") ?? false;
   const candidates = requested && requested.length > 0 && !allRequested ? requested : executable;
   const skippedHarnesses = candidates.filter((h) => UNPROBED_HARNESSES.has(h));
@@ -779,16 +698,6 @@ export async function buildHarnessMatrix(
   };
 }
 
-/**
- * Reasons that push the doctor verdict, from the matrix.
- *
- * Only what the user is about to run can fail the verdict: rows for
- * requested harnesses (`--harness` or `defaults.harness`) and, when any
- * harness was requested, the verifier and Browserbase rows. Everything else
- * is rendered in the matrix but stays informational so a developer with one
- * provider key is not nagged about the eight harnesses they never run.
- * Shadowed env keys always warn — they are real misconfigurations.
- */
 export function harnessMatrixReasons(matrix: HarnessMatrix): {
   failures: string[];
   warnings: string[];

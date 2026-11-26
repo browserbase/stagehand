@@ -22,7 +22,6 @@ const cents = (value: number) => Math.round(value * 100);
 export async function run(stagehand: Stagehand, page: Page): Promise<z.output<typeof schema>> {
   await page.goto("https://www.saucedemo.com");
 
-  // Variables keep the password out of the prompt sent to the model.
   await stagehand.act("Type %username% into the Username field", {
     page,
     variables: { username: CREDENTIALS.username },
@@ -36,7 +35,6 @@ export async function run(stagehand: Stagehand, page: Page): Promise<z.output<ty
   for (const item of ITEMS) await stagehand.act(`Click "Add to cart" for "${item}"`, { page });
   await stagehand.act("Open the cart", { page });
   await stagehand.act("Click Checkout", { page });
-  // One act performs one action, so each field gets its own instruction.
   await stagehand.act('Type "Ada" into First Name', { page });
   await stagehand.act('Type "Lovelace" into Last Name', { page });
   await stagehand.act('Type "94103" into Zip/Postal Code', { page });

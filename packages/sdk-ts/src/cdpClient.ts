@@ -1,4 +1,6 @@
 import { appendFileSync } from "node:fs";
+import { stat } from "node:fs/promises";
+import path from "node:path";
 import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
@@ -36,14 +38,12 @@ export type CDPClientOptions = {
   cdpUrl: string;
   headers?: Record<string, string>;
   extensionDir?: string;
-  /** Discover an installed runtime first; load this directory only if absent or unsupported. */
   localExtensionDir?: string;
   extensionId?: string;
   preloadedExtension?: true;
   serviceWorkerUrlIncludes?: string;
   runtimeRequirement?: RuntimeRequirement;
   allowFallbackInstall?: boolean;
-  /** Factory-owned lifecycle policy; never infer process ownership from a CDP URL. */
   clientLifecycle?: { closeBrowserOnDisconnect: boolean; extensionCdpUrl?: string };
   signal: AbortSignal;
 };
@@ -131,9 +131,7 @@ export class StagehandRuntimeIncompatibleError extends Error {
   readonly reason: RuntimeIncompatibilityReason;
   /** Human-readable negotiation failure, without the version summary or remediation. */
   readonly detail: string;
-  /** Protocol version this SDK speaks. */
   readonly clientProtocolVersion: string;
-  /** Protocol version the connected extension reported. */
   readonly reportedProtocolVersion: string;
   /** `serverInfo` published by the connected runtime (name + version). */
   readonly serverInfo: ImplementationInfo;
@@ -235,7 +233,6 @@ export class CDPClient {
   attachedServiceWorker: ServiceWorkerInfo | undefined;
   closed = false;
   private clientTargetId?: string;
-  /** Whether the extension shuts the browser down if this client is lost. */
   private clientCloseBrowserOnLoss = false;
   private readonly heartbeatMs = cdpHeartbeatMs(process.env.STAGEHAND_CDP_HEARTBEAT_MS);
   private heartbeatTimer?: ReturnType<typeof setInterval>;
@@ -270,7 +267,6 @@ export class CDPClient {
     this.startHeartbeat();
   }
 
-  /** Browser-level traffic only; no replay, transport replacement or reconnection. */
   private startHeartbeat(): void {
     this.heartbeatTimer = setInterval(() => {
       if (this.closed || this.socket.readyState !== WebSocket.OPEN || this.heartbeatAbort) return;
@@ -300,8 +296,6 @@ export class CDPClient {
 
   private finishDrop(reason: Error, kind: "close" | "error", code?: number): void {
     if (this.closed) return;
-    // Mark terminal before closing the socket: synchronous error->close must
-    // notify once and retain the original error rather than the cleanup close.
     this.closed = true;
     this.logDrop(reason, kind, code);
     this.stopHeartbeat();
@@ -309,9 +303,7 @@ export class CDPClient {
     if (kind === "error") {
       try {
         this.socket.close();
-      } catch {
-        /* preserve the terminal error */
-      }
+      } catch {}
       this.onerror?.(reason);
     } else {
       this.onclose?.(reason);
@@ -332,19 +324,14 @@ export class CDPClient {
       last_method: /^[A-Za-z][A-Za-z0-9_.]*$/u.test(this.lastMethod) ? this.lastMethod : "",
       reason: cdpDiagnosticReason(reason),
     })}\n`;
-    // Diagnostics never change the connection's terminal outcome.
     try {
       process.stderr.write(line);
-    } catch {
-      /* best effort */
-    }
+    } catch {}
     const file = process.env.STAGEHAND_CDP_LOG_FILE;
     if (file) {
       try {
         appendFileSync(file, line);
-      } catch {
-        /* best effort */
-      }
+      } catch {}
     }
   }
 
@@ -367,9 +354,7 @@ export class CDPClient {
           process.stderr.write(
             "CDP headers were withheld from the advertised WebSocket endpoint because its host or port differs, or forwarding would downgrade transport security. If the handshake is rejected, check the gateway's advertised CDP endpoint.\n",
           );
-        } catch {
-          /* Diagnostics must not interrupt the connection. */
-        }
+        } catch {}
       }
     }
     const socket = await openCDPWebSocket(webSocketDebuggerUrl, signal, undefined, headers);
@@ -378,14 +363,17 @@ export class CDPClient {
 
     try {
       let extensionId: string;
+      let loadedFrom: string | undefined;
+      let installedPath: string | undefined;
       if (options.localExtensionDir) {
-        extensionId = await resolveExtension(client, {
+        ({ extensionId, loadedFrom, installedPath } = await discoverOrLoadExtension(client, {
           loadIfNotFound: true,
           extensionDir: options.localExtensionDir,
           signal,
-        });
+        }));
       } else if (options.extensionDir) {
         extensionId = await loadUnpackedExtension(client, options.extensionDir, signal);
+        loadedFrom = options.extensionDir;
       } else if (options.extensionId) {
         extensionId = options.extensionId;
       } else if (options.preloadedExtension) {
@@ -395,20 +383,54 @@ export class CDPClient {
           "Exactly one of localExtensionDir, extensionDir, extensionId, or preloadedExtension is required",
         );
       }
-      const serviceWorker = await waitForServiceWorker(client, {
-        extensionId,
-        urlIncludes: options.serviceWorkerUrlIncludes,
-        signal,
-      });
-      const attached = await client.sendCommand<{ sessionId: string }>(
-        "Target.attachToTarget",
-        {
-          targetId: serviceWorker.targetId,
-          flatten: true,
-        },
-        undefined,
-        signal,
-      );
+      const attachServiceWorker = async (excludeTargetId?: string) => {
+        const serviceWorker = await waitForServiceWorker(client, {
+          extensionId,
+          urlIncludes: options.serviceWorkerUrlIncludes,
+          excludeTargetId,
+          signal,
+        });
+        const attached = await client.sendCommand<{ sessionId: string }>(
+          "Target.attachToTarget",
+          {
+            targetId: serviceWorker.targetId,
+            flatten: true,
+          },
+          undefined,
+          signal,
+        );
+        return { serviceWorker, attached };
+      };
+      let { serviceWorker, attached } = await attachServiceWorker();
+      let build = await readServiceWorkerBuild(client, attached.sessionId, { signal });
+      if (
+        isStaleServiceWorker(build) &&
+        installedPath !== undefined &&
+        options.localExtensionDir &&
+        (await sameDirectory(installedPath, options.localExtensionDir))
+      ) {
+        loadedFrom = options.localExtensionDir;
+      }
+      let replacement: StaleServiceWorkerReplacement = "not owned";
+      if (isStaleServiceWorker(build) && loadedFrom !== undefined) {
+        try {
+          extensionId = await loadUnpackedExtension(client, loadedFrom, signal);
+          replacement = "reloaded";
+        } catch (error) {
+          throwIfAborted(signal);
+          if (error instanceof CDPConnectionClosedError) throw error;
+          replacement = "reload failed";
+        }
+        if (replacement === "reloaded") {
+          ({ serviceWorker, attached } = await attachServiceWorker(serviceWorker.targetId));
+          build = await readServiceWorkerBuild(client, attached.sessionId, { signal });
+        }
+      }
+      if (isStaleServiceWorker(build)) {
+        process.emitWarning(staleServiceWorkerMessage(extensionId, build, replacement), {
+          code: "STAGEHAND_STALE_SERVICE_WORKER",
+        });
+      }
 
       client.sessionId = attached.sessionId;
       client.attachedServiceWorker = {
@@ -482,7 +504,6 @@ export class CDPClient {
       signal,
     );
     if (!supported) {
-      // The protocol handshake already rejects older extensions; this one is inconsistent.
       await this.sendCommand("Target.closeTarget", { targetId }, undefined, signal);
       throw new Error(
         "The Stagehand extension in this browser does not support the client watchdog; update the extension",
@@ -492,7 +513,6 @@ export class CDPClient {
     this.clientCloseBrowserOnLoss = policy.closeBrowserOnDisconnect;
   }
 
-  /** Acknowledged intentional detach, before the client's socket/marker disappears. */
   async detachClient(): Promise<void> {
     if (!this.clientTargetId || this.closed) return;
     let acknowledged: boolean;
@@ -516,7 +536,6 @@ export class CDPClient {
     this.clientTargetId = undefined;
   }
 
-  /** Resolves false when the extension has no client lifecycle support. */
   private async clientLifecycleCommand(params: JsonObject, signal: AbortSignal): Promise<boolean> {
     const result = await this.sendCommand<RuntimeEvaluateResult>(
       "Runtime.evaluate",
@@ -627,7 +646,6 @@ export class CDPClient {
     try {
       this.socket.close();
     } finally {
-      // Explicit close must notify RPC even without a socket close event.
       onclose?.(reason);
     }
   }
@@ -747,11 +765,6 @@ export async function waitForRuntimeReady(
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
     runtimeRequirement?: RuntimeRequirement;
-    /**
-     * Reserved for flows that can replace an incompatible preloaded extension. When not explicitly
-     * `true`, an incompatible marker fails initialization on the first poll instead of polling
-     * until the initialization timeout.
-     */
     allowFallbackInstall?: boolean;
     signal: AbortSignal;
   },
@@ -779,7 +792,6 @@ export async function waitForRuntimeReady(
   }
 }
 
-/** @internal Discover the runtime, optionally loading a bundled extension if needed. */
 export async function resolveExtension(
   cdp: CDPCommandSender,
   options: {
@@ -788,9 +800,20 @@ export async function resolveExtension(
     extensionDir?: string;
   },
 ): Promise<string> {
-  let id: string | undefined;
+  return (await discoverOrLoadExtension(cdp, options)).extensionId;
+}
+
+async function discoverOrLoadExtension(
+  cdp: CDPCommandSender,
+  options: {
+    signal: AbortSignal;
+    loadIfNotFound: boolean;
+    extensionDir?: string;
+  },
+): Promise<{ extensionId: string; loadedFrom?: string; installedPath?: string }> {
+  let installed: { id: string; path: string } | undefined;
   try {
-    id = await getInstalledStagehandExtensionId(cdp, options);
+    installed = await getInstalledStagehandExtension(cdp, options);
   } catch (error) {
     if (
       !options.loadIfNotFound ||
@@ -800,12 +823,15 @@ export async function resolveExtension(
     }
   }
   throwIfAborted(options.signal);
-  if (id !== undefined) return id;
+  if (installed !== undefined) return { extensionId: installed.id, installedPath: installed.path };
   if (options.loadIfNotFound) {
     if (!options.extensionDir) {
       throw new Error("extensionDir is required to load the Stagehand extension");
     }
-    return await loadUnpackedExtension(cdp, options.extensionDir, options.signal);
+    return {
+      extensionId: await loadUnpackedExtension(cdp, options.extensionDir, options.signal),
+      loadedFrom: options.extensionDir,
+    };
   }
   throw new Error(
     "Stagehand extension is not installed in the connected browser. " +
@@ -813,10 +839,29 @@ export async function resolveExtension(
   );
 }
 
-async function getInstalledStagehandExtensionId(
+async function sameDirectory(first: string, second: string): Promise<boolean> {
+  try {
+    const [a, b] = await Promise.all([
+      stat(first, { bigint: true }),
+      stat(second, { bigint: true }),
+    ]);
+    return a.dev === b.dev && a.ino === b.ino;
+  } catch {
+    return normalizeDirectory(first) === normalizeDirectory(second);
+  }
+}
+
+function normalizeDirectory(directory: string): string {
+  const normalized = path.normalize(directory);
+  return normalized !== path.parse(normalized).root && normalized.endsWith(path.sep)
+    ? normalized.slice(0, -1)
+    : normalized;
+}
+
+async function getInstalledStagehandExtension(
   cdp: CDPCommandSender,
   options: { signal: AbortSignal },
-): Promise<string | undefined> {
+): Promise<{ id: string; path: string } | undefined> {
   throwIfAborted(options.signal);
   const response = await cdp.sendCommand<unknown>(
     "Extensions.getExtensions",
@@ -829,7 +874,7 @@ async function getInstalledStagehandExtensionId(
   );
   const enabled = installed.filter((extension) => extension.enabled);
 
-  if (enabled.length === 1) return enabled[0].id;
+  if (enabled.length === 1) return enabled[0];
   if (enabled.length > 1) {
     const ids = enabled
       .map((extension) => extension.id)
@@ -867,11 +912,104 @@ function parseRuntimeReadiness(value: unknown): z.output<typeof RuntimeReadiness
   return parsed.success ? parsed.data : { marker: null, hasReceiver: false };
 }
 
+export type ServiceWorkerBuild = { running: string | null; onDisk: string | null };
+
+const ServiceWorkerBuildSchema = z.object({
+  running: z.string().nullable(),
+  onDisk: z.string().nullable(),
+});
+
+const SERVICE_WORKER_BUILD_READ_RETRIES = 15;
+
+export async function readServiceWorkerBuild(
+  cdp: CDPCommandSender,
+  sessionId: string,
+  options: {
+    pollIntervalMs?: number;
+    delayFn?: (ms: number) => Promise<void>;
+    signal: AbortSignal;
+  },
+): Promise<ServiceWorkerBuild> {
+  const pollIntervalMs = options.pollIntervalMs ?? 100;
+  const delayFn = options.delayFn ?? delay;
+  let failures = 0;
+  while (true) {
+    throwIfAborted(options.signal);
+    let value: unknown = null;
+    try {
+      const evaluated = await cdp.sendCommand<RuntimeEvaluateResult>(
+        "Runtime.evaluate",
+        {
+          expression: `(async () => {
+  if (globalThis.__stagehand_runtime === undefined) return null;
+  let onDisk = null;
+  try {
+    const response = await fetch(chrome.runtime.getURL("build-id.txt"), {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (response.ok) onDisk = (await response.text()).trim();
+  } catch {}
+  return { running: globalThis.__stagehand_build_id ?? null, onDisk };
+})()`,
+          returnByValue: true,
+          awaitPromise: true,
+        },
+        sessionId,
+        options.signal,
+      );
+      value = evaluated.exceptionDetails ? null : evaluated.result?.value;
+    } catch (error) {
+      throwIfAborted(options.signal);
+      if (error instanceof CDPConnectionClosedError) throw error;
+      if (++failures > SERVICE_WORKER_BUILD_READ_RETRIES) return { running: null, onDisk: null };
+    }
+    if (value !== null && value !== undefined) {
+      const parsed = ServiceWorkerBuildSchema.safeParse(value);
+      return parsed.success ? parsed.data : { running: null, onDisk: null };
+    }
+    await abortable(delayFn(pollIntervalMs), options.signal);
+  }
+}
+
+const UNSTAMPED_BUILD_ID = "__STAGEHAND_EXTENSION_BUILD_ID__";
+
+export function isStaleServiceWorker(build: ServiceWorkerBuild): boolean {
+  if ([build.running, build.onDisk].some((id) => id === "" || id === UNSTAMPED_BUILD_ID)) {
+    return false;
+  }
+  return build.onDisk !== null && build.running !== build.onDisk;
+}
+
+type StaleServiceWorkerReplacement = "not owned" | "reloaded" | "reload failed";
+
+function staleServiceWorkerMessage(
+  extensionId: string,
+  build: ServiceWorkerBuild,
+  replacement: StaleServiceWorkerReplacement,
+): string {
+  const running =
+    build.running === null
+      ? "a service worker without a build identity"
+      : `service worker build ${build.running}`;
+  if (replacement === "reloaded") {
+    return `The Stagehand extension ${extensionId} still runs ${running} after it was reloaded from a directory that holds build ${build.onDisk}, so Stagehand continues with the running worker.`;
+  }
+  const reason =
+    replacement === "reload failed"
+      ? "Stagehand could not load this extension again from its directory to replace the worker"
+      : "Stagehand did not load this extension from its own directory";
+  return (
+    `The Stagehand extension ${extensionId} runs ${running}, but its directory holds build ${build.onDisk}: the browser profile kept the worker of another build. ` +
+    `${reason}, so it continues with the running worker.`
+  );
+}
+
 export async function waitForServiceWorker(
   cdp: CDPCommandSender,
   options: {
     extensionId: string;
     urlIncludes?: string;
+    excludeTargetId?: string;
     activationDelayMs?: number;
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
@@ -897,6 +1035,7 @@ export async function waitForServiceWorker(
       const serviceWorker = targets.targetInfos.find(
         (target) =>
           target.type === "service_worker" &&
+          target.targetId !== options.excludeTargetId &&
           target.url.startsWith("chrome-extension://") &&
           target.url.startsWith(`chrome-extension://${options.extensionId}/`) &&
           target.url.includes(workerUrlIncludes),
@@ -925,7 +1064,6 @@ export async function waitForServiceWorker(
     }
   } finally {
     if (activationTargetId) {
-      // Cleanup must not inherit an already-aborted init signal or delay its rejection.
       void cdp
         .sendCommand("Target.closeTarget", { targetId: activationTargetId })
         .catch(() => undefined);
@@ -967,7 +1105,6 @@ export async function loadUnpackedExtension(
   return loaded.id;
 }
 
-/** @internal Require the same host and effective port, without downgrading TLS. */
 export function canForwardCDPHeaders(source: string, destination: string): boolean {
   const ports: Record<string, string> = {
     "http:": "80",
@@ -1105,7 +1242,6 @@ function cdpHeartbeatMs(raw: string | undefined): number {
     : 20_000;
 }
 
-/** Keep transport causes useful without serializing errors, payloads or arbitrary objects. */
 function cdpDiagnosticReason(reason: Error): string {
   const messages: string[] = [];
   const seen = new Set<Error>();
@@ -1122,14 +1258,12 @@ function cdpDiagnosticReason(reason: Error): string {
         messages.push(sanitizeCdpDiagnostic(current.message));
       current = current.cause;
     } catch {
-      // A diagnostic accessor must not interrupt rejection or transport cleanup.
       break;
     }
   }
   return (messages.join(": ") || "CDP connection closed").slice(0, 160);
 }
 
-/** The diagnostic contains no payloads or connection URLs, including close text URLs. */
 function sanitizeCdpDiagnostic(message: string): string {
   return message
     .replace(/(?:https?|wss?):\/\/[^\s"']+/giu, "[url]")

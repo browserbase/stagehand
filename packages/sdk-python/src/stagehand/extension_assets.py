@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import io
+import json
 import os
+import re
 import zipfile
 from pathlib import Path
 
@@ -11,6 +13,28 @@ def extension_directory() -> Path:
     if not (extension_dir / "manifest.json").is_file():
         extension_dir = Path(__file__).resolve().parents[3] / "extension" / "dist"
     return extension_dir
+
+
+def _extension_fingerprint() -> str:
+    extension_dir = extension_directory()
+    if extension_dir.name == "_extension":
+        build_info = extension_dir.with_name("_extension_build.json")
+    else:
+        build_info = extension_dir.parent / "artifacts" / "extension-build.json"
+    try:
+        contents = build_info.read_text()
+    except OSError as error:
+        raise OSError(
+            f"Stagehand extension build file could not be read at {build_info}"
+        ) from error
+    try:
+        parsed = json.loads(contents)
+    except ValueError:
+        parsed = None
+    fingerprint = parsed.get("fingerprint") if isinstance(parsed, dict) else None
+    if not isinstance(fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+        raise ValueError(f"{build_info} does not contain an extension fingerprint")
+    return fingerprint
 
 
 def build_extension_archive() -> bytes:

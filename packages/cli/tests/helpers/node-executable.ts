@@ -1,11 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 
-/**
- * Write a fake external command backed by Node, even when PATH contains only
- * the fixture directory. Windows gets a .cmd launcher, like npm and npx.
- * The caller owns the directory and its cleanup.
- */
 export async function writeNodeExecutable(
   directory: string,
   name: string,

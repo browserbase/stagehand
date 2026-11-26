@@ -13,10 +13,6 @@ import {
 } from "./focusSelectors.js";
 import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils.js";
 
-/**
- * Fetch and prune the accessibility tree for a frame, optionally scoping the
- * output to a selector root for faster targeted snapshots.
- */
 export async function a11yForFrame(
   session: CDPSessionLike,
   frameId: string | undefined,
@@ -56,39 +52,66 @@ export async function a11yForFrame(
   let scopeApplied = false;
   const nodesForOutline = await (async () => {
     const locator = opts.focusLocator;
-    if (!locator) return nodes;
-    const sel = locator.selector.trim();
-    if (!sel) return nodes;
+    if (!locator && opts.focusBackendNodeId === undefined) return nodes;
+    const sel = locator?.selector.trim();
+    if (!sel && opts.focusBackendNodeId === undefined) return nodes;
     let objectId: string | null = null;
     try {
-      const looksLikeXPath = /^xpath=/i.test(sel) || sel.startsWith("/");
-      const nth = locator.nth ?? 0;
-      objectId = looksLikeXPath
-        ? await resolveObjectIdForXPath(session, sel, frameId, nth, progress)
-        : await resolveObjectIdForCss(session, sel, frameId, nth, progress);
-      if (!objectId) return nodes;
-      const desc = await runLocatorStep(progress, "reading snapshot focus", () =>
-        session.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", { objectId }),
-      );
-      const be = desc.node?.backendNodeId;
+      let be = opts.focusBackendNodeId;
+      if (be === undefined && sel) {
+        const looksLikeXPath = /^xpath=/i.test(sel) || sel.startsWith("/");
+        const nth = locator?.nth ?? 0;
+        objectId = looksLikeXPath
+          ? await resolveObjectIdForXPath(session, sel, frameId, nth, progress)
+          : await resolveObjectIdForCss(session, sel, frameId, nth, progress);
+        if (!objectId) return nodes;
+        const desc = await runLocatorStep(progress, "reading snapshot focus", () =>
+          session.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", { objectId }),
+        );
+        be = desc.node?.backendNodeId;
+      }
       if (typeof be !== "number") return nodes;
-      const target = nodes.find((n) => n.backendDOMNodeId === be);
+      let target = nodes.find((n) => n.backendDOMNodeId === be);
+      if (!target && opts.focusBackendNodeId !== undefined) {
+        // Full AX trees can omit an ignored container even when its children
+        // are accessible. Fetch its AX node to anchor the exact DOM scope.
+        const partial = await runLocatorStep(
+          progress,
+          "reading chain scope accessibility node",
+          () =>
+            session.send<Protocol.Accessibility.GetPartialAXTreeResponse>(
+              "Accessibility.getPartialAXTree",
+              {
+                backendNodeId: be,
+                fetchRelatives: true,
+              },
+            ),
+        );
+        const byId = new Map(nodes.map((node) => [node.nodeId, node]));
+        for (const node of partial.nodes) {
+          if (!byId.has(node.nodeId)) byId.set(node.nodeId, node);
+        }
+        nodes = [...byId.values()];
+        target = nodes.find((node) => node.backendDOMNodeId === be);
+      }
       if (!target) return nodes;
       scopeApplied = true;
       const keep = new Set<string>([target.nodeId]);
+      const parents = new Map<string, string>();
       const queue: Protocol.Accessibility.AXNode[] = [target];
       while (queue.length) {
         const cur = queue.shift()!;
         for (const id of cur.childIds ?? []) {
           if (keep.has(id)) continue;
           keep.add(id);
+          parents.set(id, cur.nodeId);
           const child = nodes.find((n) => n.nodeId === id);
           if (child) queue.push(child);
         }
       }
       return nodes
         .filter((n) => keep.has(n.nodeId))
-        .map((n) => (n.nodeId === target.nodeId ? { ...n, parentId: undefined } : n));
+        .map((n) => ({ ...n, parentId: parents.get(n.nodeId) }));
     } catch {
       progress?.throwIfStopped();
       return nodes;
@@ -132,9 +155,7 @@ export function decorateRoles(
     if (typeof n.backendDOMNodeId === "number") {
       try {
         encodedId = opts.encode(n.backendDOMNodeId);
-      } catch {
-        //
-      }
+      } catch {}
     }
 
     let role = asRole(n);

@@ -13,14 +13,12 @@ type LogLine = {
   >;
 };
 
-/** Logger surface required by agent harness adapters. */
 export type HarnessLogger = {
   log(line: LogLine): void;
   warn(line: LogLine): void;
   error(line: LogLine): void;
 };
 
-/** Error raised when a harness adapter cannot complete its work. */
 export class HarnessAdapterError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);

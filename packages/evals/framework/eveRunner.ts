@@ -4,7 +4,7 @@ import type {
   EveEvent,
   EveSessionResult,
   EveTokenUsage,
-} from "@browserbasehq/stagehand-integrations-eve-sdk";
+} from "@browserbasehq/stagehand-integrations-eve-harness";
 import type { AvailableModel } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
@@ -87,7 +87,7 @@ export async function runEveAgent({
     systemPromptMode: !serverUrl && toolAdapter ? "native" : "task_prefix",
     runSession: async (prompt) => {
       const { buildEveTranscript, runEveSession, stringifyError } =
-        await import("@browserbasehq/stagehand-integrations-eve-sdk");
+        await import("@browserbasehq/stagehand-integrations-eve-harness");
       const server = serverUrl
         ? { url: serverUrl }
         : toolAdapter
@@ -139,9 +139,6 @@ export async function runEveAgent({
           ...(finalObservation && { finalObservation }),
           ...(stepObservations?.length && { stepObservations }),
           ...(observedToolName && { observedToolName }),
-          // A run cut off on its step budget never reached a conclusion: its
-          // last message is mid-task narration, which must not be graded as
-          // (or stand in for) an answer.
           finalAnswer:
             raw.status === "max_turns"
               ? (parsed.finalAnswer ?? "")

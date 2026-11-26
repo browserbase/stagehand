@@ -6,7 +6,6 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/geniusee/");
-      // The locator engine prefix is required for XPath selectors.
       const locator = page.locator("xpath=/html/body/main/div[2]/div[2]/div[2]/table/tbody/tr[9]");
       const { data: scalability } = await stagehand.extract(
         "Extract the scalability comment in the table for Gemini (Google)",
@@ -18,11 +17,6 @@ export default defineBenchTask(
 
       const scalabilityComment = scalability.scalability;
 
-      // scalabilityCommentWeShouldNotGet matches a scalability comment in the table,
-      // but since we are using targeted_extract here,
-      // and passing in a selector that does NOT contain the scalabilityCommentWeShouldNotGet,
-      // the LLM should have no visibility into scalabilityCommentWeShouldNotGet if
-      // targeted_extract is performing correctly
       const scalabilityCommentWeShouldNotGet = {
         scalability: "Scalable architecture with API access",
       };

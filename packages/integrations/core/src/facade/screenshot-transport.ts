@@ -58,7 +58,6 @@ export async function captureScreenshotWithinBase64Budget(
   );
 }
 
-/** Reads width/height from a PNG or JPEG header; undefined when unparseable. */
 export function imageDimensions(
   image: StagehandFacadeScreenshot,
 ): { width: number; height: number } | undefined {

@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { EveClientLike, EveEvent } from "@browserbasehq/stagehand-integrations-eve-sdk";
+import type { EveClientLike, EveEvent } from "@browserbasehq/stagehand-integrations-eve-harness";
 import type { AvailableModel, Rubric } from "stagehand-v3";
 import { runEveAgent } from "../../framework/eveRunner.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
@@ -13,7 +13,6 @@ vi.mock("stagehand-v3", async (importOriginal) => {
   const mod = await importOriginal<typeof import("stagehand-v3")>();
   class FakeV3Evaluator {
     async verify() {
-      // A judge that credits narration, so the test isolates the gates.
       return { outcomeSuccess: true, processScore: 1 };
     }
     async generateRubric() {

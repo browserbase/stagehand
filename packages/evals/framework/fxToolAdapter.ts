@@ -2,7 +2,7 @@ import {
   parseFxReasoningEffort,
   stringifyError,
   type FxReasoningEffort,
-} from "@browserbasehq/stagehand-integrations-fx-sdk";
+} from "@browserbasehq/stagehand-integrations-fx";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -37,11 +37,9 @@ export interface PreparedFxToolAdapter {
   home: string;
   env: Record<string, string>;
   promptInstructions: string;
-  /** Browser behind the mounted surface, resolved before the agent starts. */
   browserSession: BrowserSessionInfo;
   mcpServerNames: string[];
   captureEvidence?: () => Promise<ProbeEvidence>;
-  /** Set once the mounted browser is gone for the rest of the run. */
   browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   recordObservation?: () => void;
@@ -226,7 +224,6 @@ export function buildFxAgentsMarkdown(promptInstructions: string, serverNames: s
 
 export const FX_REASONING_EFFORT_ENV = "EVAL_FX_REASONING_EFFORT";
 
-/** Validate EVAL_FX_REASONING_EFFORT; unset leaves fx's per-model default (no --effort flag). */
 export function readFxReasoningEffort(
   env: Record<string, string | undefined> = process.env,
 ): FxReasoningEffort | undefined {

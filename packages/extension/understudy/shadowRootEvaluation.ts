@@ -2,7 +2,6 @@ import { ShadowRootEvaluationError } from "../errors.js";
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 
-/** Evaluate in the main world with temporary references to author closed roots. */
 export async function evaluateWithShadowRoots<Result>(
   session: CDPSessionLike,
   evaluate: (expression: string) => Promise<unknown>,
@@ -19,7 +18,6 @@ export async function evaluateWithShadowRoots<Result>(
     for (const shadow of node.shadowRoots ?? []) {
       if (shadow.shadowRootType !== "user-agent") visit(shadow);
     }
-    // Frame documents have separate main worlds and are resolved by frame locators.
   };
   visit(root);
   if (!closedIds.length) return (await evaluate(`(${functionSource})([])`)) as Result;
@@ -47,7 +45,6 @@ export async function evaluateWithShadowRoots<Result>(
     if (response.exceptionDetails) throw new ShadowRootEvaluationError();
     return response.result.value as Result;
   } finally {
-    // Navigation can destroy the group before cleanup; preserve the query outcome.
     await session.send("Runtime.releaseObjectGroup", { objectGroup }).catch(() => {});
   }
 }

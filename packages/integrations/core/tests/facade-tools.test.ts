@@ -50,11 +50,8 @@ type FakeRawLocator = {
 };
 
 type FakeFrameWorld = {
-  /** Match count per raw selector (default 1). */
   counts: Record<string, number>;
-  /** Error thrown by click() per raw selector. */
   clickErrors: Record<string, Error>;
-  /** Absolute XPath returned for the first-hop iframe host. */
   iframeXPath: string | null;
   snapshot: { formattedTree: string; xpathMap: Record<string, string> };
   locators: FakeRawLocator[];
@@ -130,14 +127,7 @@ function createFakePage(initialUrl = "about:blank", world: FakeFrameWorld = crea
   };
 }
 
-/**
- * Stands in for Stagehand: experimentalBatch() invokes the callback in-process
- * with a batch-shaped { page, context } so the Playwright compat runtime runs
- * exactly as it would inside the extension, minus the browser.
- */
 function createFakeStagehand(page: FakePage) {
-  // The facade opens a hidden about:blank keeper tab on first use; give it its
-  // own identity so tests can tell it apart from the agent's page.
   const keeper = { ...createFakePage("about:blank"), pageId: "keeper-page" };
   const context = {
     activePage: vi.fn(async (): Promise<FakePage | undefined> => page),
@@ -257,8 +247,6 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     const { stagehand } = createFakeStagehand(createFakePage());
     const tools = new StagehandFacadeTools(stagehand);
 
-    // Unknown members of the guarded page are throwing stubs, so a snippet
-    // that reaches for Stagehand's AI methods fails loudly instead of silently.
     await expect(tools.run(`await page.act("click the button");`)).rejects.toThrow(/act/u);
     await expect(tools.run(`return typeof stagehand;`)).resolves.toBe("undefined");
   });
@@ -271,7 +259,6 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     await expect(
       tools.run(`const error = new TypeError("boom"); throw error;`),
     ).rejects.toMatchObject({ name: "TypeError", message: "boom" });
-    // The report still fires so hosts can see telemetry for failed batches.
     expect(reports).toHaveLength(1);
   });
 
@@ -651,7 +638,6 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
         tools.run(`await page.screenshot({ path: ${JSON.stringify(requestedPath)} });`),
       ).rejects.toThrow();
     }
-    // A hard link at the artifact path is replaced; the other link keeps its contents.
     const hardLink = path.join(artifactRoot, "linked-hard.png");
     await fsp.link(existing, hardLink);
     await tools.run(`await page.screenshot({ path: "linked-hard.png" });`);
@@ -669,8 +655,6 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     experimentalBatch.mockRejectedValueOnce(
       new Error("Stagehand callback batch page was not found"),
     );
-    // activePage(): keeper setup, then the batch target, then (inside the
-    // fallback) the tab is gone and only the keeper is left.
     context.activePage
       .mockResolvedValueOnce(page)
       .mockResolvedValueOnce(page)
@@ -679,7 +663,6 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     const tools = new StagehandFacadeTools(stagehand);
 
     await expect(tools.run(`return 42;`)).resolves.toBe(42);
-    // One newPage for the keeper, one for the replacement tab.
     expect(context.newPage).toHaveBeenCalledTimes(2);
     expect(context.newPage.mock.calls[1]).toStrictEqual([]);
     expect(experimentalBatch).toHaveBeenCalledTimes(2);
@@ -692,7 +675,6 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     const tools = new StagehandFacadeTools(stagehand);
 
     await expect(tools.run(`return 1;`)).rejects.toThrow("extension disconnected");
-    // Only the keeper tab was opened; no replacement page for an ordinary failure.
     expect(context.newPage).toHaveBeenCalledTimes(1);
     expect(context.newPage).toHaveBeenCalledWith("about:blank");
   });
@@ -750,7 +732,6 @@ describe("StagehandFacadeTools keeper tab", () => {
     expect(context.newPage).toHaveBeenCalledTimes(1);
     expect(context.newPage).toHaveBeenCalledWith("about:blank");
     expect(context.setActivePage).toHaveBeenCalledWith(page);
-    // The keeper never reaches agent code.
     await expect(tools.run(`return context.pages().length;`)).resolves.toBe(1);
     expect(keeper.pageId).toBe("keeper-page");
   });
@@ -771,7 +752,6 @@ describe("StagehandFacadeTools keeper tab", () => {
     const tools = new StagehandFacadeTools(stagehand);
     await tools.run(`return 1;`);
 
-    // Renderer crash closed the agent's tab: only the keeper is left and active.
     context.activePage.mockResolvedValueOnce(keeper);
     context.pages.mockResolvedValueOnce([keeper]);
     const replacement = createFakePage("about:blank");
@@ -830,7 +810,6 @@ describe("StagehandFacadeTools session loss", () => {
     ]);
     expect(tools.sessionLoss).toBe(losses[0]);
 
-    // Every later call gets the same terminal answer without touching the browser.
     const callsBefore = context.activePage.mock.calls.length;
     await expect(tools.snapshot()).rejects.toThrow(BROWSER_SESSION_LOST_ERROR_PREFIX);
     await expect(tools.run("return 1;")).rejects.toThrow(BROWSER_SESSION_LOST_ERROR_PREFIX);
@@ -851,8 +830,6 @@ describe("StagehandFacadeTools session loss", () => {
   });
 
   it("preserves socket diagnostics when a CDP error arrives before close", async () => {
-    // The SDK error-before-close path wraps the socket failure as cause,
-    // without a close code in the outer message.
     const error = new CDPConnectionClosedError({
       cause: new TypeError("WebSocket failed", {
         cause: Object.assign(new Error("other side closed"), { code: "UND_ERR_SOCKET" }),
@@ -948,8 +925,6 @@ describe("StagehandFacadeTools session loss", () => {
     const { stagehand } = createFakeStagehand(page);
     const tools = new StagehandFacadeTools(stagehand);
     await tools.snapshot();
-    // page.snapshot defaults to 20s; a timeout it raised itself would not be a
-    // capture deadline and would never count toward terminal session loss.
     expect(page.snapshot).toHaveBeenLastCalledWith({ includeIframes: true, timeout: 0 });
   });
 
@@ -1367,7 +1342,6 @@ describe("StagehandFacadeTools.run frameLocator", () => {
         vi.setSystemTime(250);
       });
       raw.count.mockResolvedValueOnce(1).mockImplementation(async () => {
-        // The retry finds the element just as the remaining budget expires.
         vi.setSystemTime(300);
         return 1;
       });
