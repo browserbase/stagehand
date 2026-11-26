@@ -301,7 +301,11 @@ describe("prompt locator resolution", () => {
       },
       expect.any(AbortSignal),
     );
-    expect(h.send).toHaveBeenCalledExactlyOnceWith("DOM.describeNode", { backendNodeId: 42 });
+    // The unnamed file input is looked up once for an accessible name, then for its constraints.
+    expect(h.send.mock.calls).toEqual([
+      ["Accessibility.getPartialAXTree", { backendNodeId: 42, fetchRelatives: false }],
+      ["DOM.describeNode", { backendNodeId: 42 }],
+    ]);
   });
 
   it("requires configuration and cannot send a capture to a replacement instance", async () => {
