@@ -1,11 +1,3 @@
-/**
- * Normalizes a URL-like string by adding a scheme if it looks like a bare host.
- *
- * Returns the input unchanged if it already has a scheme, contains spaces,
- * or doesn't look like a valid host (no dots, not localhost, not an IP).
- *
- * Uses http:// for localhost and 127.0.0.1, https:// for everything else.
- */
 export function normalizeUrlScheme(input: string): string {
   if (hasScheme(input)) return input;
   if (!looksLikeHost(input)) return input;

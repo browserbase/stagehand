@@ -7,9 +7,6 @@ export default defineBenchTask(
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/iframe-hn/");
 
-      // NOTE: the target content lives inside an iframe, but the task relies
-      // entirely on extract() to see into it (no frame API usage in v3 or
-      // v4), so this ported 1:1 — iframe handling is the SDK's responsibility.
       const { data: result } = await stagehand.extract(
         "extract the title of the first hackernews story",
         z.object({

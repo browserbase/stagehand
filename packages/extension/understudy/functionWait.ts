@@ -6,7 +6,6 @@ import { runWithProgress } from "./progress.js";
 
 export type FunctionWaitOptions = NonNullable<PageWaitForFunctionParams["options"]>;
 
-/** Runs in the page's main world; keep this function self-contained. */
 export function createFunctionWait(predicate: () => unknown, polling: "raf" | number) {
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -17,7 +16,6 @@ export function createFunctionWait(predicate: () => unknown, polling: "raf" | nu
     resolve = done;
     reject = fail;
   });
-  // Installation and awaiting use separate CDP commands. Observe early rejection.
   void promise.catch(() => {});
 
   const stop = () => {
@@ -28,12 +26,10 @@ export function createFunctionWait(predicate: () => unknown, polling: "raf" | nu
   const poll = async () => {
     if (stopped) return;
     try {
-      // Like Playwright, an expression that evaluates to a function is invoked.
       const evaluated = predicate();
       const value = await (typeof evaluated === "function" ? evaluated() : evaluated);
       if (stopped) return;
       if (value) {
-        // Return a detached JSON value, never a remote browser handle.
         const serialized = JSON.stringify(value);
         if (serialized === undefined)
           throw new TypeError("waitForFunction result must be JSON-serializable");
@@ -78,7 +74,6 @@ export async function waitForFunction(
         const frame = getFrame();
         try {
           const contextId = await frame.getMainWorldExecutionContextId(progress);
-          // Readiness may have outlived this root frame, page, or transport.
           if (getFrame() !== frame) continue;
           return await browserWait(
             frame.session,
@@ -109,7 +104,6 @@ export async function waitForFunction(
             !message.startsWith("main world not ready for frame ")
           )
             throw error;
-          // Let context-destruction events update the registry before reinstalling.
           await progress.delay(25);
         }
       }

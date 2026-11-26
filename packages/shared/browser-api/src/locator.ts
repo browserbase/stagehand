@@ -1,9 +1,23 @@
-import { LocatorDescriptorSchema } from "@browserbasehq/stagehand-protocol/schemas";
+import {
+  LocatorFilterOptionsSchema,
+  LocatorRequestDescriptorSchema,
+} from "@browserbasehq/stagehand-protocol/schemas";
+import {
+  locatorSteps,
+  textQueryStep,
+  roleQueryStep,
+} from "@browserbasehq/stagehand-protocol/locatorSelectors";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
   LocatorClickParams,
   LocatorCentroidResult,
-  LocatorDescriptor,
+  LocatorChain,
+  LocatorStep,
+  LocatorFilterOptions,
+  GetByTextOptions,
+  GetByRoleOptions,
+  AriaRole,
+  LocatorRequestDescriptor,
   LocatorOptions,
   LocatorHighlightParams,
   LocatorScrollToParams,
@@ -14,7 +28,13 @@ import type {
 import type { StagehandCommandClient } from "./commandClient.js";
 import { normalizeFileInput, type FileInput } from "./fileUpload.js";
 
-export type { LocatorOptions } from "@browserbasehq/stagehand-protocol/types";
+export type {
+  LocatorOptions,
+  GetByTextOptions,
+  LocatorFilterOptions,
+  GetByRoleOptions,
+  AriaRole,
+} from "@browserbasehq/stagehand-protocol/types";
 
 export type LocatorClickOptions = NonNullable<LocatorClickParams["options"]>;
 export type LocatorHighlightOptions = NonNullable<LocatorHighlightParams["options"]>;
@@ -24,7 +44,7 @@ export type LocatorTypeOptions = NonNullable<LocatorTypeParams["options"]>;
 export class Locator {
   constructor(
     readonly rpcClient: StagehandCommandClient,
-    readonly descriptor: LocatorDescriptor,
+    readonly descriptor: LocatorRequestDescriptor,
   ) {}
 
   async click(options?: LocatorClickOptions): Promise<void> {
@@ -162,15 +182,50 @@ export class Locator {
   }
 
   nth(index: number): Locator {
-    const parsedDescriptor = LocatorDescriptorSchema.safeParse({
-      ...this.descriptor,
-      nth: index,
-    });
+    const parsedDescriptor = LocatorRequestDescriptorSchema.safeParse(
+      "chain" in this.descriptor
+        ? {
+            pageId: this.descriptor.pageId,
+            chain: { steps: [...this.descriptor.chain.steps, { type: "nth", index }] },
+          }
+        : { ...this.descriptor, nth: index },
+    );
 
     if (!parsedDescriptor.success) {
       throw parsedDescriptor.error;
     }
 
     return new Locator(this.rpcClient, parsedDescriptor.data);
+  }
+
+  locator(selector: string): Locator {
+    return this.appendSteps(locatorSteps(selector));
+  }
+
+  getByText(text: string, options?: GetByTextOptions): Locator {
+    return this.appendSteps([textQueryStep(text, options)]);
+  }
+
+  getByRole(role: AriaRole, options?: GetByRoleOptions): Locator {
+    return this.appendSteps([roleQueryStep(role, options)]);
+  }
+
+  filter(options: LocatorFilterOptions = {}): Locator {
+    return this.appendSteps([{ type: "filter", ...LocatorFilterOptionsSchema.parse(options) }]);
+  }
+
+  private appendSteps(next: readonly LocatorStep[]): Locator {
+    const steps: LocatorChain["steps"] =
+      "chain" in this.descriptor
+        ? [...this.descriptor.chain.steps]
+        : locatorSteps(this.descriptor.selector);
+    if ("nth" in this.descriptor && this.descriptor.nth !== undefined) {
+      steps.push({ type: "nth", index: this.descriptor.nth });
+    }
+    steps.push(...next);
+    return new Locator(
+      this.rpcClient,
+      LocatorRequestDescriptorSchema.parse({ pageId: this.descriptor.pageId, chain: { steps } }),
+    );
   }
 }

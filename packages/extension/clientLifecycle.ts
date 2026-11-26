@@ -24,21 +24,16 @@ type Attachment = {
   onDestroyed: (event: { targetId: string }) => void;
 };
 
-/** Browser-side ownership of one SDK attachment. No heartbeat or expiry timer. */
 export class ClientLifecycle {
   private attachment?: Attachment;
-  /** The last client whose detach completed, so a retry after an SDK timeout is acknowledged. */
   private detachedTargetId?: string;
   private tail: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly options: {
       connection(cdpUrl: string): Promise<CdpConnection>;
-      /** Rejects pending calls into the client; must not wait on anything. */
       rejectClientCallbacks(): void;
-      /** Closes B immediately, without waiting behind runtime lifecycle work. */
       closeConnection(): Promise<void>;
-      /** Disposes the client's Stagehand instance; may wait for in-flight work to drain. */
       disposeClient(): Promise<void>;
       onError(error: unknown): void;
     },
@@ -50,20 +45,14 @@ export class ClientLifecycle {
       if (request.action === "detach") {
         const attachment = this.attachment;
         if (attachment?.targetId !== request.targetId) {
-          // The SDK retries after its own timeout even when the first detach finished late.
           if (this.detachedTargetId === request.targetId) return;
           throw new Error("Stagehand client attachment is no longer active");
         }
-        // Disarm before closing B or allowing A to close. A failed cleanup must
-        // never turn an intentional detach into an instruction to kill Chrome.
         attachment.closeBrowserOnDisconnect = false;
         this.options.rejectClientCallbacks();
         await this.options.closeConnection();
-        // Forget the client only once B closed, so a failed detach can be retried.
         this.removeAttachment();
         this.detachedTargetId = request.targetId;
-        // Acknowledge now: disposal can wait on in-flight work, which must not outlast the
-        // SDK's detach timeout. A new client's initialization queues behind it.
         void this.options.disposeClient().catch((error) => this.options.onError(error));
         return;
       }
@@ -73,8 +62,6 @@ export class ClientLifecycle {
         if (targets.some((target) => target.targetId === previous.targetId)) {
           throw new Error("A Stagehand client is already connected");
         }
-        // Target destruction and a new client's registration can arrive on
-        // different transports. Reconcile before rejecting a legitimate reconnect.
         await this.lost(previous);
       }
       const connection = await this.options.connection(request.cdpUrl);
@@ -90,8 +77,6 @@ export class ClientLifecycle {
       };
       this.attachment = attachment;
       connection.on("Target.targetDestroyed", attachment.onDestroyed);
-      // Subscribe before checking existence: the client may have died while B
-      // was being bootstrapped, before it could acknowledge registration.
       try {
         const targets = await connection.getTargets();
         const target = targets.find((target) => target.targetId === request.targetId);
@@ -122,11 +107,6 @@ export class ClientLifecycle {
       }
       return;
     }
-    // Keep the browser, but close B and release the old client session so the
-    // runtime holds no connection of its own: Browserbase then applies its keepAlive
-    // policy, and a later SDK re-attaches with a fresh B. Rejecting the client's
-    // callbacks first unblocks work waiting on the dead client; B then closes without
-    // waiting behind that work, and disposal drains in the background.
     this.options.rejectClientCallbacks();
     try {
       await this.options.closeConnection();

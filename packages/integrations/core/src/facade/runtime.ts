@@ -28,11 +28,6 @@ type QueryStep =
       visible?: boolean;
     }
   | { kind: "nth"; index: number }
-  /**
-   * A `role` step that was resolved against the browser's accessibility tree.
-   * `values` are document-relative XPaths for the nodes whose role and name
-   * matched; the state filters are carried over from the original role step.
-   */
   | {
       kind: "xpaths";
       values: string[];
@@ -161,20 +156,8 @@ export type PlaywrightCompatRuntime = {
   closeRequested: () => boolean;
 };
 
-/**
- * Builds a Playwright-shaped facade entirely inside a Stagehand callback batch.
- * Keep this function self-contained: its source is serialized into the
- * extension service worker with Function#toString.
- */
 export type PlaywrightCompatRuntimeOptions = {
-  /** Pages the host keeps for itself (the facade's keeper tab); never surfaced to agent code. */
   hiddenPageIds?: string[];
-  /**
-   * page.waitForTimeout(ms) returns once the page is quiet (DOM content loaded
-   * and no mutation in the main document for 400 ms; shadow roots and iframes
-   * are not observed), never later than ms. Waits of 400 ms or less always
-   * sleep in full. Off by default: the wait then sleeps exactly ms.
-   */
   quietWait?: boolean;
 };
 
@@ -214,18 +197,6 @@ export async function createPlaywrightCompatRuntime(
       ? { kind: "regexp", source: value.source, flags: value.flags }
       : { kind: "string", value: String(value), exact };
 
-  // ---------------------------------------------------------------------------
-  // getByRole fallback through the accessibility tree.
-  //
-  // The in-page role matcher reimplements accessible-name computation and
-  // disagrees with Chrome's on real sites (descendant aria-label / alt / svg
-  // titles, labelledby across shadow roots, custom elements). When a plan that
-  // contains a role step matches nothing in the DOM, resolve the role step
-  // against `page.snapshot()` — the same accessibility tree the `snapshot`
-  // tool shows the agent — and re-run the plan with those nodes' XPaths.
-  // ---------------------------------------------------------------------------
-
-  /** Playwright role → roles as they appear in Stagehand's formatted tree. */
   const ACCESSIBILITY_ROLE_ALIASES: Record<string, string[]> = {
     img: ["image", "img"],
     image: ["image", "img"],
@@ -244,12 +215,10 @@ export async function createPlaywrightCompatRuntime(
       const line = rawLine.match(/^\s*\[([^\]]+)\]\s+(.*)$/u);
       if (!line) continue;
       let rest = line[2] ?? "";
-      // Trailing state flags rendered by formatStateFlags.
       rest = rest.replace(/(?:\s\[(?:selected|checked)\])+$/u, "");
       const separator = rest.indexOf(": ");
       const roleToken = separator === -1 ? rest : rest.slice(0, separator);
       const name = separator === -1 ? "" : rest.slice(separator + 2);
-      // "scrollable, html" style lines carry the role before the comma.
       const role = roleToken.split(",")[0]?.trim() ?? "";
       if (!role) continue;
       nodes.push({ id: line[1] ?? "", role, name });
@@ -295,11 +264,6 @@ export async function createPlaywrightCompatRuntime(
     return { kind: "xpaths", values, ...state };
   };
 
-  /**
-   * Resolve role steps recursively, including has/hasNot filters. Empty XPath
-   * sets preserve negative-filter semantics when no role candidate exists.
-   * Return null only when no tree is available or the plan contains no roles.
-   */
   const resolvePlanWithAccessibilityTree = async (
     page: RawPage,
     plan: QueryStep[],
@@ -686,8 +650,6 @@ export async function createPlaywrightCompatRuntime(
       }
       return text;
     };
-    // Label locators match each label separately, with labelledby > aria-label > <label>
-    // precedence. Accessible names, above, concatenate their referenced label text.
     const elementLabels = (element: Element): string[] => {
       const root = element.getRootNode();
       const references = element.getAttribute("aria-labelledby")?.split(/\s+/u) ?? [];
@@ -786,8 +748,6 @@ export async function createPlaywrightCompatRuntime(
             return true;
           });
         } else if (step.kind === "xpaths") {
-          // Candidates come from the accessibility tree, so role, name, and
-          // visibility are already settled; only scope and state remain.
           const scoped = dedupe(
             step.values.flatMap((expression) => {
               try {
@@ -861,8 +821,6 @@ export async function createPlaywrightCompatRuntime(
     }
 
     const elements = resolve(input.plan ?? []);
-    // Check before invoking callbacks or mutating focus/selection. Checking only
-    // the returned count would perform the operation on an ambiguous target.
     if (input.strict && elements.length > 1) return { count: elements.length };
     const first = elements[0];
     if (input.operation === "inspect") {
@@ -1029,21 +987,8 @@ export async function createPlaywrightCompatRuntime(
     (await rawContext.pages()).filter(
       (page) => page.pageId === undefined || !hiddenPageIds.has(page.pageId),
     );
-  // page.waitForTimeout with options.quietWait. Models overshoot fixed waits,
-  // so the wait ends once the page is quiet: readyState is past "loading" and
-  // the DOM has not mutated for QUIET_WAIT_WINDOW_MS. Only the main document
-  // is observed: changes inside shadow roots or iframes go unseen, so such a
-  // page can look quiet early. It never runs past the requested time.
   const QUIET_WAIT_WINDOW_MS = 400;
   const QUIET_WAIT_POLL_MS = 100;
-  // page.waitForFunction evaluates this expression in the page's main world
-  // every QUIET_WAIT_POLL_MS and reinstalls it in the new document after a
-  // navigation. It yields a boolean, not a function, so every waitForFunction
-  // (Stagehand's, or Playwright's in tests) reads it the same way. Each wait installs its own MutationObserver under a random key
-  // on its first poll in a document, so the quiet window always lies inside
-  // the current wait, and disconnects it once the wait ends. While a wait is in
-  // progress the page can see the observer and the key, and can patch the
-  // globals the predicate uses; the host-side cap still bounds the wait.
   const quietWaitPredicate = (key: string) => `(() => {
     const key = ${JSON.stringify(key)};
     let state = document[key];
@@ -1082,7 +1027,6 @@ export async function createPlaywrightCompatRuntime(
     const key = `_${crypto.randomUUID()}`;
     const startedAt = Date.now();
     let timer: Parameters<typeof clearTimeout>[0];
-    // The cap runs on this side too, so late page timers cannot stretch the wait.
     const early = await Promise.race([
       waitForFunction
         .call(page, quietWaitPredicate(key), undefined, {
@@ -1098,13 +1042,10 @@ export async function createPlaywrightCompatRuntime(
       }),
     ]);
     clearTimeout(timer);
-    // A wait that failed before the cap (page closed, predicate error) sleeps
-    // out the rest, like the plain wait would have.
     const left = startedAt + requestedMs - Date.now();
     if (!early && left > 0) await page.waitForTimeout(left);
     stats.waits.waitedMs += Math.min(Date.now() - startedAt, requestedMs);
     if (early) stats.waits.earlyReturns += 1;
-    // Not awaited, so the wait still ends by ms; a navigation already dropped it.
     void Promise.resolve()
       .then(() => page.evaluate(quietWaitCleanup(key)))
       .catch(() => undefined);
@@ -1161,8 +1102,6 @@ export async function createPlaywrightCompatRuntime(
         ? error
         : new StagehandFacadeActionError(`${method}: action failed after ${timeout}ms`);
     }
-    // The callback runtime is serialized, so keep this error self-contained.
-    // The known layout failure needs no raw error text (which may contain secrets).
     return new StagehandFacadeActionError(
       `${method}: element matched but is not rendered (no layout box: display:none, zero size, or detached) after ${timeout}ms. Wait for it to become visible, or target the visible element instead.`,
     );
@@ -1257,7 +1196,6 @@ export async function createPlaywrightCompatRuntime(
       return this.derived({ kind: "selector", value: selector }).contentFrame();
     }
 
-    /** The iframe element this locator points at, entered as a frame. Only css-selector plans map onto a hop selector. */
     contentFrame(): CompatFrameLocator {
       record("calls", "locator.contentFrame");
       if (this.plan.length === 0 || this.plan.some((step) => step.kind !== "selector")) {
@@ -1515,11 +1453,6 @@ export async function createPlaywrightCompatRuntime(
       options: { timeout?: number } = {},
     ): Promise<void> {
       record("calls", method);
-      // Playwright's own default is 30 s, but through this facade a miss is a
-      // dead wait with no call log: eval traces showed 0.65 such misses per
-      // task at 30 s each, with agents treating the silence as "not on the
-      // page". 10 s (the original facade default) bounds that tail; callers
-      // that genuinely need longer pass `timeout` explicitly.
       const timeout = options.timeout ?? 10_000;
       const deadline = timeout === 0 ? Infinity : Date.now() + timeout;
       let result: QueryResult = { count: 0 };
@@ -1528,9 +1461,6 @@ export async function createPlaywrightCompatRuntime(
         result = await this.state.execute(this.plan, "inspect");
         if (result.count > 1) throw await this.strictModeViolation(method, result.count);
         if (result.count === 1) {
-          // Playwright actions scroll their target into view. Do this before tagging so
-          // Stagehand receives a unique, attached selector without imposing a viewport-
-          // visibility precondition that its own locator action can already satisfy.
           await this.state.execute(this.plan, "scrollIntoView").catch((): undefined => undefined);
           const token = crypto.randomUUID();
           await this.state.execute(this.plan, "tag", { token });
@@ -1565,11 +1495,6 @@ export async function createPlaywrightCompatRuntime(
       throw new Error(`${method}: no element matched within ${timeout}ms`);
     }
 
-    /**
-     * Playwright lists the competing elements on a strict-mode violation; the
-     * bare count left agents re-issuing the same selector. Describe up to five
-     * candidates so the next attempt can disambiguate.
-     */
     private async strictModeViolation(method: string, count: number): Promise<Error> {
       const candidates = await this.state
         .execute(this.plan, "describe")
@@ -1770,18 +1695,6 @@ export async function createPlaywrightCompatRuntime(
 
   const locatorProxy = (locator: CompatLocator): CompatLocator => guard("locator", locator);
 
-  // ---------------------------------------------------------------------------
-  // page.frameLocator(): locators scoped to an <iframe>'s document.
-  //
-  // The in-page query engine above evaluates in the main frame, so it cannot
-  // see into cross-origin frames. Frame-scoped locators instead compile to a
-  // Stagehand selector the extension resolves across frames:
-  //   - css / xpath / text= tails ride on `hop >> hop >> tail` hop notation;
-  //   - role / label / exact-text queries resolve through the accessibility
-  //     snapshot (includeIframes), whose deep XPaths cross iframe boundaries,
-  //     scoped to the nodes under the first hop's <iframe> element.
-  // ---------------------------------------------------------------------------
-
   type FrameQuery =
     | { kind: "selector"; value: string }
     | { kind: "text"; matcher: JsonMatcher }
@@ -1818,7 +1731,6 @@ export async function createPlaywrightCompatRuntime(
     return value.exact ? `[${name}="${escaped}"]` : `[${name}*="${escaped}" i]`;
   };
 
-  /** Absolute, snapshot-style XPath (`/html[1]/body[1]/div[2]/iframe[1]`) of the first hop's iframe element. */
   const iframeHostXPath = async (state: PageState, hop: string): Promise<string | null> => {
     const expression = `(() => {
       const selector = ${JSON.stringify(hop)};
@@ -2065,7 +1977,6 @@ export async function createPlaywrightCompatRuntime(
       return this.derived(this.queries, index);
     }
 
-    /** Stagehand selector tail when every query compiles to css/xpath/text=; null when the a11y route is needed. */
     private selectorTail(): string | null {
       const pieces: string[] = [];
       for (const query of this.queries) {
@@ -2149,8 +2060,6 @@ export async function createPlaywrightCompatRuntime(
       for (const node of parseAccessibilityTree(snapshot.formattedTree)) {
         const xpath = xpathMap[node.id];
         if (!xpath || !xpath.startsWith(`${prefix}/`)) continue;
-        // Snapshot XPaths include nested documents under their iframe hosts.
-        // A frame locator only searches its own document, never child frames.
         const relative = xpath.slice(prefix.length);
         if (/\/(?:iframe|frame)(?:\[\d+\])?\//iu.test(relative)) continue;
         if (!this.matchesAccessibilityNode(node)) continue;
@@ -2221,8 +2130,6 @@ export async function createPlaywrightCompatRuntime(
           raw = await this.single(method, locatorTimeoutOptions(deadline, method).timeout);
           actionOptions = locatorTimeoutOptions(deadline, method);
         } catch (resolveError) {
-          // A re-resolve that runs out of the remaining window must not mask
-          // the action error that caused the retry (e.g. a layout failure).
           if (lastError) throw describeActionFailure(method, lastError, timeout);
           throw resolveError;
         }
@@ -2378,8 +2285,6 @@ export async function createPlaywrightCompatRuntime(
     async scrollIntoViewIfNeeded(options: Record<string, unknown> = {}): Promise<void> {
       await this.act(
         "frameLocator.locator.scrollIntoViewIfNeeded",
-        // Native centroid resolves in the owning frame and invokes
-        // DOM.scrollIntoViewIfNeeded; it never scrolls the target's own contents.
         async (raw, timeoutOptions) => {
           await raw.centroid(timeoutOptions);
         },
@@ -2388,8 +2293,6 @@ export async function createPlaywrightCompatRuntime(
     }
 
     async focus(options: Record<string, unknown> = {}): Promise<void> {
-      // Native type() focuses before its character loop. Empty text with a
-      // nonzero delay performs that focus and dispatches no input/key events.
       await this.act(
         "frameLocator.locator.focus",
         (raw, timeoutOptions) => raw.type("", { delay: 1, ...timeoutOptions }),
@@ -2486,8 +2389,6 @@ export async function createPlaywrightCompatRuntime(
       return results;
     }
 
-    // Stagehand can evaluate through a frame's CDP session, but the SDK bridge
-    // available in this callback does not expose frame-bound evaluation yet.
     evaluate(): never {
       return frameUnsupported(
         "locator.evaluate",
@@ -2611,8 +2512,6 @@ export async function createPlaywrightCompatRuntime(
     }
     let glob = match;
     if (!glob.startsWith("*")) {
-      // Protect glob syntax from URL escaping while normalizing scheme/host
-      // and dot segments in absolute URLs, as Playwright does.
       const tokens = new Map<string, string>();
       const token = (value: string, replacement: string): string => {
         if (!value) return "";
@@ -2639,9 +2538,7 @@ export async function createPlaywrightCompatRuntime(
           const url = new URL(protectedUrl);
           normalized = url.toString();
           origin = url.origin;
-        } catch {
-          // Relative patterns have no base URL in this facade.
-        }
+        } catch {}
         for (const [placeholder, original] of tokens) {
           normalized = normalized.replace(
             placeholder,
@@ -2717,8 +2614,6 @@ export async function createPlaywrightCompatRuntime(
           accessibilityFallbacks.set(cacheKey, { at: Date.now(), plan: resolved });
           return resolved;
         };
-        // A missed role inside hasNot can produce false positives, so resolve
-        // nested role filters before any callback or action uses their result.
         const hasRoleFilter = plan.some(
           (step) =>
             step.kind === "filter" &&
@@ -2735,7 +2630,6 @@ export async function createPlaywrightCompatRuntime(
         const result = await run(plan);
         if (result.count !== 0 || plan.length === 0 || !planHasRoleStep(plan)) return result;
 
-        // Cache the fallback briefly across inspect → tag → action and retries.
         const resolved = await resolveFallback();
         if (!resolved) return result;
         const fallbackResult = await run(resolved);
@@ -3039,7 +2933,6 @@ export async function createPlaywrightCompatRuntime(
       });
     };
     const pageObject = {
-      // Stagehand's stable tab identity, shared by callback batches and CUA adapters.
       get pageId() {
         return page.pageId;
       },
@@ -3201,10 +3094,6 @@ export async function createPlaywrightCompatRuntime(
       screenshot: async (options: Record<string, unknown> = {}) => {
         record("calls", "page.screenshot");
         const { path: requestedPath, ...supported } = options;
-        // The host saves only PNG/JPEG files; fail before capturing. This
-        // callback is serialized, so it keeps its own copy of ARTIFACT_EXTENSION
-        // (tools.ts); the host's SCREENSHOT_ARTIFACT_TYPE_ERROR (contract.ts)
-        // rejects the same paths.
         if (typeof requestedPath === "string" && !/\.(?:png|jpe?g)$/iu.test(requestedPath)) {
           throw new Error("page.screenshot: path must end in .png, .jpg or .jpeg");
         }
@@ -3263,9 +3152,6 @@ export async function createPlaywrightCompatRuntime(
               while (!stopped) {
                 const remaining = deadline - Date.now();
                 if (remaining <= 0) throw timeoutError();
-                // Raw Stagehand rejects timeout: 0. Renew bounded load waits
-                // when the caller disables this method's timeout; the outer
-                // callback batch still imposes its own deadline.
                 const loadTimeout = timeout === 0 ? 30_000 : Math.max(1, Math.ceil(remaining));
                 try {
                   await page.waitForLoadState(waitUntil, loadTimeout);
@@ -3600,16 +3486,10 @@ export async function createPlaywrightCompatRuntime(
   const browser = guard("browser", {
     contexts: () => [context],
     isConnected: () => !closeRequested,
-    // Do not close Chrome from inside experimentalBatch — the callback is
-    // running in that browser. The host reads closeRequested() from the batch
-    // envelope and tears down Stagehand + the keep-alive session after the
-    // batch returns.
     close: async () => {
       record("calls", "browser.close");
       closeRequested = true;
     },
-    // Stagehand v4 exposes one attached context. Returning that context preserves
-    // Playwright-shaped control flow without pretending an isolated context exists.
     newContext: async () => {
       record("calls", "browser.newContext");
       return context;

@@ -32,16 +32,12 @@ export async function releaseBrowserbaseSession(session: BrowserbaseSessionRelea
   try {
     await browserbase.sessions.update(sessionId, { status: "REQUEST_RELEASE" });
     return;
-  } catch {
-    // Verify the remote state below before reporting a failed retry.
-  }
+  } catch {}
 
   try {
     const remoteSession = await browserbase.sessions.retrieve(sessionId);
     if (remoteSession.status === "COMPLETED") return;
-  } catch {
-    // Fall through to the stable lifecycle error below.
-  }
+  } catch {}
 
   throw new BrowserbaseSessionReleaseError();
 }

@@ -1,10 +1,3 @@
-/**
- * Scaffold command — generates a new task file with the right boilerplate.
- *
- * Usage: evals new core navigation my_task
- *        evals new bench act my_task
- */
-
 import fs from "node:fs";
 import path from "node:path";
 import { cyan, dim, green, red } from "../format.js";

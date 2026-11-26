@@ -1,8 +1,3 @@
-/**
- * Deterministic diagnostics and evidence gates over the current V3 verifier.
- * Preserve the judge's verdict for auditing. Execution status and blocker
- * wording alone cannot establish whether a rubric requirement was completed.
- */
 import type {
   CriterionScore,
   EvaluationResult,
@@ -16,64 +11,38 @@ export type OutcomeGate = "no_final_answer" | "no_browser_use" | "ungrounded_ans
 export type GroundingDatumKind = "currency" | "percent" | "time" | "decimal" | "integer" | "entity";
 
 export interface GroundingDatum {
-  /** The token as written in the final answer. */
   text: string;
   kind: GroundingDatumKind;
-  /** Index of the first non-search-engine step whose output contains it. */
   groundedAtStep?: number;
-  /** Matching captured text came from the terminal observation, not a tool step. */
   groundedAtFinalObservation?: true;
-  /** Matching text existed but its page URL was unknown, so it could not ground the answer. */
   seenOnUnknownPage?: true;
-  /** True when the datum only ever appeared in search-engine step outputs. */
   onlyInSearchEngine: boolean;
-  /** Echoed from the task instruction; reported but never gates. */
   fromInstruction?: boolean;
 }
 
 export interface GroundingResult {
   checked: GroundingDatum[];
-  /** Subset of `checked` that no non-search-engine step output contains. */
   ungrounded: GroundingDatum[];
-  /**
-   * Counts over datums of a kind allowed to gate the outcome (currency /
-   * percent / time / decimal / integer with 4+ digits). Entity and
-   * short-integer misses are advisory only.
-   */
   groundedNumeric: number;
   ungroundedNumeric: number;
-  /** True when the answer has numeric datums and none was verified off-search. */
   gatesOutcome: boolean;
 }
 
 export interface GatedCriterionScore extends CriterionScore {
-  /**
-   * Flagged by the judge as lacking evidence. Zeroed in the strict
-   * process score.
-   */
   blocked?: boolean;
-  /** Advisory wording match; a sanctioned fallback or stop boundary may mention a blocker. */
   blockerMentioned?: boolean;
 }
 
 export interface VerdictGates {
-  /** Gated verdict: judge AND every deterministic gate. */
   outcomeSuccess: boolean;
-  /** The judge's raw verdict, untouched. */
   judgeOutcomeSuccess: boolean;
-  /** Gates that flipped a judge pass to a fail. Empty when nothing fired. */
   outcomeGates: OutcomeGate[];
-  /** Same as `processScoreStrict`; the score `--success process` reads. */
   processScore: number | undefined;
   processScoreStrict: number | undefined;
-  /** The judge's processScore, untouched. */
   processScoreLenient: number | undefined;
   perCriterion: GatedCriterionScore[] | undefined;
-  /** Count of criteria zeroed in the strict score. */
   blockedCriteria: number;
-  /** Undefined when grounding was not checked (no final answer / no datums). */
   grounding?: GroundingResult;
-  /** Rubric has more items than the judge returned criterion scores for. */
   scoringIncomplete: boolean;
   rubricItemCount?: number;
 }
@@ -83,19 +52,14 @@ export interface ApplyVerdictGatesInput {
   trajectory: Pick<Trajectory, "steps" | "status" | "finalAnswer" | "finalObservation"> & {
     task?: { instruction?: string };
   };
-  /** Matcher for mounted-browser (facade) tool names; enables `no_browser_use`. */
   isFacadeTool?: (name: string) => boolean;
-  /** Whether an ungrounded numeric datum in the answer fails the outcome. */
   requireGrounding: boolean;
-  /** `task_data.precomputed_rubric.items.length`; enables `scoringIncomplete`. */
   rubricItemCount?: number;
 }
 
 const BLOCKER_EXPLANATION = /uncontrollable|blocker|could not be attempted|blocked/i;
 
 const SEARCH_ENGINE_HOST = /(^|\.)(google|bing|duckduckgo|yahoo|scribd|reddit)\./i;
-
-/** Datasets whose rubrics are precomputed and whose answers are factual lookups. */
 
 export function applyVerdictGates({
   evaluation,
@@ -109,8 +73,6 @@ export function applyVerdictGates({
   const outcomeGates: OutcomeGate[] = [];
 
   if (!finalAnswer) outcomeGates.push("no_final_answer");
-  // A disconnect after the required actions does not erase their evidence.
-  // Execution status is retained separately; the judge must assess completion.
   if (isFacadeTool && !trajectory.steps.some((step) => isFacadeTool(step.actionName))) {
     outcomeGates.push("no_browser_use");
   }
@@ -135,8 +97,6 @@ export function applyVerdictGates({
     rubricItemCount > (evaluation.perCriterion?.length ?? 0);
 
   return {
-    // Gates only ever flip a pass to a fail; a judge fail stays a fail even
-    // when no gate fires, so the gate list is only meaningful on a judge pass.
     outcomeSuccess: judgeOutcomeSuccess && outcomeGates.length === 0,
     judgeOutcomeSuccess,
     outcomeGates: judgeOutcomeSuccess ? outcomeGates : [],
@@ -151,9 +111,6 @@ export function applyVerdictGates({
   };
 }
 
-/**
- * Resolve EVAL_REQUIRE_GROUNDING. Grounding is advisory unless explicitly enabled.
- */
 export function resolveRequireGrounding(
   dataset: string,
   hasPrecomputedRubric: boolean,
@@ -162,24 +119,11 @@ export function resolveRequireGrounding(
   const raw = env.EVAL_REQUIRE_GROUNDING?.trim();
   if (raw === "1" || raw?.toLowerCase() === "true") return true;
   if (raw === "0" || raw?.toLowerCase() === "false") return false;
-  // Advisory by default: a factually correct answer sourced from a search
-  // snippet still counts as a pass (owner decision, 2026-08-31 — the F1 race
-  // time answered from Google was ruled a pass). The check still runs and is
-  // recorded as `grounding` + metric answer_grounded so snippet-sourced passes
-  // remain filterable; opt into gating with EVAL_REQUIRE_GROUNDING=1.
   void dataset;
   void hasPrecomputedRubric;
   return false;
 }
 
-/**
- * Recompute the process score with explicitly evidenceInsufficient-credited
- * criteria zeroed. Blocked criteria stay in the denominator: dropping them
- * would score a fully bot-walled run 0/0 and, with any fallback, let it pass
- * `--success process` again — exactly the leak this exists to close.
- * Not-applicable criteria (earnedPoints === null) are excluded, as the judge
- * does.
- */
 export function strictProcessScore(
   evaluation: Pick<EvaluationResult, "perCriterion" | "evidenceInsufficient" | "processScore">,
 ): {
@@ -188,8 +132,6 @@ export function strictProcessScore(
   blockedCriteria: number;
 } {
   const source = evaluation.perCriterion;
-  // Without a per-criterion breakdown there is nothing to zero; the judge's
-  // aggregate is the best available strict score.
   if (!source)
     return { perCriterion: undefined, strict: evaluation.processScore, blockedCriteria: 0 };
 
@@ -201,8 +143,6 @@ export function strictProcessScore(
     const blocked =
       criterion.evidenceInsufficient === true || insufficient.has(criterion.criterion);
     const blockerMentioned = BLOCKER_EXPLANATION.test(criterion.explanation ?? "");
-    // V3 also uses null for a missing judge score, with explicit insufficiency.
-    // Only genuinely inapplicable criteria leave the denominator.
     if (criterion.earnedPoints === null && !blocked) return { ...criterion };
     max += criterion.maxPoints;
     if (blocked) blockedCriteria += 1;
@@ -221,10 +161,6 @@ export function strictProcessScore(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Grounding
-// ---------------------------------------------------------------------------
-
 const CURRENCY_CODES = "SGD|USD|MYR|EUR|GBP|AUD|CAD|INR|JPY|CNY|HKD|NZD|CHF|THB|IDR|PHP|KRW";
 const CURRENCY_PREFIX = new RegExp(
   `(?:(${CURRENCY_CODES}|S\\$|US\\$|A\\$|C\\$|\\$|€|£|¥)\\s?)`,
@@ -236,7 +172,6 @@ const NUMBER_TOKEN = new RegExp(
   `${CURRENCY_PREFIX.source}?(\\d[\\d,]*(?:\\.\\d+)?)(?:\\s?(${CURRENCY_CODES}|%|\\$))?`,
   "gi",
 );
-// Two or more Capitalised words, allowing a lowercase joiner in between.
 const ENTITY_TOKEN =
   /\b[A-Z][\w’'&-]*(?:\s+(?:of|the|and|de|for|&)\s+|\s+)(?:[A-Z][\w’'&-]*)(?:\s+(?:[A-Z][\w’'&-]*))*/g;
 
@@ -262,24 +197,15 @@ const CURRENCY_ALIASES: Record<string, string[]> = {
 interface ParsedDatum {
   text: string;
   kind: GroundingDatumKind;
-  /** Matchers tried against a normalized step text; any hit grounds the datum. */
   patterns: RegExp[];
-  /** Whether an ungrounded miss may gate the outcome. */
   gates: boolean;
-  /** Echoed verbatim from the task instruction — task context, not a finding. */
   fromInstruction?: boolean;
 }
 
-/**
- * Lowercase, drop thousands separators, collapse whitespace to one space. Space
- * is kept (not removed) so digit boundaries survive: "1:27:02.624 2 Pits" must
- * not read as "...6242".
- */
 export function normalizeForGrounding(text: string): string {
   return text.toLowerCase().replace(/,/g, "").replace(/\s+/g, " ").trim();
 }
 
-/** Regex source matching `text` with any run of whitespace between its tokens. */
 function spaceTolerant(text: string): string {
   return normalizeForGrounding(text).split(" ").map(escapeRegExp).join("\\s*");
 }
@@ -288,11 +214,6 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/**
- * Extract the datums worth grounding from a final answer. Datums that also
- * appear in the task instruction (dates, budgets, quantities the task set) are
- * kept for reporting but never gate: the agent did not find them anywhere.
- */
 export function extractGroundingDatums(finalAnswer: string, instruction = ""): ParsedDatum[] {
   const datums: ParsedDatum[] = [];
   const seen = new Set<string>();
@@ -327,8 +248,6 @@ export function extractGroundingDatums(finalAnswer: string, instruction = ""): P
     if (!digits) continue;
     const hasDecimal = core.includes(".");
     const coreRe = escapeRegExp(core);
-    // A bare core hit only counts when the number is specific enough that a
-    // coincidental match on the page is unlikely.
     const specific = hasDecimal || digits.length >= 3;
     const barePattern = new RegExp(`(?<![\\d.])${coreRe}(?!\\d|\\.\\d)`);
     const text = match[0].trim().replace(/[,.]+$/, "");
@@ -347,7 +266,6 @@ export function extractGroundingDatums(finalAnswer: string, instruction = ""): P
       const aliases = CURRENCY_ALIASES[currency] ?? [currency];
       const patterns = aliases.flatMap((alias) => {
         const a = escapeRegExp(alias);
-        // "sgd5", "sgd 5.00", "5sgd", "5.00 sgd"
         return [
           new RegExp(`${a}\\s?${coreRe}(?:\\.0+)?(?!\\d)`),
           new RegExp(`(?<![\\d.])${coreRe}(?:\\.0+)?\\s?${a}`),
@@ -365,9 +283,6 @@ export function extractGroundingDatums(finalAnswer: string, instruction = ""): P
       text,
       kind: "integer",
       patterns: [barePattern],
-      // Short integers ("1)", "50+", "2.4 miles" → "4") are too ambiguous to
-      // fail a run on, and years are almost always task context rather than a
-      // finding; only long ones (zip codes, ids, populations) gate.
       gates: digits.length >= 4 && !YEAR_TOKEN.test(core),
     });
   }
@@ -386,7 +301,6 @@ export function extractGroundingDatums(finalAnswer: string, instruction = ""): P
   return datums;
 }
 
-/** Best-effort page URL for a step, carried forward from earlier steps when absent. */
 export function stepUrlHint(step: TrajectoryStep): string | undefined {
   const probeUrl = step.probeEvidence?.url;
   if (typeof probeUrl === "string" && probeUrl) return probeUrl;
@@ -435,11 +349,6 @@ function toolOutputText(step: TrajectoryStep): string {
   return parts.join("\n");
 }
 
-/**
- * Check that every key datum in the final answer appears in at least one step
- * output whose page was not a search engine. A number that only shows up in
- * Google/Bing snippets (or nowhere) was never verified on the target site.
- */
 export function checkAnswerGrounding(
   finalAnswer: string,
   steps: TrajectoryStep[],
@@ -449,8 +358,6 @@ export function checkAnswerGrounding(
   const datums = extractGroundingDatums(finalAnswer, instruction);
   if (datums.length === 0) return undefined;
 
-  // Steps with no URL hint (a snapshot after navigation) inherit the page of
-  // the step before them.
   const evidenceTexts: Array<{
     text: string;
     source: "unknown" | "search" | "page";
@@ -521,10 +428,6 @@ export function checkAnswerGrounding(
     ungrounded,
     groundedNumeric,
     ungroundedNumeric,
-    // Secondary numbers (a comparison price read off a screenshot, a figure
-    // paraphrased from a snippet) must not sink a row whose headline datum was
-    // verified on the target site, so the gate needs every numeric datum to be
-    // ungrounded. Tightening this to "any" flips ~1 in 5 legitimate passes.
     gatesOutcome: ungroundedNumeric > 0 && groundedNumeric === 0,
   };
 }

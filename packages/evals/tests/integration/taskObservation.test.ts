@@ -55,8 +55,6 @@ beforeAll(async () => {
     await page.getByRole("button", { name: targetName }).waitFor();
     await writeObservationTask(page, join(directory, "recorded"));
     recordedHtml = await readFile(join(directory, "recorded/index.html"), "utf8");
-    // Deliberately remove a property required for observation fidelity. The
-    // original CSS is unavailable on replay, so this reveals the hidden decoy.
     await page.setContent(recordedHtml);
     await page.locator("#decoy").evaluate((element) => element.removeAttribute("style"));
     lossyHtml = await page.content();
@@ -87,7 +85,6 @@ async function observeCheckout(path: string) {
             .map((content) => content.text),
         )
         .join("\n");
-      // Inspect what Stagehand actually sends to inference, not page.innerHTML.
       expect(capturedPrompt, "hidden CSS control leaked into Stagehand observation").not.toContain(
         hiddenName,
       );
@@ -122,8 +119,6 @@ async function observeCheckout(path: string) {
     const selector = observed.data[0]!.selector;
     expect(selector).toMatch(/^xpath=/);
     expect(await page.locator(selector).isVisible()).toBe(true);
-    // Verify the returned action resolves to the intended DOM control, and the
-    // DOM-only form properties survive. No application action is replayed.
     const state = await page.evaluate((xpath) => {
       const control = document.evaluate(
         xpath.replace(/^xpath=/, ""),

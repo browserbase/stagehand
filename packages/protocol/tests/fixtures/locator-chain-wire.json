@@ -1,0 +1,472 @@
+{
+  "valid": [
+    {
+      "name": "empty normalized text",
+      "chain": { "steps": [{ "type": "query", "selector": { "kind": "textMatch", "value": "" } }] }
+    },
+    {
+      "name": "exact Unicode text with literal delimiters",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": { "kind": "textMatch", "value": " 保存 >> Sa​ve­ ", "exact": true }
+          }
+        ]
+      }
+    },
+    {
+      "name": "substring text",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "textMatch", "value": "Save", "exact": false } }
+        ]
+      }
+    },
+    {
+      "name": "single CSS query",
+      "chain": { "steps": [{ "type": "query", "selector": { "kind": "css", "value": "button" } }] }
+    },
+    {
+      "name": "XPath with whitespace and predicates preserved",
+      "chain": {
+        "steps": [
+          {
+            "type": "query",
+            "selector": { "kind": "xpath", "value": " .//button[normalize-space(.)='Save'] " }
+          }
+        ]
+      }
+    },
+    {
+      "name": "legacy text with Unicode and literal delimiters",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "text", "value": "  保存 >> / 'Save'  " } }
+        ]
+      }
+    },
+    {
+      "name": "position before a descendant query",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "nth", "index": 1 },
+          { "type": "query", "selector": { "kind": "css", "value": "button" } }
+        ]
+      }
+    },
+    {
+      "name": "position after a descendant query",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "query", "selector": { "kind": "css", "value": "button" } },
+          { "type": "nth", "index": 1 }
+        ]
+      }
+    },
+    {
+      "name": "repeated positions including zero",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "nth", "index": 2 },
+          { "type": "nth", "index": 0 },
+          { "type": "query", "selector": { "kind": "css", "value": "button" } }
+        ]
+      }
+    },
+    {
+      "name": "iframe element as the final target",
+      "chain": {
+        "steps": [{ "type": "query", "selector": { "kind": "css", "value": "iframe.checkout" } }]
+      }
+    },
+    {
+      "name": "ordinary query following an iframe query",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": "iframe.checkout" } },
+          { "type": "query", "selector": { "kind": "css", "value": "button" } }
+        ]
+      }
+    },
+    {
+      "name": "explicit legacy frame hops with positions",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": "iframe.checkout" } },
+          { "type": "nth", "index": 0 },
+          { "type": "frame", "selector": { "kind": "css", "value": "iframe.payment" } },
+          { "type": "frame", "selector": { "kind": "xpath", "value": "//button" } },
+          { "type": "nth", "index": 1 }
+        ]
+      }
+    },
+    {
+      "name": "text inclusion",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_text": " Billing >> 保存 " }
+        ]
+      }
+    },
+    {
+      "name": "text exclusion",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_not_text": "Archived" }
+        ]
+      }
+    },
+    {
+      "name": "both text conditions",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_text": "Billing", "has_not_text": "Archived" }
+        ]
+      }
+    },
+    {
+      "name": "identity filter",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter" }
+        ]
+      }
+    },
+    {
+      "name": "empty inclusion",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_text": "" }
+        ]
+      }
+    },
+    {
+      "name": "empty exclusion",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_not_text": "" }
+        ]
+      }
+    },
+    {
+      "name": "position before filter",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "nth", "index": 1 },
+          { "type": "filter", "has_text": "Billing" }
+        ]
+      }
+    },
+    {
+      "name": "position after filter",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_text": "Billing" },
+          { "type": "nth", "index": 1 }
+        ]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "non-string text matcher",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "textMatch", "value": { "pattern": "Save" } } }
+        ]
+      }
+    },
+    {
+      "name": "non-boolean text exact option",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "textMatch", "value": "Save", "exact": "true" } }
+        ]
+      }
+    },
+    { "name": "null", "chain": null },
+    { "name": "missing steps", "chain": {} },
+    { "name": "empty steps", "chain": { "steps": [] } },
+    {
+      "name": "non-array steps",
+      "chain": { "steps": { "type": "query", "selector": { "kind": "css", "value": ".card" } } }
+    },
+    {
+      "name": "leading position",
+      "chain": {
+        "steps": [
+          { "type": "nth", "index": 0 },
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } }
+        ]
+      }
+    },
+    {
+      "name": "leading frame hop",
+      "chain": { "steps": [{ "type": "frame", "selector": { "kind": "css", "value": "button" } }] }
+    },
+    {
+      "name": "unknown step",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "unknown" }
+        ]
+      }
+    },
+    {
+      "name": "null step",
+      "chain": {
+        "steps": [{ "type": "query", "selector": { "kind": "css", "value": ".card" } }, null]
+      }
+    },
+    { "name": "missing query selector", "chain": { "steps": [{ "type": "query" }] } },
+    {
+      "name": "missing frame selector",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": "iframe.checkout" } },
+          { "type": "frame" }
+        ]
+      }
+    },
+    {
+      "name": "unknown engine",
+      "chain": {
+        "steps": [{ "type": "query", "selector": { "kind": "unknown", "value": "button" } }]
+      }
+    },
+    {
+      "name": "string selector",
+      "chain": { "steps": [{ "type": "query", "selector": "button" }] }
+    },
+    {
+      "name": "selector extra fields",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": "button", "exact": true } }
+        ]
+      }
+    },
+    {
+      "name": "step extra fields",
+      "chain": {
+        "steps": [{ "type": "query", "selector": { "kind": "css", "value": ".card" }, "nth": 1 }]
+      }
+    },
+    {
+      "name": "outer position",
+      "chain": {
+        "steps": [{ "type": "query", "selector": { "kind": "css", "value": ".card" } }],
+        "nth": 1
+      }
+    },
+    {
+      "name": "outer selector",
+      "chain": {
+        "steps": [{ "type": "query", "selector": { "kind": "css", "value": ".card" } }],
+        "selector": "button"
+      }
+    },
+    {
+      "name": "empty css selector",
+      "chain": { "steps": [{ "type": "query", "selector": { "kind": "css", "value": "" } }] }
+    },
+    {
+      "name": "empty xpath selector",
+      "chain": { "steps": [{ "type": "query", "selector": { "kind": "xpath", "value": "" } }] }
+    },
+    {
+      "name": "empty text selector",
+      "chain": { "steps": [{ "type": "query", "selector": { "kind": "text", "value": "" } }] }
+    },
+    {
+      "name": "invalid position -1",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "nth", "index": -1 }
+        ]
+      }
+    },
+    {
+      "name": "invalid position 0.5",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "nth", "index": 0.5 }
+        ]
+      }
+    },
+    {
+      "name": "invalid position 1",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "nth", "index": "1" }
+        ]
+      }
+    },
+    {
+      "name": "invalid position true",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "nth", "index": true }
+        ]
+      }
+    },
+    {
+      "name": "invalid position null",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "nth", "index": null }
+        ]
+      }
+    },
+    {
+      "name": "missing position",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "nth" }
+        ]
+      }
+    },
+    {
+      "name": "leading filter",
+      "chain": {
+        "steps": [{ "type": "filter", "has_text": "Billing" }]
+      }
+    },
+    {
+      "name": "invalid has_text null",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_text": null }
+        ]
+      }
+    },
+    {
+      "name": "invalid has_text 1",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_text": 1 }
+        ]
+      }
+    },
+    {
+      "name": "invalid has_text false",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_text": false }
+        ]
+      }
+    },
+    {
+      "name": "invalid has_text {\"pattern\": \"Billing\"}",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_text": { "pattern": "Billing" } }
+        ]
+      }
+    },
+    {
+      "name": "invalid has_text [\"Billing\"]",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_text": ["Billing"] }
+        ]
+      }
+    },
+    {
+      "name": "invalid has_not_text null",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_not_text": null }
+        ]
+      }
+    },
+    {
+      "name": "invalid has_not_text 1",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_not_text": 1 }
+        ]
+      }
+    },
+    {
+      "name": "invalid has_not_text false",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_not_text": false }
+        ]
+      }
+    },
+    {
+      "name": "invalid has_not_text {\"pattern\": \"Billing\"}",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_not_text": { "pattern": "Billing" } }
+        ]
+      }
+    },
+    {
+      "name": "invalid has_not_text [\"Billing\"]",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_not_text": ["Billing"] }
+        ]
+      }
+    },
+    {
+      "name": "unsupported filter has",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has": "button" }
+        ]
+      }
+    },
+    {
+      "name": "unsupported filter has_not",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "has_not": "button" }
+        ]
+      }
+    },
+    {
+      "name": "unsupported filter exact",
+      "chain": {
+        "steps": [
+          { "type": "query", "selector": { "kind": "css", "value": ".card" } },
+          { "type": "filter", "exact": true }
+        ]
+      }
+    }
+  ]
+}

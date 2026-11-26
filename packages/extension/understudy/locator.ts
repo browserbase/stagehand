@@ -1,4 +1,3 @@
-// lib/v3/understudy/locator.ts
 import { Protocol } from "devtools-protocol";
 import { isCdpClosedError } from "./cdp.js";
 import {
@@ -19,39 +18,23 @@ import {
 } from "../dom/locatorScripts/scripts.js";
 import type { Frame } from "./frame.js";
 import { type Progress, runLocatorStep } from "./progress.js";
-import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver.js";
+import {
+  FrameSelectorResolver,
+  type SelectorQuery,
+  type ResolvedNodeBatch,
+} from "./selectorResolver.js";
 import { bytesToBase64, normalizeInputFiles } from "./fileUploadUtils.js";
 import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import type { NormalizedFilePayload } from "../types/private/locator.js";
 
-const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
+const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024;
 
-/**
- * Locator
- *
- * Purpose:
- * A small, CDP-based element interaction helper scoped to a specific `Frame`.
- * It resolves a CSS/XPath selector inside the frame’s **isolated world**, and then
- * performs low-level actions (click, type, select) using DOM/Runtime/Input
- * protocol domains with minimal abstraction.
- *
- * Key change:
- * - Prefer **objectId**-based CDP calls (scroll, geometry) to avoid brittle
- *   frontend nodeId mappings. nodeId is resolved on a best-effort basis and
- *   returned for compatibility, but actions do not depend on it.
- *
- * Notes:
- * - Resolution is lazy: every action resolves the selector again.
- * - Uses `Page.createIsolatedWorld` so evaluation is isolated from page scripts.
- * - Releases remote objects (`Runtime.releaseObject`) where appropriate.
- */
 export class Locator {
   readonly selectorResolver: FrameSelectorResolver;
 
   readonly selectorQuery: SelectorQuery;
 
-  // -1 means "no explicit nth()"; default locator resolves to first match for actions.
   readonly nthIndex: number;
 
   constructor(
@@ -66,25 +49,16 @@ export class Locator {
     this.nthIndex = normalized < 0 ? -1 : normalized;
   }
 
-  /** Return the owning Frame for this locator (typed accessor, no private access). */
   public getFrame(): Frame {
     return this.frame;
   }
 
-  /**
-   * Set files on an <input type="file"> element.
-   *
-   * Accepts in-memory payload objects { name, mimeType, buffer } and constructs
-   * File objects in the page. Filesystem paths are not available in workers.
-   * - Passing an empty array clears the selection.
-   */
   public async setInputFiles(files: SetInputFilesArgument, progress?: Progress): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
     let completed = false;
 
     try {
-      // Validate element is an <input type="file">
       const res = await runLocatorStep(progress, "validating file input", () =>
         session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
           objectId,
@@ -103,7 +77,6 @@ export class Locator {
     } finally {
       const release = () =>
         session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
-      // A failed action must reach the caller before cleanup can consume its deadline.
       if (progress && !completed) void progress.cleanup(release);
       else if (progress) await progress.cleanup(release);
       else await release();
@@ -111,7 +84,6 @@ export class Locator {
     }
   }
 
-  /** Build File objects inside the page and attach them via JS. */
   async assignFilesViaPayloadInjection(
     objectId: Protocol.Runtime.RemoteObjectId,
     files: NormalizedFilePayload[],
@@ -157,10 +129,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Return the DOM backendNodeId for this locator's target element.
-   * Useful for identity comparisons without needing element handles.
-   */
   async backendNodeId(progress?: Progress): Promise<Protocol.DOM.BackendNodeId> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
@@ -186,7 +154,6 @@ export class Locator {
     }
   }
 
-  /** Return how many nodes the current selector resolves to. */
   public async count(progress?: Progress): Promise<number> {
     const session = this.frame.session;
     await runLocatorStep(progress, "enabling runtime", () => session.send("Runtime.enable"));
@@ -194,10 +161,6 @@ export class Locator {
     return this.selectorResolver.count(this.selectorQuery, progress);
   }
 
-  /**
-   * Return the center of the element's bounding box in the owning frame's viewport
-   * (CSS pixels), rounded to integers. Scrolls into view best-effort.
-   */
   public async centroid(progress?: Progress): Promise<{ x: number; y: number }> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
@@ -225,11 +188,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Highlight the element's bounding box using the CDP Overlay domain.
-   * - Scrolls element into view best-effort.
-   * - Shows a semi-transparent overlay briefly, then hides it.
-   */
   public async highlight(
     options?: {
       durationMs?: number;
@@ -252,14 +210,12 @@ export class Locator {
           ...(removeHighlight ? [hide()] : []),
           session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {}),
         ]);
-      // A failed action must reach the caller before cleanup can consume its deadline.
       if (progress && !completed) void progress.cleanup(work);
       else if (progress) await progress.cleanup(work);
       else await work();
       try {
         progress?.throwIfStopped();
       } catch (error) {
-        // Expiry during cleanup must also remove a zero-duration highlight.
         if (progress && !removeHighlight) void progress.cleanup(hide);
         throw error;
       }
@@ -332,7 +288,6 @@ export class Locator {
           } catch (error) {
             progress?.throwIfStopped();
             if (progress && isCdpClosedError(error)) throw error;
-            // Ordinary refresh failures can retry while time remains.
           }
         }
       }
@@ -342,10 +297,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Move the mouse cursor to the element's visual center without clicking.
-   * - Scrolls into view best-effort, resolves geometry, then dispatches a mouse move.
-   */
   async hover(progress?: Progress): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
@@ -382,14 +333,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Click the element at its visual center.
-   * Steps:
-   *  1) Resolve selector to { objectId } in the frame world.
-   *  2) Scroll into view via `DOM.scrollIntoViewIfNeeded({ objectId })`.
-   *  3) Read geometry via `DOM.getBoxModel({ objectId })` → compute a center point.
-   *  4) Synthesize mouse press + release via `Input.dispatchMouseEvent`.
-   */
   async click(
     options?: { button?: MouseButton; clickCount?: number },
     progress?: Progress,
@@ -401,12 +344,10 @@ export class Locator {
     const clickCount = options?.clickCount ?? 1;
 
     try {
-      // Scroll into view using objectId (avoids frontend nodeId dependence)
       await runLocatorStep(progress, "scrolling into view", () =>
         session.send("DOM.scrollIntoViewIfNeeded", { objectId }),
       );
 
-      // Get geometry using objectId
       const box = await runLocatorStep(progress, "reading element geometry", () =>
         session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
           objectId,
@@ -415,8 +356,6 @@ export class Locator {
       if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
-      // Dispatch click events in a pipelined burst to reduce inter-click delay
-      // from network/CPU jitter between round trips.
       const dispatches: Array<Promise<unknown>> = [];
       dispatches.push(
         runLocatorStep(progress, "dispatching mouse events", () =>
@@ -463,11 +402,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Dispatch a DOM 'click' MouseEvent on the element itself.
-   * - Does not synthesize real pointer input; directly dispatches an event.
-   * - Useful for elements that rely on click handlers without needing hit-testing.
-   */
   async sendClickEvent(
     options?: {
       bubbles?: boolean;
@@ -511,11 +445,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Scroll the element vertically to a given percentage (0–100).
-   * - If the element is <html> or <body>, scrolls the window/document.
-   * - Otherwise, scrolls the element itself via element.scrollTo.
-   */
   async scrollTo(percent: number | string, progress?: Progress): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
@@ -537,12 +466,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Fill an input/textarea/contenteditable element.
-   * Mirrors Playwright semantics: the DOM helper either applies the native
-   * value setter (for special input types) or asks us to type text via the CDP
-   * Input domain after focusing/selecting.
-   */
   async fill(value: string, progress?: Progress): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
@@ -586,7 +509,6 @@ export class Locator {
       }
 
       if (status === "needsinput") {
-        // Release the current handle before synthesizing keyboard input to avoid leaking it.
         await release();
 
         const valueToType = typeof result?.value === "string" ? result.value : value;
@@ -615,7 +537,6 @@ export class Locator {
         } catch (error) {
           progress?.throwIfStopped();
           if (progress && isCdpClosedError(error)) throw error;
-          // Ordinary preparation failures can still fall back to typing.
         }
 
         if (!prepared && valueToType.length > 0) {
@@ -624,7 +545,6 @@ export class Locator {
         }
 
         if (valueToType.length === 0) {
-          // Simulate deleting the currently selected text to clear the field.
           await runLocatorStep(progress, "dispatching keyboard events", () =>
             session.send<never>("Input.dispatchKeyEvent", {
               type: "keyDown",
@@ -660,7 +580,6 @@ export class Locator {
         throw new Error(`Failed to fill element (${reason})`);
       }
 
-      // Backward compatibility: if no status is returned (older bundle), fall back to setter logic.
       if (!status) {
         await release();
         await this.type(value, undefined, progress);
@@ -671,18 +590,11 @@ export class Locator {
     }
   }
 
-  /**
-   * Type text into the element (focuses first).
-   * - Focus via element.focus() in page JS (no DOM.focus(nodeId)).
-   * - If no delay, uses `Input.insertText` for efficiency.
-   * - With delay, synthesizes `keyDown`/`keyUp` per character.
-   */
   async type(text: string, options?: { delay?: number }, progress?: Progress): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
 
     try {
-      // Focus using JS (avoids DOM.focus(nodeId))
       await runLocatorStep(progress, "focusing element", () =>
         session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
           objectId,
@@ -726,10 +638,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Select one or more options on a `<select>` element.
-   * Returns the values actually selected after the operation.
-   */
   async selectOption(values: string | string[], progress?: Progress): Promise<string[]> {
     const session = this.frame.session;
     const desired = Array.isArray(values) ? values : [values];
@@ -754,9 +662,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Return true if the element is attached and visible (rough heuristic).
-   */
   async isVisible(progress?: Progress): Promise<boolean> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
@@ -777,10 +682,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Return true if the element is an input[type=checkbox|radio] and is checked.
-   * Also considers aria-checked for ARIA widgets.
-   */
   async isChecked(progress?: Progress): Promise<boolean> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
@@ -801,9 +702,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Return the element's input value (for input/textarea/select/contenteditable).
-   */
   async inputValue(progress?: Progress): Promise<string> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
@@ -824,9 +722,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Return the element's textContent (raw, not innerText).
-   */
   async textContent(progress?: Progress): Promise<string> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
@@ -847,9 +742,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Return the element's innerHTML string.
-   */
   async innerHtml(progress?: Progress): Promise<string> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
@@ -870,9 +762,6 @@ export class Locator {
     }
   }
 
-  /**
-   * Return the element's innerText (layout-aware, visible text).
-   */
   async innerText(progress?: Progress): Promise<string> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
@@ -893,14 +782,10 @@ export class Locator {
     }
   }
 
-  /**
-   * Return a locator narrowed to the first match.
-   */
   first(): Locator {
     return this.nth(0);
   }
 
-  /** Return a locator narrowed to the element at the given zero-based index. */
   nth(index: number): Locator {
     const value = Number(index);
     if (!Number.isFinite(value) || value < 0) {
@@ -915,12 +800,6 @@ export class Locator {
     return new Locator(this.frame, this.selector, this.options, nextIndex);
   }
 
-  // ---------- helpers ----------
-
-  /**
-   * Resolve `this.selector` within the frame to `{ objectId, nodeId? }`:
-   * Delegates to a shared selector resolver so all selector logic stays in sync.
-   */
   public async resolveNode(progress?: Progress): Promise<{
     nodeId: Protocol.DOM.NodeId | null;
     objectId: Protocol.Runtime.RemoteObjectId;
@@ -944,41 +823,20 @@ export class Locator {
     return resolved;
   }
 
-  /**
-   * Resolve all matching nodes for this locator.
-   * If the locator is narrowed via nth(), only that index is returned.
-   */
-  public async resolveNodesForMask(progress: Progress): Promise<
-    Array<{
-      nodeId: Protocol.DOM.NodeId | null;
-      objectId: Protocol.Runtime.RemoteObjectId;
-    }>
-  > {
+  public async resolveNodesForMask(progress: Progress): Promise<ResolvedNodeBatch> {
     const session = this.frame.session;
-
     await progress.run("enabling runtime", () => session.send("Runtime.enable"));
     await progress.run("enabling DOM", () => session.send("DOM.enable"));
-
-    if (this.nthIndex >= 0) {
-      const resolved = await this.selectorResolver.resolveAtIndex(
-        this.selectorQuery,
-        this.nthIndex,
-        progress,
-      );
-      if (!resolved) {
-        throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
-      }
-      return [resolved];
-    }
-
-    const resolved = await this.selectorResolver.resolveAll(this.selectorQuery, {}, progress);
-    if (!resolved.length) {
+    const options = this.nthIndex >= 0 ? { start: this.nthIndex, limit: 1 } : {};
+    const batch = await this.selectorResolver.resolveAll(this.selectorQuery, options, progress);
+    if (!batch.nodes.length) {
+      await batch.release();
+      progress.throwIfStopped();
       throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
     }
-    return resolved;
+    return batch;
   }
 
-  /** Compute a center point from a BoxModel content quad */
   centerFromBoxContent(content: number[]): { cx: number; cy: number } {
     // content is [x1,y1, x2,y2, x3,y3, x4,y4]
     if (!content || content.length < 8) {

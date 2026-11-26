@@ -7,9 +7,6 @@ export default defineBenchTask(
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/five-tab/");
 
-      // v3-parity form: activePage() polls until Chrome's active target
-      // registers (stagehand#2458), and act resolves its target through it,
-      // so back-to-back tab-opening acts chain without explicit waits.
       await stagehand.act("click the button to open the other page");
       await stagehand.act("click the button to open the other page");
       await stagehand.act("click the button to open the other page");
@@ -30,7 +27,6 @@ export default defineBenchTask(
         };
       }
 
-      // try acting on the first page again
       const pages = await stagehand.browser.context.pages();
       const page1 = pages[0];
       await stagehand.act("click the button to open the other page", { page: page1 });
@@ -49,12 +45,6 @@ export default defineBenchTask(
         };
       }
 
-      // Target the page the URL assertion just verified. Without { page },
-      // extract resolves its own target through activePage() again, so a
-      // focus change between the check and the extract would silently move
-      // the assertion to another tab. v3 also used schemaless extract; v4
-      // requires a schema. Single-word key to stay clear of the snake_case
-      // wire-casing bug (#14).
       const { data: page2text } = await stagehand.extract(
         "extract the entire page text",
         z.object({ extraction: z.string() }),

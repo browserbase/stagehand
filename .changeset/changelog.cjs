@@ -1,5 +1,3 @@
-// Wraps @changesets/changelog-github so changesets merged through a mirrored
-// external contributor PR credit the original contributor, not github-actions.
 const base = require("@changesets/changelog-github").default;
 
 const OWNED_RE = /<!-- external-contributor-pr:owned source-pr=(\d+) /g;
@@ -21,8 +19,6 @@ async function creditMirroredContributor(changeset, repo) {
   if (!changeset.commit || OVERRIDE_RE.test(changeset.summary)) return changeset;
   const pulls = await github(`/repos/${repo}/commits/${changeset.commit}/pulls`);
   const mirror = pulls.find((pull) => pull.merged_at && pull.user?.login === MIRROR_AUTHOR);
-  // The mirror body quotes the external PR description before the trusted
-  // marker, so take the last marker (same as syncOwnedPr).
   const source = [...(mirror?.body?.matchAll(OWNED_RE) ?? [])].at(-1)?.[1];
   if (!source) return changeset;
   const original = await github(`/repos/${repo}/pulls/${source}`);

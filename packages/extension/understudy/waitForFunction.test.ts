@@ -100,7 +100,6 @@ describe("Page.waitForFunction", () => {
     });
   });
 
-  // An omitted timeout means no deadline, the same as 0.
   it.each([undefined, 100, 0])("honors a timeout of %s", async (timeout) => {
     const unlimited = !timeout;
     const result = deferred<unknown>();
@@ -210,7 +209,6 @@ describe("Page.waitForFunction", () => {
       },
       page.mainFrame().session,
     );
-    // The former context can still respond; it must not receive the predicate.
     ready.resolve(7);
     await expect(pending).resolves.toBe(true);
     expect(readiness.mock.calls.map(([, frameId]) => frameId)).toEqual([

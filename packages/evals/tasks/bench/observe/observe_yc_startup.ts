@@ -28,10 +28,6 @@ export default defineBenchTask(
         `div._section_18olp_165._results_18olp_345`,
       ];
 
-      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
-      // so the same element-identity check is
-      // re-expressed in-page: resolve the observed selector and each
-      // candidate selector and compare element references.
       let foundMatch = false;
       let matchedLocator: string | null = null;
 

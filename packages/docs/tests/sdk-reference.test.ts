@@ -139,15 +139,10 @@ const PROTOCOL_REGISTRY = fileURLToPath(
 );
 const LANGUAGES = ["TypeScript", "Python"] as const satisfies readonly Language[];
 const DOCUMENTATION_LANGUAGES = [...LANGUAGES, "Go"] as const;
-// Language tabs are the selector; every other <Tab> on a page is a different axis
-// (model provider, output shape, ...).
 const LANGUAGE_TAB_TITLES = new Set<string>(DOCUMENTATION_LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
-// Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
 
-// Handwritten SDK wrappers intentionally expose narrower or friendlier types than the wire
-// schema. Keep these exceptions explicit so the reference is checked against the public API.
 const PUBLIC_REFERENCE_FIELD_TYPES = new Map<string, string>([
   ["context.add_cookies:TypeScript:cookies.sameSite", "CookieParam['sameSite']"],
   ["context.add_cookies:Python:cookies.same_site", "Literal['Strict', 'Lax', 'None']"],
@@ -160,6 +155,10 @@ const PUBLIC_REFERENCE_FIELD_TYPES = new Map<string, string>([
   ["page.screenshot:TypeScript:options.mask", "Locator[]"],
   ["page.screenshot:TypeScript:options.scale", "ScreenshotOptions['scale']"],
   ["page.screenshot:TypeScript:options.type", "ScreenshotOptions['type']"],
+  ...["act", "observe", "extract"].flatMap((method): Array<[string, string]> => [
+    [`stagehand.${method}:TypeScript:options.locator`, "Locator"],
+    [`stagehand.${method}:TypeScript:options.ignoreLocators`, "Locator[]"],
+  ]),
 ]);
 
 const SDK_OBJECTS = [
@@ -643,8 +642,6 @@ ${titles
           );
         }
 
-        // Nested fields such as `options.timeout` are checked separately against the schema.
-        // This assertion makes the top-level, directly callable signature an exact match.
         const documented = reference.method.paramPaths
           .filter((path): path is string => path !== undefined && !path.includes("."))
           .sort();
@@ -1027,8 +1024,6 @@ ${titles
         const result = reference.method.responseFields.find(({ key }) => key === "result");
         if (!result) continue;
         const actual = normalizePublicType(result.type, language, false, pythonAliases);
-        // extract's implementation accepts either a schema or options so it can support both
-        // public overloads; the documented return type reflects the schema-bearing overload.
         const returnType =
           language === "TypeScript" && method.operationName === "stagehand.extract"
             ? "Promise<ExtractResult<Schema>>"
@@ -1328,7 +1323,6 @@ describe("Mintlify customization boundary", () => {
 
           found.push(...languageTabGroupProblems(pagePath, tree));
 
-          // One icon per title, so the selector labels stay stable.
           const icons = new Map<string, Set<string>>();
           for (const { title, icon } of titled) {
             if (icon === undefined) continue;
@@ -2149,13 +2143,10 @@ function readReferenceTab(view: MdxNode, filePath: string): ReferenceTab {
   const title = stringAttribute(view, "title");
   return {
     title,
-    // Go content remains part of the MDX page, but has no SDK API validation on main.
     methods: title === "Go" ? [] : readReferenceMethods(view, filePath),
   };
 }
 
-// Sections of a reference page that document something other than a method, so
-// they carry no signature to check against the SDK.
 const NON_METHOD_SECTIONS = new Set(["Quick start", "Properties"]);
 
 function readReferenceMethods(view: MdxNode, filePath: string): ReferenceMethod[] {
@@ -2239,8 +2230,6 @@ function isLanguageTab(node: MdxNode): boolean {
   return title !== undefined && LANGUAGE_TAB_TITLES.has(title);
 }
 
-// Integrations require the active SDK languages used elsewhere on their page.
-// Core docs require both active SDKs. Go is recognized but never required.
 function languageTabGroupProblems(pagePath: string, tree: MdxNode): string[] {
   const present = new Set(findLanguageTabs(tree).map((tab) => stringAttribute(tab, "title")));
   const required = pagePath.startsWith("v4/integrations/")
@@ -2266,7 +2255,6 @@ function languageTabGroupProblems(pagePath: string, tree: MdxNode): string[] {
   });
 }
 
-// Document-order language tabs, ignoring tabs that switch on any other axis.
 function findLanguageTabs(node: MdxNode): MdxNode[] {
   return findElements(node, "Tab").filter(isLanguageTab);
 }
@@ -2667,16 +2655,9 @@ function isNestedSdkLocatorInputField(method: SdkMethod, path: string): boolean 
   }
   if (method.classSlug !== "stagehand") return false;
   if (!["act", "observe", "extract"].includes(method.methodName)) return false;
-  return new Set([
-    "options.locator.selector",
-    "options.locator.nth",
-    "options.ignoreLocators.selector",
-    "options.ignoreLocators.nth",
-    "locator.selector",
-    "locator.nth",
-    "ignore_locators.selector",
-    "ignore_locators.nth",
-  ]).has(path);
+  return ["options.locator.", "options.ignoreLocators.", "locator.", "ignore_locators."].some(
+    (prefix) => path.startsWith(prefix),
+  );
 }
 
 function publicReferenceFieldType(
@@ -2806,7 +2787,14 @@ function resolvedProperties(
   protocol: ProtocolDocument,
 ): Record<string, JsonSchema> {
   if (schema.$ref) return resolvedProperties(resolveReference(schema.$ref, protocol), protocol);
-  return schema.properties ?? {};
+  const properties: Record<string, JsonSchema> = {};
+  for (const part of [...(schema.allOf ?? []), ...(schema.anyOf ?? []), ...(schema.oneOf ?? [])]) {
+    for (const [name, property] of Object.entries(resolvedProperties(part, protocol))) {
+      const previous = properties[name];
+      properties[name] = previous ? { anyOf: [previous, property] } : property;
+    }
+  }
+  return { ...properties, ...schema.properties };
 }
 
 function resolveReference(reference: string, protocol: ProtocolDocument): JsonSchema {

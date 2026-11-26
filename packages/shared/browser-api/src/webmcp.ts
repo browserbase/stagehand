@@ -9,6 +9,7 @@ import type { WebMCPInvokeOptions, WebMCPResultOptions } from "./schemas.js";
 import type { StagehandCommandClient } from "./commandClient.js";
 
 export class WebMCPTool {
+  readonly toolId?: string;
   readonly name: string;
   readonly description: string;
   readonly inputSchema?: WebMCPToolDescriptor["inputSchema"];
@@ -22,6 +23,7 @@ export class WebMCPTool {
   constructor(rpcClient: StagehandCommandClient, pageId: string, descriptor: WebMCPToolDescriptor) {
     this.#rpcClient = rpcClient;
     this.#pageId = pageId;
+    this.toolId = descriptor.toolId;
     this.name = descriptor.name;
     this.description = descriptor.description;
     this.inputSchema = descriptor.inputSchema;
@@ -35,6 +37,7 @@ export class WebMCPTool {
       pageId: this.#pageId,
       frameId: this.frameId,
       toolName: this.name,
+      ...(this.toolId === undefined ? {} : { toolId: this.toolId }),
       input: options?.input ?? {},
     });
     return new WebMCPInvocation(this.#rpcClient, this.#pageId, descriptor);

@@ -83,26 +83,12 @@ function buildSessionCreateBody(flags: SessionCreateFlagInputs): Record<string, 
   return body;
 }
 
-/**
- * Stamp anonymous CLI attribution onto the session-create `userMetadata` so
- * every CLI-created cloud session is attributable to the CLI (matching the
- * driver `open --remote` path). Any user-supplied `userMetadata` (via --body or
- * --stdin) is preserved; our attribution keys (browse_cli/install_id/
- * cli_version) are authoritative and override caller values for those keys.
- *
- * Resolving the install id is best-effort and never throws; if it can't be
- * resolved we still send browse_cli + cli_version. Values are run through
- * toMetadataValue() so the session-create validator never 400s on a stray
- * character or an over-length value.
- */
 async function applyCliAttribution(body: Record<string, unknown>): Promise<void> {
   const rawExisting =
     body.userMetadata && typeof body.userMetadata === "object"
       ? (body.userMetadata as Record<string, unknown>)
       : {};
 
-  // Strip any caller-supplied install_id before merging so it cannot be
-  // spoofed when resolution fails (our authoritative value is set below).
   const existing = Object.fromEntries(
     Object.entries(rawExisting).filter(([k]) => k !== "install_id"),
   );
@@ -213,8 +199,6 @@ export default class SessionsCreate extends BrowseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(SessionsCreate);
-    // Allow --context-id to be a locally-saved name; resolve it to a real id.
-    // A context id passes through; an unknown name fails with a helpful message.
     if (flags["context-id"]) {
       flags["context-id"] = await resolveContextRefOrFail(flags["context-id"]);
     }

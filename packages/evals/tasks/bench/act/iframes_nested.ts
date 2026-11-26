@@ -8,16 +8,13 @@ export default defineBenchTask(
 
       await stagehand.act("type 'stagehand' into the 'username' field");
 
-      // v3 chained frameLocator lvl1 -> lvl2 -> lvl3 (form lives in level 3);
-      // v4 has no frameLocator, so the same check is re-expressed in-page by
-      // walking the same-origin iframes' contentDocuments.
       const usernameText = await page.evaluate(() => {
         const lvl1 = (document.querySelector("iframe.lvl1") as HTMLIFrameElement | null)
-          ?.contentDocument; // level 1
+          ?.contentDocument;
         const lvl2 = (lvl1?.querySelector("iframe.lvl2") as HTMLIFrameElement | null)
-          ?.contentDocument; // level 2
+          ?.contentDocument;
         const lvl3 = (lvl2?.querySelector("iframe.lvl3") as HTMLIFrameElement | null)
-          ?.contentDocument; // level 3 – form lives here
+          ?.contentDocument;
 
         const input = lvl3?.querySelector('input[name="username"]') as HTMLInputElement | null;
         if (!input) {

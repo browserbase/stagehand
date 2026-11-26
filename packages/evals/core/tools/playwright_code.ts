@@ -525,19 +525,13 @@ async function capturePlaywrightEvidence(session: CoreSession): Promise<ProbeEvi
   const evidence: ProbeEvidence = {};
   try {
     evidence.screenshot = await page.screenshot();
-  } catch {
-    // Best effort: preserve other evidence modalities.
-  }
+  } catch {}
   try {
     evidence.url = page.url();
-  } catch {
-    // Best effort: preserve other evidence modalities.
-  }
+  } catch {}
   try {
     evidence.ariaTree = (await page.represent?.({ includeIframes: true }))?.content;
-  } catch {
-    // Best effort: preserve other evidence modalities.
-  }
+  } catch {}
   return evidence;
 }
 

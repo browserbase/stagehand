@@ -246,11 +246,9 @@ describe("driver foundation", () => {
     await expect(resolveConnectionTarget({ proxies: true })).rejects.toThrow(
       "--proxies requires --remote",
     );
-    // plural subject keeps the plural verb
     await expect(resolveConnectionTarget({ proxies: true, verified: true })).rejects.toThrow(
       "--verified and --proxies require --remote",
     );
-    // verified/proxies must be explicit about remote even when --cdp/--local is set
     await expect(resolveConnectionTarget({ cdp: "9222", verified: true })).rejects.toThrow(
       "--verified requires --remote",
     );
@@ -1520,7 +1518,6 @@ describe("driver foundation", () => {
   });
 
   it("collects forwardable env vars from the caller's env", async () => {
-    // Only the API key is forwarded; the project is inferred from the key.
     await expect(
       collectForwardedEnv({
         BROWSERBASE_API_KEY: "client-key",
@@ -1536,13 +1533,10 @@ describe("driver foundation", () => {
 
   it("produces a stable, secret-free forwarded-env signature", () => {
     const sig = forwardedEnvSignature({ BROWSERBASE_API_KEY: "forwarded-key" });
-    // A non-empty hash that does not leak the raw key value.
     expect(sig).toMatch(/^[a-f0-9]{64}$/);
     expect(sig).not.toContain("forwarded-key");
-    // Stable for the same input, distinct for a different key.
     expect(forwardedEnvSignature({ BROWSERBASE_API_KEY: "forwarded-key" })).toBe(sig);
     expect(forwardedEnvSignature({ BROWSERBASE_API_KEY: "other-key" })).not.toBe(sig);
-    // Empty / absent sets collapse to "".
     expect(forwardedEnvSignature(undefined)).toBe("");
     expect(forwardedEnvSignature({})).toBe("");
     expect(forwardedEnvSignature({ BROWSERBASE_API_KEY: "" })).toBe("");
@@ -1553,7 +1547,6 @@ describe("driver foundation", () => {
       kind: "remote",
     });
 
-    // Simulate the repro: the first key-less init failed and cached a backoff.
     Object.assign(manager, {
       consecutiveInitFailures: 1,
       initFailure: {
@@ -1562,15 +1555,11 @@ describe("driver foundation", () => {
       },
     });
 
-    // A new key forwarded before init clears the cached failure so the retry
-    // runs immediately instead of replaying the stale error.
     manager.applyForwardedEnv({ BROWSERBASE_API_KEY: "late-key" });
     expect((manager as unknown as { initFailure: unknown }).initFailure).toBeNull();
     expect(
       (manager as unknown as { consecutiveInitFailures: number }).consecutiveInitFailures,
     ).toBe(0);
-    // The key is stashed for the next init (threaded into the constructor),
-    // never written back into process.env.
     expect((manager as unknown as { pendingEnv: unknown }).pendingEnv).toEqual({
       BROWSERBASE_API_KEY: "late-key",
     });
@@ -1579,7 +1568,6 @@ describe("driver foundation", () => {
       (manager as unknown as { lastForwardedEnvSignature: string }).lastForwardedEnvSignature,
     ).toBe(forwardedEnvSignature({ BROWSERBASE_API_KEY: "late-key" }));
 
-    // Re-applying the same forwarded env is a no-op (idempotent).
     Object.assign(manager, {
       initFailure: { error: new Error("x"), retryAt: Date.now() + 60_000 },
     });
@@ -1595,7 +1583,6 @@ describe("driver foundation", () => {
 
     manager.applyForwardedEnv({ BROWSERBASE_API_KEY: "new-key" });
 
-    // The warm session is preserved: forwarded env only matters at init.
     expect((manager as unknown as { stagehand: unknown }).stagehand).not.toBeNull();
     expect((manager as unknown as { context: unknown }).context).not.toBeNull();
   });

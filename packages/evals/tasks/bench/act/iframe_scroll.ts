@@ -9,9 +9,6 @@ export default defineBenchTask(
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      // v3 evaluated inside page.frames()[1]; v4 exposes no frames() list,
-      // so the same measurement is re-expressed via the same-origin iframe's
-      // contentWindow/contentDocument.
       const scrollInfo = await page.evaluate(() => {
         const iframe = document.querySelector("iframe");
         const win = iframe?.contentWindow;

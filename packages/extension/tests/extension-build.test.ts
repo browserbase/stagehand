@@ -64,7 +64,6 @@ describe("extension build", () => {
       "utf8",
     );
 
-    // Minified output packs the bundle into a few very long lines.
     expect(serviceWorker.length / serviceWorker.split("\n").length).toBeGreaterThan(1000);
     expect(serviceWorker).not.toContain("sourceMappingURL");
     for (const name of [
@@ -73,7 +72,6 @@ describe("extension build", () => {
       "CdpConnection",
       "ExecutionContextRegistry",
     ]) {
-      // Either a named class or a class assigned to a binding of that name (its inferred name).
       expect(serviceWorker).toMatch(new RegExp(`class ${name}\\b|\\b${name}=class\\b`, "u"));
     }
     for (const name of ["startStagehandServiceWorker", "createStagehandRuntime"]) {
@@ -87,7 +85,6 @@ describe("extension build", () => {
       "utf8",
     );
 
-    // blank.html loads it into the page's own world, next to user init scripts and evaluate code.
     const page = vm.createContext({});
     vm.runInContext("let e = 1; const t = 2; var n = 'user';", page);
     expect(() => vm.runInContext(contentScript, page)).not.toThrow();

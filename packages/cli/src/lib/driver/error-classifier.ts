@@ -20,10 +20,6 @@ const CDP_UNREACHABLE_PATTERN = /Unable to resolve CDP endpoint from/;
 
 const LAST_TAB_PATTERN = /^Cannot close the last tab\.$/;
 
-/**
- * Classify a non-DriverError into a typed DriverError with a stable code.
- * Returns null if the error is not recognized and should remain `unexpected`.
- */
 export function classifyDriverError(error: unknown): DriverError | null {
   const message = error instanceof Error ? error.message : String(error);
 

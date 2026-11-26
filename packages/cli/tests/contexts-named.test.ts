@@ -27,11 +27,6 @@ function pathOf(request: CapturedRequest): string {
   return request.path.split("?")[0] ?? request.path;
 }
 
-/**
- * Drives the real built CLI through the full named-context lifecycle against a
- * fake Browserbase server, proving the local name->id map is written on create
- * and resolved by list / get / sessions-create / delete.
- */
 describe("named contexts (end to end through the CLI)", () => {
   it("creates by name, resolves the name everywhere, and prunes on delete", async () => {
     const server = await startFakeBrowserbaseServer((request, response) => {
@@ -67,7 +62,6 @@ describe("named contexts (end to end through the CLI)", () => {
     const storePath = join(configDir, "contexts.json");
 
     try {
-      // 1. create --name writes the local alias and echoes the name back.
       const created = await runCli(["cloud", "contexts", "create", "--name", "github"], { env });
       expect(created.exitCode).toBe(0);
       expect(JSON.parse(created.stdout)).toMatchObject({
@@ -78,7 +72,6 @@ describe("named contexts (end to end through the CLI)", () => {
         contexts: { github: { id: CONTEXT_ID } },
       });
 
-      // 2. list --json surfaces the saved alias.
       const listed = await runCli(["cloud", "contexts", "list", "--json"], {
         env,
       });
@@ -87,7 +80,6 @@ describe("named contexts (end to end through the CLI)", () => {
         contexts: [expect.objectContaining({ name: "github", id: CONTEXT_ID })],
       });
 
-      // 3. sessions create --context-id <name> sends the resolved id.
       const session = await runCli(
         [
           "cloud",
@@ -108,7 +100,6 @@ describe("named contexts (end to end through the CLI)", () => {
         browserSettings: { context: { id: CONTEXT_ID, persist: true } },
       });
 
-      // 4. get <name> resolves to GET /v1/contexts/<id>.
       const got = await runCli(["cloud", "contexts", "get", "github"], { env });
       expect(got.exitCode).toBe(0);
       expect(
@@ -117,7 +108,6 @@ describe("named contexts (end to end through the CLI)", () => {
         ),
       ).toBe(true);
 
-      // 5. delete <name> hits the API and prunes the local alias.
       const deleted = await runCli(["cloud", "contexts", "delete", "github"], {
         env,
       });
@@ -157,7 +147,6 @@ describe("named contexts (end to end through the CLI)", () => {
       expect(result.exitCode).not.toBe(0);
       expect(result.stderr).toContain('No saved context named "githubb"');
       expect(result.stderr).toContain("Did you mean: github");
-      // The typo never reached the API as a bogus id.
       expect(server.requests.some((r) => r.method === "GET")).toBe(false);
     } finally {
       await server.close();
@@ -177,7 +166,6 @@ describe("named contexts (end to end through the CLI)", () => {
     };
     const storePath = join(configDir, "contexts.json");
     try {
-      // add saves the name locally (no API call) ...
       const added = await runCli(["cloud", "contexts", "add", "team-login", existingId], { env });
       expect(added.exitCode).toBe(0);
       expect(JSON.parse(added.stdout)).toEqual({
@@ -189,7 +177,6 @@ describe("named contexts (end to end through the CLI)", () => {
         contexts: { "team-login": { id: existingId } },
       });
 
-      // ... and the name resolves everywhere.
       const got = await runCli(["cloud", "contexts", "get", "team-login"], {
         env,
       });
@@ -200,12 +187,10 @@ describe("named contexts (end to end through the CLI)", () => {
         ),
       ).toBe(true);
 
-      // Duplicate without --force is rejected; --force repoints the name.
       const dup = await runCli(["cloud", "contexts", "add", "team-login", newId], { env });
       expect(dup.exitCode).not.toBe(0);
       expect(dup.stderr).toContain("already exists locally");
 
-      // Padded id + --force: repoints and stores the trimmed id.
       const forced = await runCli(
         ["cloud", "contexts", "add", "team-login", `  ${newId}  `, "--force"],
         { env },
@@ -234,8 +219,6 @@ describe("named contexts (end to end through the CLI)", () => {
       BROWSERBASE_BASE_URL: server.baseUrl,
     };
     try {
-      // A saved name exists, but the ref is far from it -> no "did you mean",
-      // so the ref must pass through unchanged rather than being rejected.
       await runCli(["cloud", "contexts", "create", "--name", "github"], {
         env,
       });

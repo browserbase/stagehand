@@ -1650,8 +1650,6 @@ describe("cloud API contracts", () => {
       responseBody: { id: "ctx_123" },
     },
     {
-      // Pass a context id (UUID) so resolution hits the id-passthrough path
-      // regardless of any locally-saved names.
       args: ["cloud", "contexts", "get", "00000000-0000-4000-8000-000000000000"],
       expectedMethod: "GET",
       expectedPath: "/v1/contexts/00000000-0000-4000-8000-000000000000",
@@ -2400,7 +2398,6 @@ describe("cloud API contracts", () => {
         };
         expect(body.userMetadata).toBeDefined();
         expect(body.userMetadata?.browse_cli).toBe("true");
-        // Seeded from oclif Config.version in BrowseCommand.init(); never "unknown".
         expect(body.userMetadata?.cli_version).toBeDefined();
         expect(body.userMetadata?.cli_version).not.toBe("unknown");
         expect(body.userMetadata?.install_id).toBe("create-install-uuid-123");
@@ -2434,9 +2431,7 @@ describe("cloud API contracts", () => {
         const body = requests[0]?.jsonBody as {
           userMetadata?: Record<string, string>;
         };
-        // User's custom key survives.
         expect(body.userMetadata?.env).toBe("staging");
-        // Attribution keys are authoritative — caller cannot spoof browse_cli.
         expect(body.userMetadata?.browse_cli).toBe("true");
         expect(body.userMetadata?.cli_version).not.toBe("unknown");
       },
@@ -2462,10 +2457,6 @@ describe("cloud API contracts", () => {
             "--base-url",
             baseUrl,
           ],
-          // Override install-id resolution to a throwaway path with no
-          // pre-existing id: resolveInstallId just creates it and returns a
-          // fresh UUID. The point of this test is that the caller-supplied
-          // install_id is stripped regardless and never survives as the spoof.
           {
             env: {
               BROWSERBASE_TELEMETRY_INSTALL_ID_FILE: "/tmp/no-such-file-browse-test",
@@ -2478,9 +2469,7 @@ describe("cloud API contracts", () => {
         const body = requests[0]?.jsonBody as {
           userMetadata?: Record<string, string>;
         };
-        // User's non-attribution key survives.
         expect(body.userMetadata?.env).toBe("test");
-        // Caller cannot spoof install_id when resolution fails — it must not be "spoofed-id".
         expect(body.userMetadata?.install_id).not.toBe("spoofed-id");
       },
     );

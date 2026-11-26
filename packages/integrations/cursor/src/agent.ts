@@ -75,8 +75,6 @@ export async function runCursor(
           env: buildAllowlistedEnv(env),
         },
       },
-      // The example prints one final result; the reusable SDK owns event logging,
-      // cancellation, disposal, settings isolation and its disposable local store.
       logger: { log: () => {}, warn: () => {}, error: () => {} },
       signal: controller.signal,
       ...(options.createAgent && { createAgent: options.createAgent }),

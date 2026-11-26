@@ -1,19 +1,3 @@
-/**
- * `evals verify <trajectory-dir>` — re-score a saved trajectory offline.
- *
- * The verifier is browser-free: it consumes a hydrated Trajectory + TaskSpec
- * and returns an EvaluationResult. This command reads the on-disk layout written by
- * `TrajectoryRecorder.persist()` and feeds it through V3Evaluator.verify().
- *
- * The judge's verdict is then passed through the same deterministic gates the
- * live run applies (see verifierGates.ts), so the offline result matches what
- * the row would have scored. The facade gate (`no_browser_use`) needs the live
- * tool matcher and is not applied offline.
- *
- * Output: writes a new result file under `scores/result_<label>.json`.
- * Judge uncertainty is saved as { graded: false, verifierError, judge } with no
- * top-level scores; the command exits nonzero. JSON output follows the same shape.
- */
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -38,15 +22,10 @@ import {
 import { bold, cyan, dim, gray, green, red, yellow } from "../format.js";
 
 export interface VerifyOptions {
-  /** Absolute or cwd-relative path to a `<group>/<task-id>/<run-id>/` directory. */
   trajectoryDir: string;
-  /** Override EVAL_VERIFIER_MODEL and the shared live verifier default. */
   model?: string;
-  /** Label appended to the output result filename (default: timestamp). */
   label?: string;
-  /** Emit machine-readable JSON to stdout instead of human summary. */
   jsonOutput?: boolean;
-  /** Don't write to disk — print the result and exit. */
   dryRun?: boolean;
 }
 
@@ -138,12 +117,6 @@ export async function handleVerify(args: string[]): Promise<void> {
     );
   }
 
-  // ── Build a verifier without launching a browser ────────────────────────
-  // V3Evaluator.verify() only touches v3.logger (to construct an LLMProvider)
-  // and the verify(trajectory) call is pure. Constructing V3 without
-  // calling init() is safe and avoids any browser/Browserbase setup cost.
-  // EVAL_VERIFIER_TRACE=1 records the judge's LLM traffic (level-2 lines) to
-  // scores/verifier-trace[_label].jsonl so evidence selection can be audited.
   const traceOn = verifierTraceEnabled();
   const traceLines: LogLine[] = [];
   const v3 = new V3({
@@ -206,7 +179,6 @@ export async function handleVerify(args: string[]): Promise<void> {
     return;
   }
 
-  // ── Human summary ──────────────────────────────────────────────────────
   console.log(`  ${green("✓")} verified in ${(elapsedMs / 1000).toFixed(1)}s`);
   console.log();
   console.log(formatVerdictLine(result));
@@ -248,7 +220,6 @@ export async function handleVerify(args: string[]): Promise<void> {
     }
   }
 
-  // ── Persist ────────────────────────────────────────────────────────────
   if (parsed.dryRun) {
     console.log();
     console.log(dim("dry-run: result not written to disk"));
@@ -285,7 +256,6 @@ async function finishUngradedVerification(
   );
 }
 
-/** Gated verdict first, with the judge's own verdict beside it when they differ. */
 export function formatVerdictLine(
   result: Pick<
     PersistedEvaluationResult,

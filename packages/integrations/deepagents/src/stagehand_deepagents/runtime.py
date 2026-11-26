@@ -77,7 +77,6 @@ class BrowserTools:
         self._facade = StagehandFacadeTools(
             stagehand,
             artifact_root=config.artifact_root,
-            # Also runs when run code calls browser.close(); the facade runs it once.
             on_close_requested=self._shutdown,
             quiet_wait=config.quiet_wait,
         )
