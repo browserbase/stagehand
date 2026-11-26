@@ -162,6 +162,51 @@ describe("Deep Agents session", () => {
     expect(result.stopReason).toContain("exited with code 1");
   });
 
+  it("starts a given program in place of the runner and adds its stdin fields", async () => {
+    const programLogger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const fake = fakeSpawner({
+      lines: [JSON.stringify({ type: "final", text: "done" }), JSON.stringify({ type: "usage" })],
+      stderrLines: ["starting"],
+    });
+    const result = await runDeepagentsSession({
+      prompt: "task",
+      model: "label/agent",
+      logger: programLogger,
+      spawn: fake.spawn,
+      session: {
+        runnerDir: "/tmp/runner",
+        program: { command: "/opt/agent/run.sh", name: "my_agent" },
+        extraInput: { start_url: "https://example.com", run_seconds: 60 },
+      },
+    });
+
+    expect(fake.getSpec()).toMatchObject({ command: "/opt/agent/run.sh", args: [] });
+    expect(JSON.parse(fake.getStdin())).toMatchObject({
+      prompt: "task",
+      model: "label/agent",
+      start_url: "https://example.com",
+      run_seconds: 60,
+    });
+    expect(result.status).toBe("completed");
+    expect(result.finalMessage).toBe("done");
+    expect(programLogger.log).toHaveBeenCalledWith(
+      expect.objectContaining({ category: "my_agent", message: "starting" }),
+    );
+  });
+
+  it("names a given program in its stop reasons", async () => {
+    const fake = fakeSpawner({ code: 2 });
+    const result = await runDeepagentsSession({
+      prompt: "task",
+      model: "model",
+      logger,
+      spawn: fake.spawn,
+      session: { program: { command: "/opt/agent/run.sh", name: "my_agent" } },
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toBe("my_agent exited with code 2");
+  });
+
   it("reports signal termination as an SDK error", async () => {
     const fake = fakeSpawner({ code: null, signal: "SIGTERM" });
     const result = await runDeepagentsSession({

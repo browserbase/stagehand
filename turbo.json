@@ -91,6 +91,11 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
+    "@browserbasehq/stagehand-integrations-karpo-browser#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/**"]
+    },
     "@browserbasehq/stagehand-integrations-fx#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
@@ -224,6 +229,16 @@
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
+    "@browserbasehq/stagehand-integrations-karpo-browser#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-karpo-browser#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
     "@browserbasehq/stagehand-integrations-fx#test:unit": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-fx#build"],
       "inputs": [
@@ -290,6 +305,9 @@
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-deepagents-sdk#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "@browserbasehq/stagehand-integrations-karpo-browser#typecheck": {
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-fx#typecheck": {

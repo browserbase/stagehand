@@ -95,6 +95,7 @@ describe("buildHarnessMatrix", () => {
       "deepagents",
       "claude_cua",
       "gemini_cua",
+      "karpo_browser",
     ]);
     expect(matrix.skipped).toEqual(["fx", "cursor"]);
     const cursor = await buildHarnessMatrix(options({ requested: ["cursor", "codex"] }));
@@ -136,6 +137,36 @@ describe("buildHarnessMatrix", () => {
       expect.stringContaining("deepagents: uv is not on PATH"),
       expect.stringContaining("verifier: GOOGLE_GENERATIVE_AI_API_KEY is not set"),
     ]);
+  });
+
+  it("checks karpo_browser's agent by absolute path, and nothing else", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-karpo-browser-"));
+    try {
+      const agent = path.join(dir, "agent.sh");
+      const notExecutable = path.join(dir, "agent.txt");
+      fs.writeFileSync(agent, "#!/bin/sh\n", { mode: 0o755 });
+      fs.writeFileSync(notExecutable, "", { mode: 0o644 });
+      const row = async (env: NodeJS.ProcessEnv) =>
+        (await buildHarnessMatrix(options({ env, requested: ["karpo_browser"] }))).harnesses[0];
+
+      expect((await row({}))?.binary).toEqual({
+        status: "fail",
+        label: "EVAL_KARPO_BROWSER_PATH",
+        detail: "EVAL_KARPO_BROWSER_PATH is not set; it names karpo-browser's eval agent.",
+        fix: "export EVAL_KARPO_BROWSER_PATH=/absolute/path/to/karpo-browser/evals/stagehand/agent.sh",
+      });
+      for (const named of ["agent.sh", notExecutable]) {
+        expect((await row({ EVAL_KARPO_BROWSER_PATH: named }))?.binary).toMatchObject({
+          status: "fail",
+          detail: `EVAL_KARPO_BROWSER_PATH=${named} is not the absolute path of an executable file.`,
+        });
+      }
+      const set = await row({ EVAL_KARPO_BROWSER_PATH: agent });
+      expect(set?.binary).toEqual({ status: "ok", label: "EVAL_KARPO_BROWSER_PATH" });
+      expect(set?.extra.status).toBe("skipped");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("does not let unrequested harnesses or a quiet environment move the verdict", async () => {

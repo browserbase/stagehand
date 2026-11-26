@@ -2,6 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
+import {
+  KARPO_BROWSER_HARNESS,
+  KARPO_BROWSER_PATH_ENV,
+} from "@browserbasehq/stagehand-integrations-karpo-browser";
 import { getBenchHarness, listExecutableBenchHarnesses } from "../../framework/benchHarness.js";
 import { ProviderConcurrency, providerFromModel } from "../../framework/providerConcurrency.js";
 import { DEFAULT_VERIFIER_MODEL, resolveVerifierModel } from "../../framework/verifierModel.js";
@@ -500,6 +504,22 @@ async function buildHarnessRow(
           "run `uv sync --all-packages --locked --check` from the repository root to confirm the env is synced.",
         fix: "uv sync --all-packages --locked",
       };
+      break;
+    }
+    case KARPO_BROWSER_HARNESS: {
+      // The agent reads its models' settings from its own environment; only the agent is checked.
+      const agent = env[KARPO_BROWSER_PATH_ENV]?.trim();
+      binary =
+        agent && path.isAbsolute(agent) && isExecutable(agent)
+          ? { status: "ok", label: KARPO_BROWSER_PATH_ENV }
+          : {
+              status: "fail",
+              label: KARPO_BROWSER_PATH_ENV,
+              detail: agent
+                ? `${KARPO_BROWSER_PATH_ENV}=${agent} is not the absolute path of an executable file.`
+                : `${KARPO_BROWSER_PATH_ENV} is not set; it names karpo-browser's eval agent.`,
+              fix: `export ${KARPO_BROWSER_PATH_ENV}=/absolute/path/to/karpo-browser/evals/stagehand/agent.sh`,
+            };
       break;
     }
     default:

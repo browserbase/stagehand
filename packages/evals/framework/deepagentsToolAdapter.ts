@@ -43,6 +43,22 @@ export const DEEPAGENTS_TOOL_SURFACES: ToolSurface[] = [
   "chrome_devtools_mcp",
 ];
 
+/**
+ * The harness a mount is prepared for. Another harness whose program speaks the
+ * Deep Agents runner protocol mounts its tools the same way, under its own name.
+ */
+export interface DeepagentsMountHarness {
+  harness: string;
+  label: string;
+  supportedToolSurfaces: ToolSurface[];
+}
+
+const DEEPAGENTS_MOUNT_HARNESS: DeepagentsMountHarness = {
+  harness: "deepagents",
+  label: "Deep Agents",
+  supportedToolSurfaces: DEEPAGENTS_TOOL_SURFACES,
+};
+
 export function normalizeDeepagentsMcpServers(
   mcpServers: Record<string, unknown>,
 ): Record<string, DeepagentsMcpServerConfig> {
@@ -75,13 +91,12 @@ export function normalizeDeepagentsMcpServers(
 
 export async function prepareDeepagentsToolAdapter(
   input: DeepagentsToolAdapterInput,
+  mountHarness?: DeepagentsMountHarness,
 ): Promise<PreparedDeepagentsToolAdapter> {
-  const toolSurface = resolveToolSurface(
-    { harness: "deepagents", supportedToolSurfaces: DEEPAGENTS_TOOL_SURFACES },
-    input.toolSurface,
-  );
+  const { harness, label, supportedToolSurfaces } = mountHarness ?? DEEPAGENTS_MOUNT_HARNESS;
+  const toolSurface = resolveToolSurface({ harness, supportedToolSurfaces }, input.toolSurface);
   if (toolSurface === undefined) {
-    throw new EvalsError("Deep Agents harness requires a tool surface.");
+    throw new EvalsError(`${label} harness requires a tool surface.`);
   }
   const startupProfile = resolveStartupProfile(
     toolSurface,
@@ -102,7 +117,7 @@ export async function prepareDeepagentsToolAdapter(
       throw new EvalsError(`Tool surface "${toolSurface}" does not provide an agent mount.`);
     if (mount.via !== "mcp") {
       throw new EvalsError(
-        `Deep Agents does not support agent mounts delivered via "${mount.via}" yet.`,
+        `${label} does not support agent mounts delivered via "${mount.via}" yet.`,
       );
     }
     const mcpServers = normalizeDeepagentsMcpServers(mount.mcpServers);
@@ -110,15 +125,18 @@ export async function prepareDeepagentsToolAdapter(
       ? new ObservationRecorder(runtime.running.captureEvidence)
       : undefined;
     cwd = await fsp.mkdtemp(
-      path.join(os.tmpdir(), `stagehand-evals-deepagents-${toolSurface.replace(/_/g, "-")}-`),
+      path.join(
+        os.tmpdir(),
+        `stagehand-evals-${harness.replace(/_/g, "-")}-${toolSurface.replace(/_/g, "-")}-`,
+      ),
     );
     const capturedCwd = cwd;
     const serverNames = Object.keys(mcpServers);
     let cleanupPromise: Promise<void> | undefined;
 
     input.logger.log({
-      category: "deepagents",
-      message: `Initialized ${toolSurface} MCP mount for Deep Agents (servers: ${serverNames.join(", ")}).`,
+      category: harness,
+      message: `Initialized ${toolSurface} MCP mount for ${label} (servers: ${serverNames.join(", ")}).`,
       level: 2,
       auxiliary: {
         startupProfile: { value: startupProfile, type: "string" },

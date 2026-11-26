@@ -16,6 +16,7 @@ export default defineConfig({
       "packages/integrations/gemini-cua-sdk/tests/**/*.test.ts",
       "packages/integrations/pi-sdk/tests/**/*.test.ts",
       "packages/integrations/deepagents-sdk/tests/**/*.test.ts",
+      "packages/integrations/karpo-browser/tests/**/*.test.ts",
       "packages/integrations/fx/tests/**/*.test.ts",
       "packages/extension/tests/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",

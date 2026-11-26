@@ -16,6 +16,7 @@ import {
   fxHarness,
   deepagentsHarness,
   eveHarness,
+  karpoBrowserHarness,
   registerBenchHarness,
 } from "../../framework/benchHarness.js";
 import { MASTRA_TOOL_SURFACES } from "../../framework/mastraToolAdapter.js";
@@ -42,6 +43,7 @@ describe("bench harness registry", () => {
       "cursor",
       "claude_cua",
       "gemini_cua",
+      "karpo_browser",
     ]);
   });
 
@@ -49,7 +51,7 @@ describe("bench harness registry", () => {
     expect(parseBenchHarness(undefined)).toBe("stagehand");
     expect(parseBenchHarness("codex")).toBe("codex");
     expect(() => parseBenchHarness("nope")).toThrow(
-      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents, fx, cursor, claude_cua, gemini_cua\./,
+      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents, fx, cursor, claude_cua, gemini_cua, karpo_browser\./,
     );
   });
 
@@ -190,6 +192,18 @@ describe("bench harness registry", () => {
     expect(harness.supportedToolSurfaces).not.toContain("browse_cli");
     expect(harness.supportedToolSurfaces).not.toContain("stagehand_code");
     expect(harness.defaultModels).toEqual(["cursor/auto"]);
+  });
+
+  it("registers karpo_browser on the facade only", () => {
+    const harness = getBenchHarness("karpo_browser");
+
+    expect(harness).toBe(karpoBrowserHarness);
+    expect(parseBenchHarness("karpo_browser")).toBe("karpo_browser");
+    expect(isExecutableBenchHarness("karpo_browser")).toBe(true);
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportsApi).toBe(false);
+    expect(harness.supportedToolSurfaces).toEqual(["stagehand_facade"]);
+    expect(harness.defaultModels).toEqual(["karpo-browser/controller"]);
   });
 
   it("registers a new harness and rejects duplicate ids", () => {
