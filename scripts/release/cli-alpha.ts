@@ -16,7 +16,6 @@ export async function prepareCliAlpha(
   const file = path.join(repositoryRoot, manifestPath);
   const manifest = JSON.parse(await readFile(file, "utf8"));
   const previous = JSON.parse(git(["show", `${baseRef}:${manifestPath}`]));
-  // A release PR publishes the new stable version through release-cli.
   if (previous.version !== manifest.version) return;
   if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) {
     throw new Error("Expected a stable Browse version before preparing an alpha");
@@ -32,7 +31,6 @@ export async function prepareCliAlpha(
     throw new Error(`Registry returned ${response.status} while checking browse@${version}`);
   }
 
-  // This checkout is disposable. Leave changesets and SDK versions untouched.
   await writeFile(file, `${JSON.stringify({ ...manifest, version }, null, 2)}\n`);
   return version;
 }

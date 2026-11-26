@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { classifyDriverError } from "../src/lib/driver/error-classifier.js";
 import { DriverError } from "../src/lib/driver/errors.js";
 import { ErrorResponseSchema, serializeResponse } from "../src/lib/driver/daemon/protocol.js";
 import { classifyRemoteInitError } from "../src/lib/driver/remote.js";
@@ -200,5 +201,70 @@ describe("DriverError", () => {
     expect(error.httpStatus).toBe(401);
     expect(error.cause).toBe(cause);
     expect(error.message).toBe("actionable message");
+  });
+});
+
+describe("daemon formatError with classifyDriverError", () => {
+  function formatError(error: unknown): {
+    code?: string;
+    error: string;
+    httpStatus?: number;
+  } {
+    if (error instanceof DriverError) {
+      return {
+        code: error.code,
+        error: error.message,
+        ...(error.httpStatus !== undefined ? { httpStatus: error.httpStatus } : {}),
+      };
+    }
+
+    const classified = classifyDriverError(error);
+    if (classified) {
+      return {
+        code: classified.code,
+        error: classified.message,
+        ...(classified.httpStatus !== undefined ? { httpStatus: classified.httpStatus } : {}),
+      };
+    }
+
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+
+  it("emits code for DriverError instances", () => {
+    const error = new DriverError("No page", { code: "no_active_page" });
+    const formatted = formatError(error);
+    expect(formatted.code).toBe("no_active_page");
+    expect(formatted.error).toBe("No page");
+  });
+
+  it("classifies and emits code for recognized plain errors", () => {
+    const error = new Error("Cannot close the last tab.");
+    const formatted = formatError(error);
+    expect(formatted.code).toBe("last_tab");
+    expect(formatted.error).toBe("Cannot close the last tab.");
+  });
+
+  it("omits code for unrecognized errors", () => {
+    const error = new Error("Something unexpected");
+    const formatted = formatError(error);
+    expect(formatted.code).toBeUndefined();
+    expect(formatted.error).toBe("Something unexpected");
+  });
+
+  it("round-trips classified errors through the daemon protocol", () => {
+    const error = new Error("Could not find an element for the given xPath(s): .my-button");
+    const formatted = formatError(error);
+
+    const response = serializeResponse({
+      ...formatted,
+      id: "req-1",
+      type: "error",
+    });
+    const parsed = ErrorResponseSchema.parse(JSON.parse(response));
+
+    expect(parsed.code).toBe("element_not_found");
+    expect(parsed.error).toBe(
+      'No element matches ".my-button". Run browse snapshot for fresh refs or check the selector.',
+    );
   });
 });

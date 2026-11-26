@@ -127,8 +127,6 @@ beforeEach(() => {
     browser: { sessionId: "session-test" },
   });
   initialize();
-  // Only the browser surface is stubbed; controllers, inference, AI SDK, cache,
-  // callback execution, and both directions of RPC use their real implementations.
   const frame = { frameId: "frame-1", getAccessibilityTree: async () => [] };
   const page = {
     url: () => "https://example.com",

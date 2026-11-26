@@ -23,9 +23,6 @@ import {
   resolveExplicitRemoteTarget,
 } from "../src/lib/driver/remote.js";
 
-// The real Browserbase capability: --verified/--proxies must reach the
-// session-create params so the cloud session is actually Verified/proxied,
-// while keeping the browse_cli attribution tag that --cdp attach loses.
 describe("remote.ts (Browserbase capability)", () => {
   const previousApiKey = process.env.BROWSERBASE_API_KEY;
 
@@ -56,9 +53,6 @@ describe("remote.ts (Browserbase capability)", () => {
     ).toEqual({ kind: "remote", proxies: true, verified: true });
   });
 
-  // userMetadata content (browse_cli/cli_version/install_id) is owned and
-  // verified by identity-attribution.test.ts; here we assert only that the
-  // attribution tag survives and that --verified/--proxies are threaded.
   it("keeps the browse_cli tag and adds no session settings by default", async () => {
     const params = (await remoteStagehandOptions({ kind: "remote" })).browser;
     expect((params.userMetadata as Record<string, string>).browse_cli).toBe("true");

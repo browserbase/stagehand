@@ -11,11 +11,6 @@ import {
   resolveWsTargetFromPort,
 } from "../src/lib/driver/local-cdp-discovery.js";
 
-/**
- * Starts a fake CDP HTTP server on an OS-assigned port. `wsPathForPort` gets
- * the bound port so it can bake the real port into the reported
- * webSocketDebuggerUrl, mirroring how a real browser reports itself.
- */
 async function startFakeCdpServer(wsPathForPort: (port: number) => string): Promise<{
   port: number;
   wsUrl: string;
@@ -71,8 +66,6 @@ describe("local CDP discovery", () => {
     } = await startFakeCdpServer((p) => `ws://127.0.0.1:${p}/devtools/browser/live-id`);
     servers.push(close);
 
-    // Simulate a leftover file from a previous Chrome instance that used to
-    // listen on this same port under a different browser id.
     await writeDevToolsActivePort(userDataDir, port, "/devtools/browser/stale-id");
 
     const resolved = await resolveWsTargetFromPort(port, {
@@ -143,9 +136,6 @@ describe("local CDP discovery", () => {
       userDataDirs: [userDataDir],
     });
 
-    // The cached candidate is still trusted (built from the recorded
-    // port + wsPath), since only the path -- not the host string -- is used
-    // to confirm freshness.
     expect(resolved).toBe(`ws://127.0.0.1:${port}/devtools/browser/current-id`);
   });
 
@@ -161,8 +151,6 @@ describe("local CDP discovery", () => {
     } = await startFakeCdpServer((p) => `ws://127.0.0.1:${p}/devtools/browser/live-id`);
     servers.push(close);
 
-    // The same port shows up both as a (stale) cached candidate and as a
-    // fallback port -- discovery should only hit /json/version once for it.
     await writeDevToolsActivePort(userDataDir, port, "/devtools/browser/stale-id");
 
     const discovered = await discoverLocalCdp({

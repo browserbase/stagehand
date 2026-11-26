@@ -132,8 +132,8 @@ describe("DomainPolicyDnrManager", () => {
       const session = await f.manager.openSession();
       if (kind === "session") f.api.MAX_NUMBER_OF_SESSION_RULES = 3;
       else f.api.MAX_NUMBER_OF_REGEX_RULES = 3;
-      await session.replace(blocked); // Two owned rules plus one unrelated rule fit.
-      await session.replace(blocked); // Replacement must not double-count old rules.
+      await session.replace(blocked);
+      await session.replace(blocked);
       const previous = f.installed();
       await expect(session.replace(allowed)).rejects.toThrow(kind + " rule limit");
       expect(f.installed()).toEqual(previous);

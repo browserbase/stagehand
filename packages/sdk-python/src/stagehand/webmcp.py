@@ -43,12 +43,17 @@ class WebMCPTool:
         data = descriptor.model_dump(mode="json", exclude_unset=True)
         self._rpc_client = rpc_client
         self._page_id = page_id
+        self._tool_id = descriptor.tool_id
         self._name = descriptor.name
         self._description = descriptor.description
         self._input_schema = cast(dict[str, JsonValue] | None, data.get("input_schema"))
         self._annotations = descriptor.annotations
         self._frame_id = descriptor.frame_id
         self._backend_node_id = descriptor.backend_node_id
+
+    @property
+    def tool_id(self) -> str | None:
+        return self._tool_id
 
     @property
     def name(self) -> str:
@@ -79,15 +84,16 @@ class WebMCPTool:
         *,
         input: Mapping[str, JsonValue] | None = None,
     ) -> WebMCPInvocation:
+        params = PageWebMCPInvokeToolParams(
+            page_id=self._page_id,
+            frame_id=self.frame_id,
+            tool_name=self.name,
+            input={} if input is None else dict(input),
+        )
+        if self.tool_id is not None:
+            params.tool_id = self.tool_id
         descriptor = await self._rpc_client.send(
-            "page.webmcp_invoke_tool",
-            PageWebMCPInvokeToolParams.model_validate({
-                "page_id": self._page_id,
-                "frame_id": self.frame_id,
-                "tool_name": self.name,
-                "input": {} if input is None else dict(input),
-            }),
-            WebMCPInvocationDescriptor,
+            "page.webmcp_invoke_tool", params, WebMCPInvocationDescriptor
         )
         return WebMCPInvocation(self._rpc_client, self._page_id, descriptor)
 

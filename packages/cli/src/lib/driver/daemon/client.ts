@@ -30,8 +30,6 @@ interface OpenViaDaemonOptions {
 
 const DEFAULT_DAEMON_REQUEST_TIMEOUT_MS = 35_000;
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 30_000;
-// Stagehand gives browser/extension initialization 60 seconds. The daemon
-// transport must cover that work before the page navigation timeout begins.
 const OPEN_INITIALIZATION_ALLOWANCE_MS = 65_000;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 
@@ -143,6 +141,8 @@ export function assertCompatibleTarget(
   if (targetsCompatible(status.target, target)) return;
   fail(
     `Session "${session}" is already running in ${status.mode} mode. Run browse stop --session ${session} before changing modes.`,
+    1,
+    { resultCode: "session_mode_conflict" },
   );
 }
 
@@ -174,8 +174,6 @@ function isRuntimeDirFailure(error: unknown): boolean {
 }
 
 async function sendDriverRequest<T>(session: string, request: DriverRequest): Promise<T> {
-  // Validate here too: command requests can carry credentials and may be sent
-  // directly, without a preceding status probe.
   await ensureRuntimeDir();
   const socketPath = getSocketPath(session);
   return new Promise<T>((resolve, reject) => {
@@ -292,8 +290,6 @@ async function waitForSocketReady(socketPath: string, timeoutMs: number): Promis
 }
 
 async function isSocketConnectable(socketPath: string, timeoutMs: number): Promise<boolean> {
-  // Guard even the initial status probe, before accepting settings from a daemon.
-  // This also protects readiness probes while waiting for a new daemon to start.
   await ensureRuntimeDir();
   return new Promise((resolve) => {
     const socket = net.createConnection(socketPath);

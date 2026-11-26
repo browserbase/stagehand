@@ -57,10 +57,6 @@ export function remoteOnlyFlagsInUse(flags: DriverModeFlags): string[] {
 export async function resolveConnectionTarget(flags: DriverModeFlags): Promise<ConnectionTarget> {
   const chromeArgFlags = chromeArgFlagsInUse(flags);
 
-  // --verified / --proxies configure a Browserbase session at creation time, so
-  // they only mean something for an explicit --remote session. We deliberately
-  // do NOT let them imply --remote: that would silently switch the user to
-  // API-key (billed) cloud sessions. Require the mode to be stated explicitly.
   const remoteOnlyFlags = remoteOnlyFlagsInUse(flags);
   if (remoteOnlyFlags.length > 0 && !flags.remote) {
     const verb = remoteOnlyFlags.length === 1 ? "requires" : "require";
@@ -177,9 +173,6 @@ export function targetsCompatible(left: ConnectionTarget, right: ConnectionTarge
     return left.endpoint === right.endpoint && left.targetId === right.targetId;
   }
   if (left.kind === "remote" && right.kind === "remote") {
-    // verified/proxies are baked in at session creation, so a re-open that asks
-    // for different settings can't reuse the running session — make them sticky
-    // like headless, forcing an explicit stop-and-reopen.
     return (
       Boolean(left.verified) === Boolean(right.verified) &&
       Boolean(left.proxies) === Boolean(right.proxies)

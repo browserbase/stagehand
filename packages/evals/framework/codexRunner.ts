@@ -85,7 +85,6 @@ export async function runCodexAgent({
     browserSessionLoss:
       "browserSessionLoss" in toolAdapter ? toolAdapter.browserSessionLoss : undefined,
   };
-  // Codex budgets individual tool steps; 100 ≈ 50 Claude turns keeps the harnesses comparable.
   const maxToolSteps = resolveStepBudget({
     harnessEnvKey: "EVAL_CODEX_MAX_STEPS",
     dataset: plan.dataset,
@@ -106,8 +105,6 @@ export async function runCodexAgent({
       requestedReasoningEffort: reasoningEffort,
       requestedReasoningSummary: readReasoningSummary() ?? "off",
     },
-    // A caller-owned SDK is already constructed, so its developer config
-    // cannot be extended here. Use the shared fallback for that path.
     systemPromptMode: sdk ? "task_prefix" : "native",
     runSession: async (prompt) => {
       const sessionResult = await runCodexSession({
@@ -145,7 +142,6 @@ export async function runCodexAgent({
       });
       const usage = {
         ...normalizeCodexUsage(sessionResult.tokenUsage),
-        // Zeros after an aborted turn with no rollout are unknown usage, not a free run.
         reported: sessionResult.usageSource !== "none",
       };
       return {
@@ -162,7 +158,6 @@ export async function runCodexAgent({
         usage,
         metrics: {
           ...buildCodexMetrics(sessionResult.tokenUsage),
-          // 1 when the turn never completed and usage came from the rollout file.
           codex_usage_recovered: metricValue(sessionResult.usageSource === "rollout" ? 1 : 0),
         },
       };
@@ -182,8 +177,6 @@ export async function runCodexAgent({
           usage: {
             input_tokens: raw.tokenUsage.input_tokens,
             output_tokens: raw.tokenUsage.output_tokens,
-            // Unreported usage stays absent so trajectory consumers can
-            // distinguish "not measured" from a measured zero.
             ...(raw.tokenUsage.reasoning_output_tokens !== undefined && {
               reasoning_tokens: raw.tokenUsage.reasoning_output_tokens,
             }),
@@ -197,11 +190,6 @@ export async function runCodexAgent({
   });
 }
 
-/**
- * Codex config overrides for an eval session. Codex requests no reasoning
- * summaries for models outside its own catalog, so reasoning items never
- * arrive unless `model_reasoning_summary` is set explicitly.
- */
 const CODEX_REASONING_EFFORTS = [
   "minimal",
   "low",
@@ -213,7 +201,6 @@ const CODEX_REASONING_EFFORTS = [
   "persistent",
 ] as const satisfies readonly ModelReasoningEffort[];
 
-/** Validate EVAL_CODEX_REASONING_EFFORT; undefined leaves the codex per-model default. */
 export function validateCodexReasoningEffort(
   raw: string | undefined,
 ): (typeof CODEX_REASONING_EFFORTS)[number] | undefined {

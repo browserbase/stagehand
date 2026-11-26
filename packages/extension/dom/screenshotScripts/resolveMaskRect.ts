@@ -140,9 +140,7 @@ export function resolveMaskRect(this: Element | null, maskToken?: string): MaskR
           rootElement.style.removeProperty("transition");
         }
       }
-    } catch {
-      // Fall back to viewport-difference geometry if styles cannot be changed or measured.
-    }
+    } catch {}
     let rootToken: string | null = null;
     if (maskToken) {
       try {

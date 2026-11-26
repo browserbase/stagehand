@@ -812,9 +812,7 @@ class CdpPageHandle implements CorePageHandle {
         } else if (readyState === "complete") {
           return;
         }
-      } catch {
-        // retry while navigation settles
-      }
+      } catch {}
 
       await sleep(POLL_INTERVAL_MS);
     }
@@ -825,9 +823,7 @@ class CdpPageHandle implements CorePageHandle {
   async refreshUrl(): Promise<void> {
     try {
       this.state.currentUrl = await this.evaluate(() => window.location.href);
-    } catch {
-      // best-effort only
-    }
+    } catch {}
   }
 
   private async focusSelector(selector: string): Promise<void> {
@@ -1175,19 +1171,13 @@ async function captureCdpEvidence(session: CoreSession): Promise<ProbeEvidence> 
   const evidence: ProbeEvidence = {};
   try {
     evidence.screenshot = await page.screenshot();
-  } catch {
-    // Best effort: preserve other evidence modalities.
-  }
+  } catch {}
   try {
     evidence.url = page.url();
-  } catch {
-    // Best effort: preserve other evidence modalities.
-  }
+  } catch {}
   try {
     evidence.ariaTree = (await page.represent?.())?.content;
-  } catch {
-    // Best effort: preserve other evidence modalities.
-  }
+  } catch {}
   return evidence;
 }
 

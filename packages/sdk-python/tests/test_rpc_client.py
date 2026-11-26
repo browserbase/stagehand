@@ -230,11 +230,11 @@ async def test_send_omits_unset_nested_file_metadata() -> None:
     call = asyncio.create_task(
         client.send(
             "locator.set_input_files",
-            models.LocatorSetInputFilesParams(
-                page_id="page-1",
-                selector="#upload",
-                files=normalize_file_input(FilePayload(name="hello.txt", buffer=b"hello")),
-            ),
+            models.LocatorSetInputFilesParams.model_validate({
+                "page_id": "page-1",
+                "selector": "#upload",
+                "files": normalize_file_input(FilePayload(name="hello.txt", buffer=b"hello")),
+            }),
             models.LocatorSetInputFilesResult,
         )
     )
@@ -789,7 +789,6 @@ async def test_close_waits_for_all_listeners_before_propagating_failure(
     closing = asyncio.create_task(client.close(close_transport=close_transport))
     try:
         await asyncio.wait_for(failed.wait(), timeout=1)
-        # Let gather process the failed listener while the other is still blocked.
         await asyncio.sleep(0)
         await asyncio.sleep(0)
         assert not closing.done()
@@ -894,7 +893,6 @@ async def test_locator_response_wait_uses_default_override_and_zero(
     monkeypatch: pytest.MonkeyPatch,
     timeout: float | None,
 ) -> None:
-    # Keep real event-loop deadlines short; the policy tests above check production values.
     monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 10)
     monkeypatch.setattr(rpc_client, "_DEFAULT_LOCATOR_TIMEOUT_MS", 20)
     transport = QueueTransport()
@@ -928,7 +926,6 @@ async def test_selector_response_wait_uses_default_override_and_zero(
     monkeypatch: pytest.MonkeyPatch,
     timeout: int | None,
 ) -> None:
-    # Keep real event-loop deadlines short; the policy tests above check production values.
     monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 10)
     monkeypatch.setitem(rpc_client._DEFAULT_OPERATION_TIMEOUT_MS, "page.wait_for_selector", 20)
     transport = QueueTransport()
@@ -980,7 +977,6 @@ async def test_canceling_a_locator_task_stops_the_client_wait(timeout: float | N
         with pytest.raises(asyncio.CancelledError):
             await call
         assert client._pending == {}
-        # Local cancellation sends no remote cancellation command; a late reply is ignored.
         await client._receive({"jsonrpc": "2.0", "id": request["id"], "result": 2})
         assert transport.sent == [request]
         assert not client._closed
@@ -995,7 +991,7 @@ async def test_locator_timeout_error_keeps_remote_message_and_details() -> None:
     call = asyncio.create_task(
         client.send(
             "locator.count",
-            models.LocatorParams(page_id="page-1", selector="button"),
+            models.LocatorParams.model_validate({"page_id": "page-1", "selector": "button"}),
             models.LocatorCountResult,
         )
     )

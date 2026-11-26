@@ -68,8 +68,6 @@ export async function runClaudeCodeAgent({
   sdk,
   verifier,
 }: ClaudeCodeRunnerInput): Promise<TaskResult> {
-  // Claude Code budgets turns, each of which may span several tool calls, so
-  // the shared (tool-step calibrated) budget is a mild over-allowance here.
   const maxTurns = resolveStepBudget({
     harnessEnvKey: "EVAL_CLAUDE_CODE_MAX_TURNS",
     dataset: plan.dataset,

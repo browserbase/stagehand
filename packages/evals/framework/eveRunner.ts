@@ -139,9 +139,6 @@ export async function runEveAgent({
           ...(finalObservation && { finalObservation }),
           ...(stepObservations?.length && { stepObservations }),
           ...(observedToolName && { observedToolName }),
-          // A run cut off on its step budget never reached a conclusion: its
-          // last message is mid-task narration, which must not be graded as
-          // (or stand in for) an answer.
           finalAnswer:
             raw.status === "max_turns"
               ? (parsed.finalAnswer ?? "")

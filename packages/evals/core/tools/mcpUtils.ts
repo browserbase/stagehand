@@ -321,10 +321,6 @@ export class StdioMcpRuntime {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Visible-tab resolution
-// ---------------------------------------------------------------------------
-
 interface CdpEndpoint {
   kind: "ws" | "http";
   url: string;
@@ -349,7 +345,6 @@ export async function resolveVisiblePageUrl(
   timeoutMs = 4_000,
 ): Promise<string | undefined> {
   if (endpoint.kind !== "ws") return undefined;
-  // Typed locally: the evals package ships ws without @types/ws.
   type WsLike = {
     send(data: string, cb?: (err?: Error) => void): void;
     on(event: "message", cb: (raw: unknown) => void): void;
@@ -406,9 +401,7 @@ export async function resolveVisiblePageUrl(
           inflight.get(message.id)?.(message.result ?? {});
           inflight.delete(message.id);
         }
-      } catch {
-        // ignore malformed frames
-      }
+      } catch {}
     });
 
     const targets = (await send("Target.getTargets")) as {
@@ -473,7 +466,5 @@ export async function syncSessionToVisiblePage(
     const active = await session.activePage().catch((): undefined => undefined);
     if (active?.id === matches[0].id) return;
     await session.selectPage(matches[0].id);
-  } catch {
-    // best-effort only — capture falls back to the session's own selection
-  }
+  } catch {}
 }

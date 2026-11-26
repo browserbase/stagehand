@@ -78,7 +78,6 @@ beforeAll(async () => {
   });
   origin = await listen(server);
   chrome = await launchLocalBrowser({ headless: true }, AbortSignal.timeout(60000));
-  // Session acquisition uses a local fixture; CDP, the worker, and SDK HTTP are real.
   const factories = createBrowserFactoriesForTest({
     createBrowserbaseSessionClient: () => ({
       createSession: vi.fn(),

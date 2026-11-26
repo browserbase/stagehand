@@ -4,14 +4,16 @@ description: "Target elements and perform focused DOM interactions"
 icon: "crosshairs"
 ---
 
-Create a `Locator` from a page selector, then reuse it for element interactions and state queries. `first()` and `nth()` refine the local locator descriptor; the resulting descriptor is sent with later operations.
+Create a `Locator` from a page selector, then reuse it for element interactions & state queries. In TypeScript & Python, chain `.locator(selector)` to search within the previous matches. Creating a locator, chaining, `first()` & `nth()` return new locators without querying the browser or changing the original.
 
-Selectors pierce shadow DOM, including closed roots.
+Queries search open & closed shadow roots automatically. CSS relationships such as `>` are evaluated within each root; use chaining to query inside a matched shadow host.
 
-Selectors also cross iframe boundaries. Separate a frame from a target inside it with `>>`, and Stagehand resolves each hop in turn, so `page.locator("iframe#checkout >> button.submit")` reaches the button inside that iframe. Chain as many hops as the page nests. A deep XPath that steps through an iframe resolves the same way, as in `/html/body/iframe[2]//div`.
+An unchained `page.locator("button")` searches the current document & its shadow roots. To enter an iframe in TypeScript or Python, use `page.locator("iframe#checkout").locator("button.submit")`. The first locator selects the iframe element; the next query searches its document. Repeat this for nested frames. When a query matches several frames or containers, the next query searches within all of them.
+
+Existing `>>` selectors remain supported, including inside a chained call: `page.locator("iframe#checkout >> button.submit")` still reaches the button inside that iframe. Generated deep XPath paths such as `/html/body/iframe[2]//div` also retain their existing frame traversal. Chaining is the recommended syntax for new TypeScript & Python code.
 
 <Warning>
-**Closed roots require a navigated page.** Stagehand resolves elements inside iframes and shadow DOMs for you, so you rarely need to target nested documents manually. This relies on privileged browser APIs that aren't available on `about:blank` or `data:` URLs, so navigate to a `http:` or `https:` URL first when a target sits inside an iframe or a closed shadow root (see [locator limitations](/v4/reference/locator)).
+**Closed roots require a navigated page.** Access to closed shadow roots relies on privileged browser APIs that aren't available on `about:blank` or `data:` URLs. Navigate to an `http:` or `https:` URL first.
 </Warning>
 
 <Tabs>
@@ -490,6 +492,153 @@ await page.locator('input[type="file"]').setInputFiles("./resume.pdf");
   Resolves after the files are attached.
 </ResponseField>
 
+## locator()
+
+Create a locator that searches descendants of the current matches, or the document of each matched iframe. Accepts CSS, XPath & `text=` selectors. Use `xpath=.//button` for a relative XPath query.
+
+```typescript
+const cards = page.locator(".card");
+await cards.nth(1).locator("button.save").click();
+const buttons = cards.locator("button");
+const count = await buttons.count();
+await buttons.nth(1).click();
+
+const checkout = page.locator("iframe#checkout").locator("form");
+await checkout.locator("button.submit").click({ timeout: 5000 });
+```
+
+Placing `.nth(1)` before `.locator("button")` selects the second container; placing it afterward selects the second button from the combined results. Actions use the first final match unless narrowed with `nth()`. `count()` counts the final matches.
+
+Chained locators also work as screenshot masks, AI scopes & exclusions. Masks & exclusions use every final match; an AI scope uses the first final match.
+
+```typescript
+await page.screenshot({ mask: [checkout.locator("input")] });
+await stagehand.observe("Find the submit button", {
+  page,
+  locator: checkout,
+  ignoreLocators: [checkout.locator(".promo")],
+});
+```
+
+The same scope & exclusion options work with `act()` & `extract()`. A chain scope that cannot be resolved fails instead of falling back to the full page.
+
+<ParamField path="selector" type="string">
+  The selector to search for within the current matches.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new locator retaining the preceding queries & positions.
+</ResponseField>
+
+## getByRole()
+
+Find elements by their computed accessible role and name among descendants of the current matches, or inside each matched iframe’s document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
+
+```typescript
+await locator.getByRole("button", { name: "Save", exact: true }).click();
+```
+
+Roles and names come from Chromium’s accessibility tree. Names can come from labels, ARIA attributes, or element contents; hidden labels may contribute to an exposed control’s name. Name matching removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and name, including exact matches.
+
+Only exposed, non-ignored accessibility elements are returned. Hidden and inert controls are excluded; disabled, transparent, or offscreen controls can still match. The `includeHidden` option is not supported. State filters use the browser’s computed values; an absent state does not match false, except for disabled, whose absent value means enabled. Unsupported role/state combinations are rejected.
+
+Results retain DOM scope and order even when accessibility ownership differs. An element scope itself is excluded; chaining from an iframe enters its child document. Closed shadow-root traversal requires an `http:` or `https:` page; it is unavailable on `about:blank` and `data:` pages.
+
+<ParamField path="role" type="AriaRole">
+  The accessible role to match, such as `button`, `checkbox`, `heading`, or `textbox`.
+</ParamField>
+
+<ParamField path="options" type="GetByRoleOptions" optional>
+  <ParamField path="options.name" type="string" optional>
+    Accessible name to match. Strings only; regular expressions are not supported. Omit to match any name.
+  </ParamField>
+  <ParamField path="options.exact" type="boolean" optional>
+    Use case-sensitive whole-name matching. Defaults to `false` for case-insensitive substring matching.
+  </ParamField>
+  <ParamField path="options.checked" type="boolean | 'mixed'" optional>
+    Match the native checked state. Supported for checkbox, menuitemcheckbox, menuitemradio, option, radio, switch, and treeitem roles. Mixed is not supported for radio, menuitemradio, or switch.
+  </ParamField>
+  <ParamField path="options.pressed" type="boolean | 'mixed'" optional>
+    Match the pressed state of a button. A button without a pressed state does not match false.
+  </ParamField>
+  <ParamField path="options.selected" type="boolean" optional>
+    Match selection for columnheader, gridcell, option, row, rowheader, tab, or treeitem.
+  </ParamField>
+  <ParamField path="options.expanded" type="boolean" optional>
+    Match expansion for application, button, checkbox, columnheader, combobox, gridcell, link, listbox, menuitem, menuitemcheckbox, menuitemradio, row, rowheader, switch, tab, or treeitem.
+  </ParamField>
+  <ParamField path="options.disabled" type="boolean" optional>
+    Match the native disabled state. False includes controls whose disabled property is omitted by the browser.
+  </ParamField>
+  <ParamField path="options.level" type="number" optional>
+    Match a positive integer hierarchy level for heading, listitem, row, or treeitem.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new role locator.
+</ResponseField>
+
+## getByText()
+
+Find the smallest elements matching text in the current matches themselves and their descendants, or each matched iframe’s document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
+
+```typescript
+await locator.getByText("Save", { exact: true }).click();
+```
+
+`getByText()` removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and DOM text, including exact matches. It combines descendant text, including across block elements, without inserting separators; whitespace must come from the DOM. It uses button, submit, and reset input values. It excludes script, style, head, template, and noscript content. It does not require visibility and does not enter iframe documents automatically.
+
+Text aggregation follows DOM order, with a host’s light-DOM text before its shadow-root text. It does not expand slot assignments into rendered order, and it includes slot fallback text even when the slot has assigned content.
+
+Matching descendants take precedence over their ancestors. If no smaller element matches, the result can be `<body>` or `<html>`. A matching shadow root’s combined text also suppresses its host, even when that text has no element wrapper to return. An empty substring matches any normalized text; an exact empty string matches only normalized empty text. These queries use the same descendant and shadow-root selection rules. This method preserves existing `locator("text=...")` behavior.
+
+<ParamField path="text" type="string">
+  Text to match. This method accepts strings only; it rejects regular expressions and matcher objects.
+</ParamField>
+
+<ParamField path="options" type="GetByTextOptions" optional>
+  <ParamField path="options.exact" type="boolean" optional>
+    Use case-sensitive whole-text matching. Defaults to `false`, for case-insensitive substring matching.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new text locator.
+</ResponseField>
+
+## filter()
+
+Keep the current matching elements whose text satisfies the supplied conditions. Returns a new lazy locator; the original locator is unchanged. Both conditions must pass when supplied together.
+
+```typescript
+const cards = page.locator(".card");
+const billing = cards.filter({ hasText: "Billing", hasNotText: "Archived" });
+await billing.first().locator("button").click();
+
+const secondBillingCard = cards.filter({ hasText: "Billing" }).nth(1);
+const secondCardIfBilling = cards.nth(1).filter({ hasText: "Billing" });
+```
+
+Matching uses case-insensitive substrings. It removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the filter and element text. Text extraction follows `getByText()`, including descendant text, button input values, and open/closed shadow roots. Hidden text is included. The filter retains each original element, rather than selecting its smallest matching descendant.
+
+Filtering an iframe tests the iframe element's own DOM text and does not enter its child document. Use `page.locator("iframe").locator(".card").filter({ hasText: "Billing" })` to filter cards inside it. Closed shadow-root traversal requires an `http:` or `https:` page.
+
+`filter()` and `filter({})` retain all current matches. An empty `hasText` retains all matches; an empty `hasNotText` retains none. Regular expressions, `has`, `hasNot`, and exact matching are unsupported. Invalid options fail during construction, before a browser request.
+
+<ParamField path="options" type="LocatorFilterOptions" optional>
+  <ParamField path="options.hasText" type="string" optional>
+    Keep elements containing this text.
+  </ParamField>
+  <ParamField path="options.hasNotText" type="string" optional>
+    Keep elements that do not contain this text.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  A new locator retaining the filtered elements in their original order.
+</ResponseField>
+
 ## first()
 
 Create a locator for the first matching element.
@@ -923,6 +1072,150 @@ await page.locator('input[type="file"]').set_input_files("./resume.pdf")
 
 <ResponseField name="result" type="None">
   Resolves after the files are attached.
+</ResponseField>
+
+## locator()
+
+Create a locator that searches descendants of the current matches, or the document of each matched iframe. Accepts CSS, XPath & `text=` selectors. Use `xpath=.//button` for a relative XPath query.
+
+```python
+cards = page.locator(".card")
+await cards.nth(1).locator("button.save").click()
+buttons = cards.locator("button")
+count = await buttons.count()
+await buttons.nth(1).click()
+
+checkout = page.locator("iframe#checkout").locator("form")
+await checkout.locator("button.submit").click(timeout=5000)
+```
+
+Placing `.nth(1)` before `.locator("button")` selects the second container; placing it afterward selects the second button from the combined results. Actions use the first final match unless narrowed with `nth()`. `count()` counts the final matches.
+
+Chained locators also work as screenshot masks, AI scopes & exclusions. Masks & exclusions use every final match; an AI scope uses the first final match.
+
+```python
+await page.screenshot(mask=[checkout.locator("input")])
+await stagehand.observe(
+    "Find the submit button",
+    page=page,
+    locator=checkout,
+    ignore_locators=[checkout.locator(".promo")],
+)
+```
+
+The same scope & exclusion options work with `act()` & `extract()`. A chain scope that cannot be resolved fails instead of falling back to the full page.
+
+<ParamField path="selector" type="str">
+  The selector to search for within the current matches.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  A new locator retaining the preceding queries & positions.
+</ResponseField>
+
+## get_by_role()
+
+Find elements by their computed accessible role and name among descendants of the current matches, or inside each matched iframe’s document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
+
+```python
+await locator.get_by_role("button", name="Save", exact=True).click()
+```
+
+Roles and names come from Chromium’s accessibility tree. Names can come from labels, ARIA attributes, or element contents; hidden labels may contribute to an exposed control’s name. Name matching removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and name, including exact matches.
+
+Only exposed, non-ignored accessibility elements are returned. Hidden and inert controls are excluded; disabled, transparent, or offscreen controls can still match. The `include_hidden` option is not supported. State filters use the browser’s computed values; an absent state does not match false, except for disabled, whose absent value means enabled. Unsupported role/state combinations are rejected.
+
+Results retain DOM scope and order even when accessibility ownership differs. An element scope itself is excluded; chaining from an iframe enters its child document. Closed shadow-root traversal requires an `http:` or `https:` page; it is unavailable on `about:blank` and `data:` pages.
+
+Use `None` to omit a name or state filter; `exact` must be a `bool`.
+
+<ParamField path="role" type="AriaRole">
+  The accessible role to match, such as `button`, `checkbox`, `heading`, or `textbox`.
+</ParamField>
+
+<ParamField path="name" type="str | None" optional>
+  Accessible name to match. Strings only; regular expressions are not supported. Omit to match any name.
+</ParamField>
+<ParamField path="exact" type="bool" optional>
+  Use case-sensitive whole-name matching. Defaults to `False` for case-insensitive substring matching.
+</ParamField>
+<ParamField path="checked" type="bool | Literal['mixed'] | None" optional>
+  Match the native checked state. Supported for checkbox, menuitemcheckbox, menuitemradio, option, radio, switch, and treeitem roles. Mixed is not supported for radio, menuitemradio, or switch.
+</ParamField>
+<ParamField path="pressed" type="bool | Literal['mixed'] | None" optional>
+  Match the pressed state of a button. A button without a pressed state does not match false.
+</ParamField>
+<ParamField path="selected" type="bool | None" optional>
+  Match selection for columnheader, gridcell, option, row, rowheader, tab, or treeitem.
+</ParamField>
+<ParamField path="expanded" type="bool | None" optional>
+  Match expansion for application, button, checkbox, columnheader, combobox, gridcell, link, listbox, menuitem, menuitemcheckbox, menuitemradio, row, rowheader, switch, tab, or treeitem.
+</ParamField>
+<ParamField path="disabled" type="bool | None" optional>
+  Match the native disabled state. False includes controls whose disabled property is omitted by the browser.
+</ParamField>
+<ParamField path="level" type="int | None" optional>
+  Match a positive integer hierarchy level for heading, listitem, row, or treeitem.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  A new role locator.
+</ResponseField>
+
+## get_by_text()
+
+Find the smallest elements matching text in the current matches themselves and their descendants, or each matched iframe’s document, including open and closed shadow roots. Returns a lazy locator supporting chaining, `count()`, `first()`, and `nth()`.
+
+```python
+await locator.get_by_text("Save", exact=True).click()
+```
+
+`get_by_text()` removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the query and DOM text, including exact matches. It combines descendant text, including across block elements, without inserting separators; whitespace must come from the DOM. It uses button, submit, and reset input values. It excludes script, style, head, template, and noscript content. It does not require visibility and does not enter iframe documents automatically.
+
+Text aggregation follows DOM order, with a host’s light-DOM text before its shadow-root text. It does not expand slot assignments into rendered order, and it includes slot fallback text even when the slot has assigned content.
+
+Matching descendants take precedence over their ancestors. If no smaller element matches, the result can be `<body>` or `<html>`. A matching shadow root’s combined text also suppresses its host, even when that text has no element wrapper to return. An empty substring matches any normalized text; an exact empty string matches only normalized empty text. These queries use the same descendant and shadow-root selection rules. This method preserves existing `locator("text=...")` behavior.
+
+<ParamField path="text" type="str">
+  Text to match. This method accepts strings only; it rejects regular expressions and matcher objects.
+</ParamField>
+
+<ParamField path="exact" type="bool" optional>
+  Use case-sensitive whole-text matching. Defaults to `False`, for case-insensitive substring matching.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  A new text locator.
+</ResponseField>
+
+## filter()
+
+Keep the current matching elements whose text satisfies the supplied conditions. Returns a new lazy locator; the original locator is unchanged. Both conditions must pass when supplied together.
+
+```python
+cards = page.locator(".card")
+billing = cards.filter(has_text="Billing", has_not_text="Archived")
+await billing.first().locator("button").click()
+
+second_billing_card = cards.filter(has_text="Billing").nth(1)
+second_card_if_billing = cards.nth(1).filter(has_text="Billing")
+```
+
+Matching uses case-insensitive substrings. It removes zero-width spaces (`U+200B`) and soft hyphens (`U+00AD`), then trims and collapses whitespace in both the filter and element text. Text extraction follows `get_by_text()`, including descendant text, button input values, and open/closed shadow roots. Hidden text is included. The filter retains each original element, rather than selecting its smallest matching descendant.
+
+Filtering an iframe tests the iframe element's own DOM text and does not enter its child document. Use `page.locator("iframe").locator(".card").filter(has_text="Billing")` to filter cards inside it. Closed shadow-root traversal requires an `http:` or `https:` page.
+
+`filter()` retains all current matches. Use `None` to omit either condition. An empty `has_text` retains all matches; an empty `has_not_text` retains none. Regular expressions, `has`, `has_not`, and exact matching are unsupported. Invalid options fail during construction, before a browser request.
+
+<ParamField path="has_text" type="str | None" optional>
+  Keep elements containing this text.
+</ParamField>
+<ParamField path="has_not_text" type="str | None" optional>
+  Keep elements that do not contain this text.
+</ParamField>
+
+<ResponseField name="result" type="Self">
+  A new locator retaining the filtered elements in their original order.
 </ResponseField>
 
 ## first()

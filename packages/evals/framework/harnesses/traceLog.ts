@@ -2,29 +2,8 @@ import type { LogLine, Trajectory, TrajectoryStep } from "stagehand-v3";
 import type { ExternalHarnessSessionOutcome } from "./externalRunner.js";
 import { formatNormalizedUsage, type NormalizedUsage } from "../usageNormalization.js";
 
-/**
- * Readable per-step trace shared by every external harness. It is derived
- * from the normalized Trajectory, so claude_code, codex, mastra, pi, eve,
- * deepagents, fx and cursor all log the exact same shape:
- *
- *   step 3 · think · <reasoning, clipped>
- *   step 3 · run · ok · await page.goto('https://…'); return page.title()  →  "Recreation.gov…"
- *   step 4 · screenshot · ok  →  [image 42 KB]
- *   step 5 · run · ERR · await page.click('#nope')  →  Timeout 30000ms exceeded
- *   summary · <agent's self-reported summary, clipped>
- *   answer · <agent's final answer, clipped>   (or "answer · (none — max_turns)")
- *   result · completed · steps=5 · facade_calls=4 · in=12345 (cached 9000) out=678 · agent=42.0s
- *
- * The verifier runs after this trace, so its wall-clock lands on a separate
- * `timing · agent=… evidence=… verifier=… total=…` line once grading is done.
- *
- * Full code and results travel in `auxiliary` so Braintrust / parseLogLine
- * keep the detail expandable without polluting the message text.
- */
-
 export const TRACE_LOG_CATEGORY = "trace";
 export const TRACE_CLIP_CHARS = 200;
-/** Cap on full-detail auxiliary payloads so a 300 KB snapshot cannot bloat a row. */
 export const TRACE_AUXILIARY_MAX_CHARS = 16_000;
 
 const SEPARATOR = " · ";
@@ -37,19 +16,13 @@ export interface TraceLogSink {
 export interface TrajectoryTraceInput {
   trajectory: Pick<Trajectory, "steps">;
   outcome: Pick<ExternalHarnessSessionOutcome<unknown>, "status" | "stopReason" | "usage">;
-  /** Convention-normalized token buckets; falls back to the raw SDK usage when absent. */
   usage?: NormalizedUsage;
-  /** Wall-clock of the agent session alone (ms), excluding evidence capture and grading. */
   agentWallMs?: number;
-  /** Optional per-step wall-clock durations (ms), indexed like `trajectory.steps`. */
   stepDurationsMs?: ReadonlyArray<number | undefined>;
-  /** Which action names count as calls into the mounted browser surface. */
   isFacadeTool?: (name: string) => boolean;
-  /** The agent's parsed self-report (EVAL_RESULT), when available. */
   report?: { summary?: string; finalAnswer?: string; success?: boolean };
 }
 
-/** Build every trace line for a completed run, in emission order. */
 export function buildTrajectoryTraceLines(input: TrajectoryTraceInput): LogLine[] {
   const lines: LogLine[] = [];
   input.trajectory.steps.forEach((step, index) => {
@@ -60,11 +33,6 @@ export function buildTrajectoryTraceLines(input: TrajectoryTraceInput): LogLine[
   return lines;
 }
 
-/**
- * What the agent said it did and concluded. A missing answer is stated
- * explicitly (with the stop status) — silence here hides budget/error stops
- * where the agent never produced a final message.
- */
 export function buildAnswerTraceLines(input: TrajectoryTraceInput): LogLine[] {
   const report = input.report ?? {};
   const lines: LogLine[] = [];
@@ -96,7 +64,6 @@ export function buildAnswerTraceLines(input: TrajectoryTraceInput): LogLine[] {
   return lines;
 }
 
-/** Emit the trace through an EvalLogger-compatible sink. */
 export function emitTrajectoryTrace(sink: TraceLogSink, input: TrajectoryTraceInput): void {
   for (const line of buildTrajectoryTraceLines(input)) sink.log(line);
 }
@@ -173,11 +140,6 @@ export function buildResultTraceLine(input: TrajectoryTraceInput): LogLine {
   };
 }
 
-/**
- * Collapse harness-specific tool naming onto the surface's own tool name:
- * `mcp__stagehand__run`, `stagehand.run`, `stagehand_run` all become `run`.
- * Names that carry no server prefix (Bash, node, web_search) pass through.
- */
 export function shortToolName(actionName: string): string {
   let name = actionName.trim() || "tool";
   if (name.startsWith("mcp__")) {
@@ -273,11 +235,6 @@ function clip(value: string, max = TRACE_CLIP_CHARS): string {
   return value.length > max ? value.slice(0, max - 1) + "…" : value;
 }
 
-/**
- * Capped auxiliary payload. Objects are capped as JSON text, which can leave a
- * truncated string in a type:"object" entry — parseLogLine falls back to the
- * raw string in that case.
- */
 function capped(value: string): string {
   return value.length > TRACE_AUXILIARY_MAX_CHARS
     ? value.slice(0, TRACE_AUXILIARY_MAX_CHARS) +

@@ -169,8 +169,6 @@ describe("fx runner helpers", () => {
         observedToolMatcher: (name) => name.startsWith("mcp_"),
         cleanup: async () => {},
       },
-      // Malformed rubric: the trajectory is still built and traced before the
-      // verifier integration fails, which is what this test inspects.
       verifier: {
         trajectoryRoot,
         v3: {} as never,

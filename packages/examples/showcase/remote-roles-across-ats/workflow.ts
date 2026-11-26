@@ -1,7 +1,6 @@
 import type { Page, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
-// Three applicant tracking systems, five different page structures.
 const BOARDS = [
   { company: "Figma", ats: "Greenhouse", url: "https://job-boards.greenhouse.io/figma" },
   { company: "Vercel", ats: "Greenhouse", url: "https://job-boards.greenhouse.io/vercel" },

@@ -95,7 +95,6 @@ it("includes browser launch and Stagehand initialization in measured session age
     sessionAgeMs: 13_000,
     sessionTimeoutMs: 3_600_000,
   });
-  // STAGEHAND_FACADE_QUIET_WAIT is unset in this config.
   expect(mocks.toolsOptions).not.toHaveProperty("quietWait");
   expect(mocks.toolsOptions).not.toHaveProperty("artifactRoot");
 });

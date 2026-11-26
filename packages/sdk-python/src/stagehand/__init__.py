@@ -1,9 +1,8 @@
-"""Stagehand Python SDK."""
-
 from ._generated.input_types import (
     Action as ActionInput,
 )
 from ._generated.input_types import (
+    AriaRole,
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     CookieParam,
@@ -98,6 +97,7 @@ from .webmcp import (
 )
 
 __all__ = [
+    "AriaRole",
     "ActResult",
     "ActResultData",
     "Action",

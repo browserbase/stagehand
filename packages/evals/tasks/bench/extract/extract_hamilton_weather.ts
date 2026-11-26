@@ -7,7 +7,6 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://stagehand-eval-sites.vercel.app/sites/hamilton-weather/");
-      // The locator engine prefix is required for XPath selectors.
       const locator = page.locator(
         "xpath=/html/body[1]/div[5]/main[1]/article[1]/div[6]/div[2]/div[1]/table[1]",
       );
@@ -25,7 +24,6 @@ export default defineBenchTask(
         { locator },
       );
 
-      // Define the expected weather data
       const expectedWeatherData = {
         temperature: "27 °F",
         weather_description: "Light snow. Overcast.",
@@ -35,7 +33,6 @@ export default defineBenchTask(
         visibility: "10 mi",
       };
 
-      // Check that every field matches the expected value
       const isWeatherCorrect =
         compareStrings(weatherData.temperature, expectedWeatherData.temperature, 0.9)
           .meetsThreshold &&

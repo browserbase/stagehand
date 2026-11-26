@@ -13,7 +13,6 @@ export type FacadeMCPClientOptions = {
  * child process and the browser it manages.
  */
 export async function createFacadeMCPClient(options: FacadeMCPClientOptions = {}) {
-  // Build @browserbasehq/stagehand-integrations first so this dist entrypoint exists.
   const serverPath = fileURLToPath(
     import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),
   );

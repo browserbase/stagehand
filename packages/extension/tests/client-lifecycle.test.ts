@@ -14,7 +14,6 @@ function fixture() {
     off: (_event: string, handler: (event: { targetId: string }) => void) =>
       handlers.delete(handler),
   });
-  // Each attachment opens its own B, so a reconnect must not reuse a closed one.
   const connections: ReturnType<typeof createConnection>[] = [];
   const options = {
     connection: vi.fn(async () => {
@@ -83,7 +82,6 @@ describe("client connection ownership", () => {
   });
 
   it("rejects client callbacks before closing B, and never waits for disposal", async () => {
-    // e.g. the client died while stagehand.close() waited on an LLM call it was serving.
     const f = fixture();
     const order: string[] = [];
     f.options.rejectClientCallbacks.mockImplementation(() => order.push("reject"));
@@ -95,7 +93,6 @@ describe("client connection ownership", () => {
     f.destroy("client-a");
     await vi.waitFor(() => expect(order).toEqual(["reject", "close B"]));
 
-    // A hung disposal does not block the next client from attaching.
     await f.attach("client-b");
     expect(f.connections).toHaveLength(2);
   });
@@ -110,7 +107,6 @@ describe("client connection ownership", () => {
   });
 
   it("acknowledges a detach without waiting for disposal", async () => {
-    // e.g. an in-flight worker callback keeps disposal waiting past the SDK's timeout.
     const f = fixture();
     f.options.disposeClient.mockImplementation(() => new Promise(() => {}));
     await f.attach("client-a", true);

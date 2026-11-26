@@ -13,9 +13,6 @@ import {
   type FxToolCallRecord,
 } from "../src/index.js";
 
-// Fixtures are scrubbed copies of real fx 0.0.11 session directories:
-// `committed` is a finished turn (events.jsonl stream, schema_version 3) and
-// `in-flight` is a turn killed mid-run (empty events.jsonl + recovery.json).
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "fx-0.0.11");
 const logger = { log: () => {}, warn: () => {}, error: () => {} };
 const homes: string[] = [];
@@ -74,10 +71,8 @@ describe("fx 0.0.11 session layout", () => {
       tool_call_id: run.tool_calls[0]!.id,
       status: "success",
     });
-    // The full output comes from tool-results/, not the 60-character preview.
     expect(run.tool_results[0]!.output).toContain("Introduction to Linear Algebra");
     expect(steps[0]!.tool_results[0]!.output).toContain("Selected dynamic MCP tool");
-    // The deliverable is the final response alone, not the narration.
     expect(result.finalMessage).toBe(finalOutput);
     expect(result.status).toBe("completed");
     expect(result.events.map((event) => event.type)).toContain("turn_committed");
@@ -123,7 +118,6 @@ describe("fx 0.0.11 session layout", () => {
     expect(results.find((r) => r.tool_name === "mcp_stagehand_run")?.output).toContain(
       "hostelworld",
     );
-    // Screenshot image blocks live in a second artifact and are merged back in.
     const screenshot = JSON.parse(
       results.find((r) => r.tool_name === "mcp_stagehand_screenshot")!.output!,
     );

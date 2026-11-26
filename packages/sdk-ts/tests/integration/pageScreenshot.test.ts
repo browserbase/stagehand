@@ -193,44 +193,50 @@ describe("Page.screenshot options", () => {
     });
   });
 
-  it("masks every deep-locator match and respects nth() across an iframe hop", async () => {
-    const page = await firstPage(stagehand);
-    const child = `<style>body{margin:0}.secret{position:absolute;width:40px;height:40px;background:#00aa00}.first{left:10px;top:10px}.second{left:70px;top:10px}</style><div class="secret first"></div><div class="secret second"></div>`;
-    await page.goto(
-      `data:text/html,${encodeURIComponent(`<iframe id="child" style="position:absolute;left:20px;top:20px;width:180px;height:80px;border:0" srcdoc="${child.replaceAll('"', "&quot;")}"></iframe>`)}`,
-    );
-
-    const secrets = page.locator("iframe#child >> .secret");
-    await expect.poll(() => secrets.count()).toBe(2);
-    const centers = await page.evaluate(() => {
-      const iframe = document.querySelector<HTMLIFrameElement>("#child")!;
-      const frameRect = iframe.getBoundingClientRect();
-      return Array.from(iframe.contentDocument!.querySelectorAll<HTMLElement>(".secret")).map(
-        (element) => {
-          const rect = element.getBoundingClientRect();
-          return {
-            x: Math.floor(frameRect.left + rect.left + rect.width / 2),
-            y: Math.floor(frameRect.top + rect.top + rect.height / 2),
-          };
-        },
+  it.each(["legacy", "chain"])(
+    "masks every match & respects nth() across an iframe hop (%s)",
+    async (syntax) => {
+      const page = await firstPage(stagehand);
+      const child = `<style>body{margin:0}.secret{position:absolute;width:40px;height:40px;background:#00aa00}.first{left:10px;top:10px}.second{left:70px;top:10px}</style><div class="secret first"></div><div class="secret second"></div>`;
+      await page.goto(
+        `data:text/html,${encodeURIComponent(`<iframe id="child" style="position:absolute;left:20px;top:20px;width:180px;height:80px;border:0" srcdoc="${child.replaceAll('"', "&quot;")}"></iframe>`)}`,
       );
-    });
 
-    const sampleMask = async (mask: [typeof secrets], color: string) => {
-      const bytes = await page.screenshot({ mask, maskColor: color, scale: "css" });
-      return inspectScreenshotPixels(
-        page,
-        bytes,
-        centers,
-        color === "#ff00ff" ? [255, 0, 255] : [0, 255, 255],
-      );
-    };
+      const secrets =
+        syntax === "chain"
+          ? page.locator("iframe#child").locator(".secret")
+          : page.locator("iframe#child >> .secret");
+      await expect.poll(() => secrets.count()).toBe(2);
+      const centers = await page.evaluate(() => {
+        const iframe = document.querySelector<HTMLIFrameElement>("#child")!;
+        const frameRect = iframe.getBoundingClientRect();
+        return Array.from(iframe.contentDocument!.querySelectorAll<HTMLElement>(".secret")).map(
+          (element) => {
+            const rect = element.getBoundingClientRect();
+            return {
+              x: Math.floor(frameRect.left + rect.left + rect.width / 2),
+              y: Math.floor(frameRect.top + rect.top + rect.height / 2),
+            };
+          },
+        );
+      });
 
-    await expect(sampleMask([secrets], "#ff00ff")).resolves.toMatchObject({
-      pointMatches: [true, true],
-    });
-    await expect(sampleMask([secrets.nth(1)], "#00ffff")).resolves.toMatchObject({
-      pointMatches: [false, true],
-    });
-  });
+      const sampleMask = async (mask: [typeof secrets], color: string) => {
+        const bytes = await page.screenshot({ mask, maskColor: color, scale: "css" });
+        return inspectScreenshotPixels(
+          page,
+          bytes,
+          centers,
+          color === "#ff00ff" ? [255, 0, 255] : [0, 255, 255],
+        );
+      };
+
+      await expect(sampleMask([secrets], "#ff00ff")).resolves.toMatchObject({
+        pointMatches: [true, true],
+      });
+      await expect(sampleMask([secrets.nth(1)], "#00ffff")).resolves.toMatchObject({
+        pointMatches: [false, true],
+      });
+    },
+  );
 });

@@ -31,7 +31,7 @@ export default defineBenchTask(
       });
 
       const actualDiff = newScrollTop - initialScrollTop;
-      const threshold = 20; // allowable difference in px
+      const threshold = 20;
       const scrolledOneChunk = Math.abs(actualDiff - chunkHeight) <= threshold;
 
       const evaluationResult = scrolledOneChunk
