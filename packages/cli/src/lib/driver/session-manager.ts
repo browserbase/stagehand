@@ -66,6 +66,8 @@ export class DriverSessionManager {
   private browser: StagehandBrowser | null = null;
   private browserbaseIdentityValue: BrowserbaseIdentity = {};
   private consecutiveInitFailures = 0;
+  // Bumped by close() so an init that was still in flight cannot install its browser afterwards.
+  private closeGeneration = 0;
   private context: DriverContext | null = null;
   private cursorOverlayPageIds = new Set<string>();
   private lastForwardedEnvSignature: string | null = null;
@@ -180,6 +182,7 @@ export class DriverSessionManager {
   async close(): Promise<void> {
     const stagehand = this.stagehand;
     const browser = this.browser;
+    this.closeGeneration += 1;
     this.stagehand = null;
     this.browser = null;
     this.context = null;
@@ -346,6 +349,7 @@ export class DriverSessionManager {
   }
 
   private async initialize(): Promise<void> {
+    const generation = this.closeGeneration;
     const resolvedTarget = await this.resolveTarget();
     let browser: StagehandBrowser | undefined;
 
@@ -376,6 +380,10 @@ export class DriverSessionManager {
         browser,
         logging: { level: "off" },
       });
+      if (generation !== this.closeGeneration) {
+        await stagehand.close().catch(() => undefined);
+        throw new Error("Driver session closed while it was initializing.");
+      }
       this.browser = browser;
       this.stagehand = stagehand;
       this.context = stagehand.browser.context;

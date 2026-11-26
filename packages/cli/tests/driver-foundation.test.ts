@@ -1324,6 +1324,132 @@ describe("driver foundation", () => {
     }
   });
 
+  it("closes a browser whose launch was still in flight when the manager closed", async () => {
+    let finishLaunch!: (browser: unknown) => void;
+    const closeBrowser = vi.fn().mockResolvedValue(undefined);
+    const browser = { close: closeBrowser, context: {} };
+    const launch = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finishLaunch = resolve;
+        }),
+    );
+    const closeStagehand = vi.fn().mockResolvedValue(undefined);
+    const create = vi.fn().mockResolvedValue({ browser, close: closeStagehand });
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      localBrowser: { connect: vi.fn(), launch },
+      Stagehand: { create },
+    }));
+
+    try {
+      const { DriverSessionManager: MockedDriverSessionManager } =
+        await import("../src/lib/driver/session-manager.js");
+      const manager = new MockedDriverSessionManager("close-during-launch", {
+        headless: true,
+        kind: "managed-local",
+      });
+
+      // `browse open` starts the first init; the browser launch is still pending.
+      const opening = manager.stagehandInstance();
+      await vi.waitFor(() => expect(launch).toHaveBeenCalledOnce());
+
+      // `browse stop` (or SIGTERM) closes the manager before the launch returns.
+      await manager.close();
+      finishLaunch(browser);
+      await opening.catch(() => undefined);
+
+      expect(closeStagehand).toHaveBeenCalledOnce();
+      expect(closeBrowser).toHaveBeenCalledOnce();
+      expect((await manager.status()).initialized).toBe(false);
+    } finally {
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
+  it("closes an in-flight browser when a stop request arrives over the daemon socket", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+    const session = `stop-during-open-${process.pid}`;
+
+    let finishLaunch!: (browser: unknown) => void;
+    const closeBrowser = vi.fn().mockResolvedValue(undefined);
+    const browser = { close: closeBrowser, context: {} };
+    const launch = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finishLaunch = resolve;
+        }),
+    );
+    const closeStagehand = vi.fn().mockResolvedValue(undefined);
+    const create = vi.fn().mockResolvedValue({ browser, close: closeStagehand });
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      localBrowser: { connect: vi.fn(), launch },
+      Stagehand: { create },
+    }));
+
+    let openClient: net.Socket | undefined;
+    try {
+      const { runDriverDaemon: mockedRunDriverDaemon } =
+        await import("../src/lib/driver/daemon/server.js");
+      const socketPath = getSocketPath(session);
+      const runPromise = mockedRunDriverDaemon({
+        session,
+        target: { headless: true, kind: "managed-local" },
+      });
+      await waitForSocket(socketPath);
+
+      // Start `open` over the daemon socket, then drop the client once launch is in flight.
+      openClient = net.createConnection(socketPath);
+      await new Promise<void>((resolve, reject) => {
+        openClient!.once("connect", () => {
+          openClient!.write(
+            `${JSON.stringify({ id: "open-1", type: "open", url: "https://example.com" })}\n`,
+          );
+          resolve();
+        });
+        openClient!.once("error", reject);
+      });
+      await vi.waitFor(() => expect(launch).toHaveBeenCalledOnce());
+      await new Promise<void>((resolve) => {
+        openClient!.once("close", () => resolve());
+        openClient!.destroy();
+      });
+
+      const stopReply = await sendSocketRequest(socketPath, {
+        id: "stop-1",
+        type: "stop",
+      });
+      expect(JSON.parse(stopReply)).toMatchObject({
+        data: { stopped: true },
+        id: "stop-1",
+        type: "success",
+      });
+      await expect(
+        Promise.race([runPromise, rejectAfter(1_000, "Daemon server did not close.")]),
+      ).resolves.toBe(undefined);
+      await expect(access(socketPath)).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(access(getPidPath(session))).rejects.toMatchObject({ code: "ENOENT" });
+
+      finishLaunch(browser);
+      await vi.waitFor(() => {
+        expect(closeStagehand).toHaveBeenCalledOnce();
+        expect(closeBrowser).toHaveBeenCalledOnce();
+      });
+    } finally {
+      openClient?.destroy();
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
   it("passes Chrome args to managed local Stagehand launches", async () => {
     const browser = {
       close: vi.fn().mockResolvedValue(undefined),
