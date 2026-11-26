@@ -166,6 +166,14 @@ export class ChainTargetLocator extends Locator {
     );
     if (!object.objectId) throw new Error("Locator chain target is no longer attached");
     if (typeof this.selector !== "string" && this.selector.type === "prompt") {
+      const release = async () => {
+        const work = () =>
+          this.frame.session
+            .send("Runtime.releaseObject", { objectId: object.objectId })
+            .catch(() => {});
+        if (progress) await progress.cleanup(work);
+        else await work();
+      };
       try {
         const attached = await runLocatorStep(progress, "checking prompt target attachment", () =>
           this.frame.session.send<Protocol.Runtime.CallFunctionOnResponse>(
@@ -173,21 +181,25 @@ export class ChainTargetLocator extends Locator {
             {
               objectId: object.objectId,
               functionDeclaration:
-                "function() { return this.isConnected && this.nodeType === Node.ELEMENT_NODE; }",
+                "function() { if (this.nodeType === Node.DOCUMENT_NODE) return this.isConnected ? 'document' : false; return this.isConnected && this.nodeType === Node.ELEMENT_NODE; }",
               returnByValue: true,
             },
           ),
         );
-        if (attached.exceptionDetails || attached.result.value !== true) {
+        if (attached.exceptionDetails) {
+          throw new Error("Prompt locator target is no longer attached");
+        }
+        if (attached.result.value === "document") {
+          // APC reports page scrolling on the document node, but actions need an element.
+          const element = await this.documentScrollingElement(object.objectId, progress);
+          await release();
+          return { objectId: element, nodeId: null };
+        }
+        if (attached.result.value !== true) {
           throw new Error("Prompt locator target is no longer attached");
         }
       } catch (error) {
-        const release = () =>
-          this.frame.session
-            .send("Runtime.releaseObject", { objectId: object.objectId })
-            .catch(() => {});
-        if (progress) await progress.cleanup(release);
-        else await release();
+        await release();
         throw error;
       }
     }
@@ -196,5 +208,27 @@ export class ChainTargetLocator extends Locator {
 
   override async resolveNodesForMask(progress: Progress): Promise<ResolvedNode[]> {
     return [await this.resolveNode(progress)];
+  }
+
+  private async documentScrollingElement(objectId: string, progress?: Progress): Promise<string> {
+    const { result, exceptionDetails } = await runLocatorStep(
+      progress,
+      "mapping document to its scrolling element",
+      () =>
+        this.frame.session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration:
+            "function() { return this.scrollingElement || this.documentElement; }",
+          returnByValue: false,
+        }),
+      (late) =>
+        late.result.objectId
+          ? this.frame.session.send("Runtime.releaseObject", { objectId: late.result.objectId })
+          : undefined,
+    );
+    if (exceptionDetails || !result.objectId) {
+      throw new Error("Prompt locator target is no longer attached");
+    }
+    return result.objectId;
   }
 }
