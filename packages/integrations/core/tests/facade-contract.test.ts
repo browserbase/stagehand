@@ -19,11 +19,21 @@ import {
 import { StagehandFacadeConfigError, stagehandFacadeConfigFromEnv } from "../src/facade/config.js";
 
 describe("Stagehand facade contract", () => {
-  it("defaults local browser launches to headed mode", () => {
+  it("defaults local browser launches to headless mode", () => {
     expect(stagehandFacadeConfigFromEnv({}).browser).toStrictEqual({
+      type: "local",
+      launchOptions: { headless: true },
+    });
+  });
+
+  it("lets local browser launches opt into headed mode", () => {
+    expect(stagehandFacadeConfigFromEnv({ STAGEHAND_HEADLESS: "false" }).browser).toStrictEqual({
       type: "local",
       launchOptions: { headless: false },
     });
+    expect(() => stagehandFacadeConfigFromEnv({ STAGEHAND_HEADLESS: "maybe" })).toThrow(
+      /STAGEHAND_HEADLESS must be a boolean/,
+    );
   });
 
   it("reads STAGEHAND_FACADE_QUIET_WAIT, off by default", () => {
@@ -86,6 +96,13 @@ describe("Stagehand facade contract", () => {
         }),
       ).toThrow(StagehandFacadeConfigError);
     }
+  });
+
+  it("ignores the local headless setting for Browserbase", () => {
+    const env = { BROWSERBASE_API_KEY: "bb-key" };
+    expect(stagehandFacadeConfigFromEnv({ ...env, STAGEHAND_HEADLESS: "invalid" }).browser).toEqual(
+      stagehandFacadeConfigFromEnv(env).browser,
+    );
   });
 
   it("passes proxies/verified through to the Browserbase session when configured", () => {
