@@ -160,9 +160,28 @@ class BrowserContext:
         )
 
 
+_SUPPORTED_COOKIE_REGEX_FLAGS = re.IGNORECASE | re.MULTILINE | re.DOTALL | re.UNICODE
+
+
 def _cookie_filter(value: str | re.Pattern[str]) -> CookieFilter:
     if isinstance(value, str):
         return CookieFilter(root=value)
+
+    unsupported = value.flags & ~_SUPPORTED_COOKIE_REGEX_FLAGS
+    if unsupported:
+        # The wire format only carries JavaScript regex flags. Dropping a flag
+        # silently would run a different pattern than the caller compiled, so
+        # reject the ones that cannot be represented instead.
+        names = ", ".join(
+            f"re.{name}"
+            for name in ("ASCII", "LOCALE", "VERBOSE", "DEBUG")
+            if getattr(re, name) & unsupported
+        )
+        raise ValueError(
+            "clear_cookies supports only the re.IGNORECASE, re.MULTILINE and "
+            f"re.DOTALL regex flags; got {names or hex(unsupported)}"
+        )
+
     flags = "".join(
         flag
         for enabled, flag in (
@@ -172,4 +191,8 @@ def _cookie_filter(value: str | re.Pattern[str]) -> CookieFilter:
         )
         if enabled
     )
-    return CookieFilter(root=CookieRegex(source=value.pattern, flags=flags or None))
+    # Only set ``flags`` when there is something to send: an explicit ``None``
+    # is serialized as ``"flags": null``, which the protocol schema rejects.
+    if flags:
+        return CookieFilter(root=CookieRegex(source=value.pattern, flags=flags))
+    return CookieFilter(root=CookieRegex(source=value.pattern))

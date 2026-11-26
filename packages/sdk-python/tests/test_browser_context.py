@@ -11,7 +11,7 @@ from stagehand._generated.models import (
     ContextVoidResult,
     PageRef,
 )
-from stagehand.browser_context import BrowserContext
+from stagehand.browser_context import BrowserContext, _cookie_filter
 from stagehand.rpc_client import RPCClient
 
 from ._support import RecordingRPCClient
@@ -80,6 +80,23 @@ async def test_browser_context_serializes_python_cookie_filters() -> None:
             "domain": "example.com",
         }
     })
+
+
+@pytest.mark.asyncio
+async def test_browser_context_omits_unused_cookie_regex_flags() -> None:
+    recording = RecordingRPCClient({"context.clear_cookies": ContextVoidResult(ok=True)})
+    context = BrowserContext(cast(RPCClient, recording), _close_browser)
+
+    await context.clear_cookies(name=re.compile("^session$"))
+
+    options = recording.calls[0][1].model_dump(exclude_unset=True)["options"]
+    assert options["name"] == {"source": "^session$"}
+    assert "flags" not in options["name"]
+
+
+def test_browser_context_rejects_unrepresentable_cookie_regex_flags() -> None:
+    with pytest.raises(ValueError, match="re.VERBOSE"):
+        _cookie_filter(re.compile("a b", re.VERBOSE))
 
 
 async def _close_browser() -> None:
