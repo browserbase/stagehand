@@ -179,10 +179,12 @@ export class NavigationResponseTracker {
     this.selectedRequestId = event.requestId;
     this.selectedResponse = response;
 
+    // Redirect hops share the request id, so the stored extra info may belong
+    // to a 3xx hop rather than this response.
     const extraInfo = this.pendingExtraInfo.get(event.requestId);
-    if (extraInfo) {
+    this.pendingExtraInfo.delete(event.requestId);
+    if (extraInfo && extraInfo.statusCode === event.response?.status) {
       response.applyExtraInfo(extraInfo);
-      this.pendingExtraInfo.delete(event.requestId);
     }
 
     this.resolveResponse(response);
