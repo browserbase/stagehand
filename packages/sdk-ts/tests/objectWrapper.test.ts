@@ -220,7 +220,6 @@ describe("Stagehand TS object wrapper", () => {
     const stagehand = createStagehandWithClientForTest(client);
 
     await stagehand.experimentalBatch(async () => {
-      // Regression probe: this text does not make the callback a native function.
       return "[native code]";
     });
 
@@ -710,6 +709,7 @@ describe("Stagehand TS object wrapper", () => {
       event: "toolsadded" as const,
       tools: [
         {
+          toolId: "search-id",
           name: "search",
           description: "Search",
           frameId: "child",
@@ -736,6 +736,7 @@ describe("Stagehand TS object wrapper", () => {
         pageId: "page-1",
         frameId: "child",
         toolName: "search",
+        toolId: "search-id",
         input: { searchQuery: "hello" },
       }),
     );
@@ -758,7 +759,7 @@ describe("Stagehand TS object wrapper", () => {
       sessionId: "child",
       targetId: "child",
       event: "toolsremoved" as const,
-      tools: [{ name: "search", frameId: "child" }],
+      tools: [{ name: "search", frameId: "child", toolId: "search-id" }],
     };
     client.emitNotification({
       jsonrpc: "2.0",
@@ -1554,6 +1555,7 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.pageWebMCPTools, {
         pageId: "page-1",
+        includeToolIds: true,
         options: { timeout: 250 },
       }),
       requestCall(StagehandMethods.pageWebMCPInvokeTool, {

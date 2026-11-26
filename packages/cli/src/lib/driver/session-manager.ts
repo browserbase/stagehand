@@ -41,11 +41,6 @@ interface InitFailure {
   retryAt: number;
 }
 
-/**
- * Exponential backoff for cached init failures: 5s, 10s, 20s, ... capped at
- * 1 minute. Prevents agents stuck in retry loops from hammering init while
- * still allowing a quick retry after the first failure.
- */
 export function initFailureBackoffMs(consecutiveFailures: number): number {
   const attempt = Math.max(1, consecutiveFailures);
   return Math.min(INIT_FAILURE_RETRY_MS * 2 ** (attempt - 1), INIT_FAILURE_RETRY_MAX_MS);
@@ -190,23 +185,7 @@ export class DriverSessionManager {
     return executeDriverCommand(this, command, params);
   }
 
-  /**
-   * Apply env vars forwarded by the client (e.g. an inline or exported API
-   * key set after the daemon started). Honoring a late key without a manual
-   * restart is the whole point of forwarding.
-   *
-   * The forwarded env is stashed for the next `init()`, which threads it
-   * straight into the Stagehand constructor — never into `process.env` — so the
-   * key's only home is the live session. A live, already-initialized session
-   * keeps its existing browser (forwarded env only matters at init), so the
-   * warm-daemon fast path is untouched. When the forwarded env changes *before*
-   * a successful init (the common case: a first key-less `open` failed, then a
-   * key is supplied), clear the cached init failure and backoff so the retry
-   * runs immediately with the new key instead of replaying the stale
-   * missing-key error.
-   */
   applyForwardedEnv(forwardedEnv: ForwardedEnv | undefined): void {
-    // Keep the caller's latest forwarded env available to the next init.
     this.pendingEnv = forwardedEnv;
 
     const signature = forwardedEnvSignature(forwardedEnv);
@@ -332,12 +311,6 @@ export class DriverSessionManager {
     }
   }
 
-  /**
-   * Browserbase session identity (id, dashboard URL, live-view/debug URL) for a
-   * live remote session. Lets `status`/`open`/`doctor` reason about the cloud
-   * session instead of losing it the way a raw `--cdp` attach does. Empty for
-   * non-remote targets or before the driver has initialized.
-   */
   private browserbaseIdentity(): BrowserbaseIdentity {
     return this.target.kind === "remote" ? this.browserbaseIdentityValue : {};
   }

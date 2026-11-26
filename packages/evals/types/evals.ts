@@ -41,7 +41,6 @@ export interface EvalInput {
   modelName: AvailableModel;
   agentMode?: AgentToolMode;
   isCUA?: boolean;
-  // Optional per-test parameters, used by data-driven tasks
   params?: Record<string, unknown>;
 }
 

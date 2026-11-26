@@ -28,7 +28,6 @@ def resolve_browserbase_connection(
     create_config: StagehandClientCreateConfig,
     worker_init_metadata: _WorkerInitMetadata,
 ) -> BrowserbaseConnection | None:
-    """Resolve Gateway/cache settings from validated options and claimed metadata."""
     api_key = worker_init_metadata.api_key
     if api_key is None:
         api_key = create_config.api_key

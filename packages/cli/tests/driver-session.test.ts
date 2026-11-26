@@ -90,7 +90,6 @@ describe("driver session selection", () => {
     vi.stubEnv("BROWSERBASE_API_KEY", "");
     target = headed;
     requests = [];
-    // No test in this suite should launch a real daemon or browser.
     vi.spyOn(childProcess, "spawn").mockImplementation(() => {
       throw new Error("Unexpected daemon spawn");
     });
@@ -145,7 +144,6 @@ describe("driver session selection", () => {
 
   it.each(reuseCases)("reuses $name", async (testCase) => {
     target = testCase.target;
-    // An existing local session must win even when the environment now defaults remote.
     if (testCase.name === "headed browser without flags") {
       vi.stubEnv("BROWSERBASE_API_KEY", "test-key");
     }
@@ -246,8 +244,6 @@ describe("driver session selection", () => {
       (error: unknown) => ({ error }),
     );
     if (waitingForLock) {
-      // Publish the other caller's daemon only after this caller actually hits
-      // the occupied lock, so the test exercises the post-lock status check.
       await waitingForLock;
       await listen();
       await fs.rm(lockPath);

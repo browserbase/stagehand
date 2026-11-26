@@ -12,8 +12,6 @@ import { runAgent, type AgentRun } from "./agent.ts";
 import { requireEnv } from "./session.ts";
 import type { ShowcaseTask, Workflow } from "./task.ts";
 
-// The same agent loop as the baseline, pointed at Stagehand's code-mode facade:
-// the model writes Playwright-shaped code that Stagehand runs in one browser.
 export async function runCodeMode<Schema extends z.ZodType>(
   workflow: Workflow<Schema>,
   task: ShowcaseTask<Schema>,
@@ -33,14 +31,12 @@ export async function runCodeMode<Schema extends z.ZodType>(
         STAGEHAND_BROWSER: "browserbase",
         BROWSERBASE_API_KEY: env.BROWSERBASE_API_KEY,
         STAGEHAND_BROWSERBASE_PROXIES: String(task.proxies ?? false),
-        // Matches the other lanes; the facade defaults to an hour.
         STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "900",
       },
     }),
   });
   let sessionId: string | undefined;
   try {
-    // Launches the session before the agent starts so its recording is known.
     const info = (await client.callTool({ name: SESSION_INFO_TOOL_NAME, arguments: {} })) as {
       content?: Array<{ type: string; text?: string }>;
     };
@@ -49,7 +45,6 @@ export async function runCodeMode<Schema extends z.ZodType>(
     return { ...(await runAgent(workflow, task, client, facadeAgentInstructions())), sessionId };
   } finally {
     await client.close();
-    // The facade does not always release its session on close.
     if (sessionId) {
       await new Browserbase({ apiKey: env.BROWSERBASE_API_KEY }).sessions
         .update(sessionId, { status: "REQUEST_RELEASE" })

@@ -4,9 +4,7 @@ export function getOpenOrClosedShadowRoot(element: Element): ShadowRoot | null {
       const root = globalThis.chrome?.dom?.openOrClosedShadowRoot(element);
       if (root) return root as ShadowRoot;
     }
-  } catch {
-    // Fall through to standards-based open-root access.
-  }
+  } catch {}
 
   try {
     return element.shadowRoot ?? null;
@@ -15,14 +13,12 @@ export function getOpenOrClosedShadowRoot(element: Element): ShadowRoot | null {
   }
 }
 
-export function documentHasShadowRoot(): boolean {
+export function documentHasShadowRoot(scope: Document = document): boolean {
   try {
-    const walker = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT);
+    const walker = scope.createTreeWalker(scope, NodeFilter.SHOW_ELEMENT);
     while (walker.nextNode()) {
       if (getOpenOrClosedShadowRoot(walker.currentNode as Element)) return true;
     }
-  } catch {
-    // Treat traversal failures as no shadow roots.
-  }
+  } catch {}
   return false;
 }

@@ -13,6 +13,7 @@ from uuid import uuid4
 from pydantic import JsonValue, TypeAdapter
 
 from ._generated.input_types import (
+    AriaRole,
     PageDragAndDropRoutePoint,
     PageEventName,
     PagePDFMargin,
@@ -88,6 +89,7 @@ from ._generated.models import (
 from ._generated.models import (
     Type as ScreenshotType,
 )
+from ._locator_selectors import role_query_step
 from .locator import Locator
 from .response import Response
 from .rpc_client import RPCClient
@@ -101,7 +103,6 @@ ToolsAddedListener = Callable[[list[WebMCPTool]], object | Awaitable[object]]
 ToolsRemovedListener = Callable[[list[WebMCPToolIdentity]], object | Awaitable[object]]
 NotificationT = TypeVar("NotificationT", PageCDPEventNotification, PageEventNotification)
 
-# Distinguishes an omitted wait_for_function ``arg`` from an explicit JSON null.
 _UNSET_ARG = object()
 
 
@@ -501,15 +502,12 @@ class Page:
         )
         self._event_subscriptions.add(subscription)
         try:
-            await self._rpc_client.send(
-                "page.on",
-                PageOnParams.model_validate({
-                    "page_id": self.page_id,
-                    "subscription_id": subscription_id,
-                    "event": event,
-                }),
-                PageVoidResult,
+            params = PageOnParams(
+                page_id=self.page_id, subscription_id=subscription_id, event=event
             )
+            if event in ("toolsadded", "toolsremoved"):
+                params.include_tool_ids = True
+            await self._rpc_client.send("page.on", params, PageVoidResult)
         except BaseException:
             remove_notification_listener()
             try:
@@ -742,7 +740,7 @@ class Page:
         return await self._rpc_client.send("page.snapshot", params, SnapshotResult)
 
     async def tools(self, *, timeout: float | None = None) -> list[WebMCPTool]:
-        params = PageWebMCPToolsParams(page_id=self.page_id)
+        params = PageWebMCPToolsParams(page_id=self.page_id, include_tool_ids=True)
         if timeout is not None:
             params.options = WebMCPToolsOptions(timeout=timeout)
         result = await self._rpc_client.send(
@@ -780,3 +778,35 @@ class Page:
 
     def locator(self, selector: str) -> Locator:
         return Locator(self._rpc_client, page_id=self.page_id, selector=selector)
+
+    def get_by_text(self, text: str, *, exact: bool = False) -> Locator:
+        return Locator._from_text(self._rpc_client, self.page_id, text, exact)
+
+    def get_by_role(
+        self,
+        role: AriaRole,
+        *,
+        name: str | None = None,
+        exact: bool = False,
+        checked: bool | Literal["mixed"] | None = None,
+        pressed: bool | Literal["mixed"] | None = None,
+        selected: bool | None = None,
+        expanded: bool | None = None,
+        disabled: bool | None = None,
+        level: int | None = None,
+    ) -> Locator:
+        return Locator._from_query(
+            self._rpc_client,
+            self.page_id,
+            role_query_step(
+                role,
+                name=name,
+                exact=exact,
+                checked=checked,
+                pressed=pressed,
+                selected=selected,
+                expanded=expanded,
+                disabled=disabled,
+                level=level,
+            ),
+        )

@@ -1,14 +1,3 @@
-/**
- * Auto-discovery: scans task directories and builds an in-memory TaskRegistry.
- *
- * Convention:
- *   core/tasks/<category>/<taskName>.ts
- *   tasks/bench/<category>/<taskName>.ts
- *
- * Discovery checks for:
- *   1. Default export from defineTask() (new API)
- *   2. Named export matching the filename (legacy EvalFunction pattern)
- */
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -17,12 +6,6 @@ import { listBenchSuiteTaskNames } from "./benchSuites.js";
 
 const TIERS = ["core", "bench"] as const satisfies readonly Tier[];
 
-/**
- * Category tags applied to specific bench tasks during non-eager discovery
- * so filters like `evals run regression` work without importing every task
- * module. Sourced from the legacy cli.ts. Long-term these belong in each
- * task's `meta.tags` — that migration is a separate cleanup.
- */
 const EXTRA_CATEGORIES: Record<string, string[]> = {
   instructions: ["regression"],
   ionwave: ["regression"],
@@ -50,10 +33,6 @@ const EXTRA_CATEGORIES: Record<string, string[]> = {
   extract_geniusee_2: ["targeted_extract"],
 };
 
-/**
- * Tasks whose primary category should be replaced entirely (not
- * augmented) during discovery. External agent benchmarks are grouped here.
- */
 const CATEGORY_OVERRIDES: Record<string, string[]> = {
   "agent/webvoyager": ["external_agent_benchmarks"],
   "agent/onlineMind2Web": ["external_agent_benchmarks"],
@@ -78,9 +57,6 @@ type ParsedTaskPath = {
   name: string;
 };
 
-/**
- * Recursively find all .ts files in a directory, ignoring .d.ts files.
- */
 function walkDir(dir: string): string[] {
   const results: string[] = [];
   if (!fs.existsSync(dir)) return results;
@@ -111,24 +87,15 @@ function getTierRoots(tasksRoot: string, tier: Tier): string[] {
   return [path.join(packageRoot, "core", "tasks")];
 }
 
-/**
- * Extract category and task name from a file path rooted at a tier directory.
- *
- * Given core/tasks/navigation/open.ts or tasks/bench/act/dropdown.ts:
- * Returns tier/category/name using the provided tier.
- */
 function parseTaskPath(filePath: string, tierRoot: string, tier: Tier): ParsedTaskPath | null {
   const relative = path.relative(tierRoot, filePath);
   const parts = relative.replace(/\\/g, "/").split("/");
 
-  // Minimum: <category>/<file>.ts
   if (parts.length < 2) return null;
 
   const category = parts[0];
   const fileName = parts[parts.length - 1].replace(/\.(ts|js)$/, "");
 
-  // For deeper nesting (e.g., bench/agent/subfolder/task.ts), include the
-  // intermediate path in the name for uniqueness.
   const nameParts = parts.slice(0, -1);
   const name =
     nameParts.length > 1 ? `${nameParts.join("/")}/${fileName}` : `${category}/${fileName}`;
@@ -142,11 +109,6 @@ function parseTaskPath(filePath: string, tierRoot: string, tier: Tier): ParsedTa
   };
 }
 
-/**
- * Import a task module and extract the task definition.
- *
- * Handles both new defineTask() default exports and legacy named exports.
- */
 async function loadTaskModule(
   filePath: string,
   expectedName: string,
@@ -168,19 +130,6 @@ async function loadTaskModule(
   return { isLegacy: false };
 }
 
-/**
- * Discover all tasks by scanning the filesystem.
- *
- * @param tasksRoot - Absolute path to the tasks/ directory
- * @param eager - If true, imports modules to read defineTask metadata.
- *                If false (default), only uses filesystem-based inference.
- */
-/**
- * Agent benchmark suites are planner-level constructs (dataset builders in
- * suites/), not task files: they run exclusively through the external
- * harnesses, so discovery registers them as virtual entries.
- */
-// From the suite registry, so `b:<suite>`, the planner and discovery can't drift.
 const AGENT_SUITE_NAMES = listBenchSuiteTaskNames();
 
 export async function discoverTasks(tasksRoot: string, eager = false): Promise<TaskRegistry> {
@@ -288,16 +237,6 @@ export async function discoverTasks(tasksRoot: string, eager = false): Promise<T
   return { tasks, byName, byTier, byCategory };
 }
 
-/**
- * Resolve a CLI target string to a list of tasks.
- *
- * Target resolution order:
- *   1. Tier-qualified: "core:navigation" → tier=core, category=navigation
- *   2. Tier name: "core" → all tasks in that tier
- *   3. Category name: "act" → all tasks with that category (errors on ambiguity)
- *   4. Task name: "dropdown" → specific task by name
- *   5. No target: defaults to all bench tasks
- */
 export function resolveTarget(registry: TaskRegistry, target?: string): DiscoveredTask[] {
   if (!target) {
     return registry.byTier.get("bench") ?? [];

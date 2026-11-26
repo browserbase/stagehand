@@ -2,10 +2,8 @@ import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import type { Progress } from "./progress.js";
 
-/** Browser exceptions are not transient CDP context-loss errors. */
 export class BrowserWaitError extends Error {}
 
-/** Own a browser-side promise and dispose its resources, even after late installation. */
 export async function browserWait<T>(
   session: CDPSessionLike,
   progress: Progress,

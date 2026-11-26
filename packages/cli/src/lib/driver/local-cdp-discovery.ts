@@ -3,6 +3,8 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 
+import { DriverError } from "./errors.js";
+
 export interface LocalCdpDiscovery {
   source: string;
   wsUrl: string;
@@ -108,11 +110,6 @@ async function probeJsonVersion(port: number): Promise<string | null> {
   }
 }
 
-/**
- * Multiple candidates (several profile dirs, or a profile dir and a fallback
- * port) can reference the same port within one discovery call. Memoize the
- * live /json/version probe per port so that port is only actually hit once.
- */
 function createJsonVersionProbe(): (port: number) => Promise<string | null> {
   const cache = new Map<number, Promise<string | null>>();
   return (port) => {
@@ -222,8 +219,9 @@ export async function resolveWsTargetFromPort(
   if (jsonVersionUrl) return jsonVersionUrl;
   const fallback = buildDevToolsWsUrl(port, "/devtools/browser");
   if (await verifyCdpWebSocket(fallback)) return fallback;
-  throw new Error(
+  throw new DriverError(
     `Unable to resolve CDP endpoint from port ${port}. Is Chrome running with remote debugging?`,
+    { code: "cdp_unreachable" },
   );
 }
 

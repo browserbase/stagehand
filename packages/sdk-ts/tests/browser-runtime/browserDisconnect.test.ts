@@ -9,7 +9,6 @@ const extensionDir = fileURLToPath(new URL("../../../extension/dist", import.met
 
 it("disconnect() leaves a connected Chrome running with its pages", async () => {
   const signal = AbortSignal.timeout(60_000);
-  // Started outside Stagehand's browser factories, like a long-lived user browser.
   const chrome = await launchLocalBrowser({ headless: true }, signal);
   try {
     const { localBrowser } = createBrowserFactoriesForTest({
@@ -49,7 +48,6 @@ it("disconnect() closes the attached Stagehand so a new connection can create on
     const browser = await localBrowser.connect({ cdpUrl: chrome.cdpUrl });
     const stagehand = await Stagehand.create({ browser, logging: { level: "off" } });
 
-    // No stagehand.close(): disconnect() must close the instance and the worker's loopback.
     await browser.disconnect();
     expect(stagehand.initialized).toBe(false);
     await stagehand.close();

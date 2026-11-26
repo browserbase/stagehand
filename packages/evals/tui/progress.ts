@@ -1,18 +1,3 @@
-/**
- * Live progress rendering for eval runs.
- *
- * Two modes:
- *   - Animated (TTY): a board redrawn in place — a status bar, one row per
- *     case in flight with its phase and elapsed time, the last few finishes,
- *     and key hints. Waiting rows never take a row; they're counted in the
- *     queue line.
- *   - Streamed (non-TTY, verbose): one line per state change, safe for CI
- *     logs and pipes.
- *
- * Rows are keyed by the runner's `rowKey` (cell + case + trial). Suite rows
- * all share a task name, so keying by name would collapse a run into one row.
- */
-
 import {
   green,
   red,
@@ -40,10 +25,6 @@ import type { CaseLabel } from "../framework/caseIdentity.js";
 import type { RowOutcome } from "../framework/runSummary.js";
 import type { RowPhase } from "../framework/rowContext.js";
 
-/**
- * Which execution an event is about. `rowKey` (cell + case + trial) is the
- * identity; `taskName` alone is not — every suite row shares it.
- */
 export interface ProgressRow {
   rowKey?: string;
   taskName: string;
@@ -69,9 +50,7 @@ interface RowState {
 type ProgressRendererOptions = {
   animated?: boolean;
   progressBar?: boolean;
-  /** Where the board is drawn. `--json` runs draw on stderr so stdout stays parseable. */
   stream?: NodeJS.WriteStream;
-  /** Clock; tests inject a fake. */
   now?: () => number;
 };
 
@@ -79,10 +58,8 @@ export type StopMode = "cooperative" | "aggressive";
 
 const SPINNER = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
 const FALLBACK_TERMINAL_ROWS = 24;
-/** Lines left for the prompt and header above the board. */
 const RESERVED_TERMINAL_ROWS = 8;
 const RECENT_ROWS = 3;
-/** Streamed mode reprints the queue line at most this often. */
 const STREAMED_QUEUE_LINE_INTERVAL_MS = 30_000;
 const TICK_MS = 100;
 
@@ -91,7 +68,6 @@ function rowIdentity(row: ProgressRow): string {
   return row.model ? `${row.taskName}:${row.model}` : row.taskName;
 }
 
-/** `47e314cc recreation.gov` for suite cases; trials after the first get `#n`. */
 export function rowDisplayName(row: ProgressRow): string {
   const base =
     row.case?.shortId || row.case?.domain
@@ -100,7 +76,6 @@ export function rowDisplayName(row: ProgressRow): string {
   return row.trial ? `${base} #${row.trial + 1}` : base;
 }
 
-/** Failure kinds read as themselves; a rubric fail reads "failed". */
 function outcomeLabel(outcome: RowOutcome | undefined): {
   text: string;
   tone: (s: string) => string;
@@ -119,7 +94,6 @@ function outcomeLabel(outcome: RowOutcome | undefined): {
   }
 }
 
-/** Same glyphs as the end-of-run failures list. */
 const OUTCOME_ICON: Record<RowOutcome, string> = {
   pass: green("✓"),
   max_turns: yellow("⏱"),
@@ -136,7 +110,6 @@ const PHASE_TONE: Record<RowPhase, (s: string) => string> = {
   verify: magenta,
 };
 
-/** `3m12s`, `48s`. */
 export function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   const minutes = Math.floor(total / 60);
@@ -177,8 +150,6 @@ export class ProgressRenderer {
     this.now = options.now ?? Date.now;
     this.startedAt = this.now();
   }
-
-  // ─── Events ────────────────────────────────────────────────────────────
 
   onPlanned(total: number): void {
     this.total = total;
@@ -255,11 +226,6 @@ export class ProgressRenderer {
     }
   }
 
-  /**
-   * Scheduler state (`running 6 · queued 41 · openai 3/6↓ · throttled 1`).
-   * Animated mode redraws it with the board; streamed mode prints it every
-   * 30 s so logs stay readable.
-   */
   onQueue(snapshot: ConcurrencyQueueSnapshot): void {
     this.queue = snapshot;
     if (this.animated) {
@@ -277,7 +243,6 @@ export class ProgressRenderer {
     this.line(`  ${dim(truncateText(formatConcurrencyQueueLine(snapshot), this.width() - 4))}`);
   }
 
-  /** Backpressure hit a row; always worth a line in streamed mode. */
   onThrottled(rowName: string, record: ThrottleRecord): void {
     if (this.animated) return;
     const what =
@@ -289,7 +254,6 @@ export class ProgressRenderer {
     this.line(`  ${gray("↓")} ${dim(`${rowName}: ${what}`)}`);
   }
 
-  /** The run is being stopped; the board says so instead of being printed over. */
   setStopping(mode: StopMode): void {
     this.stopping = mode;
     if (this.animated) this.redraw();
@@ -301,16 +265,11 @@ export class ProgressRenderer {
       );
   }
 
-  /** Key hints shown under the board (`esc stop · v logs · ? help`). */
   setKeyHints(hints: string | undefined): void {
     this.keyHints = hints;
     if (this.animated && this.renderedLines > 0) this.redraw();
   }
 
-  /**
-   * A log line that should scroll above the board: the board is cleared, the
-   * line printed, and the board redrawn under it.
-   */
   logLine(text: string): void {
     if (!this.animated || this.renderedLines === 0) {
       this.line(text);
@@ -321,17 +280,12 @@ export class ProgressRenderer {
     this.draw();
   }
 
-  /**
-   * Final board, then (unless `totals: false`) the Results / Pass rate block.
-   * Bench runs pass `totals: false`: their per-cell table carries the rate.
-   */
   printSummary(options: { totals?: boolean } = {}): void {
     this.stopTicker();
     this.queue = undefined;
     this.keyHints = undefined;
     this.stopping = undefined;
     if (this.animated && this.renderedLines > 0) {
-      // Leave the final state of the board on screen, minus live-only lines.
       this.clearBoard();
       this.draw();
       this.renderedLines = 0;
@@ -362,19 +316,12 @@ export class ProgressRenderer {
     }
   }
 
-  /**
-   * Width of the stream the board is drawn on (stderr under `--json`), falling
-   * back to stdout's when that stream isn't a terminal.
-   */
   private width(): number {
     return typeof this.out.columns === "number" && this.out.columns > 0
       ? getTerminalWidth(100, this.out)
       : getTerminalWidth();
   }
 
-  // ─── Board ─────────────────────────────────────────────────────────────
-
-  /** The animated board as lines, without trailing newline handling. */
   boardLines(): string[] {
     const width = this.width();
     const lines: string[] = [this.statusLine(width)];
@@ -403,7 +350,7 @@ export class ProgressRenderer {
 
     const budget = Math.max(6, this.terminalRows() - RESERVED_TERMINAL_ROWS - lines.length);
     const recentCount = Math.min(RECENT_ROWS, finished.length);
-    const recentLines = recentCount > 0 ? recentCount + 2 : 0; // blank + "recent" + rows
+    const recentLines = recentCount > 0 ? recentCount + 2 : 0;
     const hintLines = this.keyHints ? 2 : 0;
     const runningBudget = Math.max(1, budget - recentLines - hintLines - 1);
     const shownRunning = running.slice(0, runningBudget);
@@ -471,7 +418,6 @@ export class ProgressRenderer {
     const elapsed = formatElapsed(elapsedMs);
     const elapsedCell = p75 !== undefined && elapsedMs > p75 ? yellow(elapsed) : dim(elapsed);
     const phase = PHASE_TONE[row.phase](padRight(row.phase, 8));
-    // 2 indent + spinner + space + label + 2 + question + 2 + phase(8) + space + elapsed(≤7)
     const questionWidth = width - 2 - 2 - labelWidth - 2 - 2 - 8 - 1 - 7;
     const question =
       row.question && questionWidth >= 12 ? `${gray(padRight(row.question, questionWidth))}  ` : "";
@@ -490,16 +436,12 @@ export class ProgressRenderer {
     const prefix = `  ${icon} ${padRight(this.rowLabel(row, showModel), labelWidth)}  ${kind} `;
     const parts = [
       row.durationMs !== undefined ? formatElapsed(row.durationMs) : undefined,
-      // Failures link their session; rubric fails also carry the reason.
       row.outcome !== "pass" ? row.sessionUrl : undefined,
-      // No outcome: a row that failed before it ran (e.g. aborted while queued).
       row.outcome === "fail" || row.outcome === undefined ? row.error : undefined,
     ].filter(Boolean);
     const tail = truncateText(parts.join(" · "), Math.max(10, width - visibleLength(prefix) - 2));
     return `${prefix}${dim(tail)}`;
   }
-
-  // ─── Rendering ─────────────────────────────────────────────────────────
 
   private finish(
     row: ProgressRow,

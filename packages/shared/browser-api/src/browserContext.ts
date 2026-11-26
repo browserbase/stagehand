@@ -54,7 +54,6 @@ export class BrowserContext {
     });
   }
 
-  /** Close the underlying browser. */
   async close(): Promise<void> {
     if (!this.closeBrowser) {
       throw new Error("Browser context is not attached to a browser");

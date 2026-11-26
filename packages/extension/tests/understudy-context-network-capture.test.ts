@@ -30,7 +30,6 @@ function frame(id: string, url: string, parentId?: string) {
   };
 }
 
-/** Emits iframe traffic at resume, before the frame-tree query can identify its owner. */
 class PausedIframeBrowser implements CdpWebSocketTransport {
   connected = true;
   readonly commands: Command[] = [];

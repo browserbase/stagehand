@@ -154,7 +154,6 @@ export class AISdkClientWrapped extends LLMClient {
     const isKimi = this.model.modelId.includes("kimi");
     const temperature = isKimi ? 1 : options.temperature;
 
-    // Resolve reasoning effort: user-configured > default "none" for GPT-5.x sub-models
     const isGPT5SubModel = this.model.modelId.includes("gpt-5.") && !isCodex;
     const userReasoningEffort = this.clientOptions?.reasoningEffort;
     const resolvedReasoningEffort = userReasoningEffort ?? (isGPT5SubModel ? "none" : undefined);
@@ -244,7 +243,6 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
               object: objectResponse.object,
               usage: objectResponse.usage,
               finishReason: objectResponse.finishReason,
-              // Omit request and response properties that might contain images
             }),
             type: "object",
           },
@@ -283,7 +281,6 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       temperature,
     });
 
-    // Transform AI SDK response to match LLMResponse format expected by operator handler.
     type WrappedToolCall = {
       toolCallId?: string;
       toolName: string;
@@ -335,7 +332,6 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
             text: textResponse.text,
             usage: textResponse.usage,
             finishReason: textResponse.finishReason,
-            // Omit request and response properties that might contain images
           }),
           type: "object",
         },

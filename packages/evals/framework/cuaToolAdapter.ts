@@ -17,7 +17,6 @@ export type CuaFacadeTools = Pick<
 export type FacadeToolCaller = NonNullable<ToolStartResult["callTool"]>;
 type SessionLossReader = () => BrowserSessionLoss | undefined;
 
-/** Only runner-owned telemetry can create a terminal CUA facade error. */
 export class CuaFacadeSessionLostError extends StagehandFacadeBridgeError {
   constructor() {
     super("Browser session lost (confirmed by eval runner). The task cannot continue.");
@@ -49,9 +48,6 @@ export function bridgeCuaFacadeTools(
   };
   return {
     async run(code) {
-      // The canonical facade renders strings raw and objects as JSON. Wrap the
-      // result inside this callback so strings such as "42", "null", and ""
-      // retain their type without changing the shared model-facing tool.
       const wrapped = `const __cuaValue = await (async () => {\n${code}\n})();\nreturn __cuaValue === undefined ? { type: "undefined" } : { type: "value", value: __cuaValue };`;
       const result = await call("run", { code: wrapped });
       let value: unknown;
@@ -115,7 +111,6 @@ function resultText(result: RunnerToolCallResult): string {
     .join("\n");
 }
 
-/** Evidence must not refresh the snapshot/ref map between model actions. */
 export async function captureCuaEvidence(
   callTool: FacadeToolCaller,
   browserSessionLoss?: SessionLossReader,

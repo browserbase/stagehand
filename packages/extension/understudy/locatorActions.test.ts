@@ -42,8 +42,7 @@ function createLocator(selector = "button") {
   const send = vi.fn(async (method: string, params?: object): Promise<unknown> => {
     if (method === "DOM.getBoxModel") return { model: { content: [0, 0, 10, 0, 10, 10, 0, 10] } };
     if (method === "DOM.describeNode") return { node: { backendNodeId: 1 } };
-    if (method === "Runtime.evaluate")
-      return { result: { value: selector.startsWith("text=") ? { count: 2 } : 2 } };
+    if (method === "Runtime.evaluate") return { result: { value: 2 } };
     if (method === "Runtime.callFunctionOn") {
       const functionDeclaration = (params as { functionDeclaration?: string } | undefined)
         ?.functionDeclaration;

@@ -152,7 +152,6 @@ describe("v4 keyboard shortcuts and typing", () => {
 
     await page.locator("#t").click();
     await page.type("abc");
-    // place caret between a|bc
     await page.evaluate(() => {
       const el = document.getElementById("t") as HTMLInputElement;
       el.focus();
@@ -319,7 +318,6 @@ describe("v4 keyboard shortcuts and typing", () => {
     await page.locator("#t").click();
     await page.keyPress("Cmd+InvalidKey123");
 
-    // Now try normal typing - should work if modifiers were cleared
     await page.type("ok");
     const value = await page.evaluate(
       (sel) => (document.querySelector(sel) as HTMLInputElement)!.value,

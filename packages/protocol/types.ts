@@ -86,7 +86,14 @@ import type {
   LocatorCentroidResultSchema,
   LocatorCountResultSchema,
   LocatorDescriptorSchema,
+  LocatorRequestDescriptorSchema,
+  LocatorInputSchema,
+  ChainLocatorSchema,
   LocatorOptionsSchema,
+  GetByTextOptionsSchema,
+  GetByRoleOptionsSchema,
+  AriaRoleSchema,
+  RoleSelectorQuerySchema,
   LocatorParamsSchema,
   LocatorFillParamsSchema,
   LocatorFillResultSchema,
@@ -99,6 +106,14 @@ import type {
   LocatorIsCheckedResultSchema,
   LocatorIsVisibleResultSchema,
   LocatorSchema,
+  LocatorQuerySelectorSchema,
+  LocatorQueryStepSchema,
+  LocatorFrameStepSchema,
+  LocatorNthStepSchema,
+  LocatorFilterStepSchema,
+  LocatorFilterOptionsSchema,
+  LocatorStepSchema,
+  LocatorChainSchema,
   LocatorScrollToParamsSchema,
   LocatorScrollToResultSchema,
   LocatorSelectOptionParamsSchema,
@@ -263,6 +278,17 @@ export type VariableValue = z.infer<typeof VariableValueSchema>;
 export type Variables = z.infer<typeof VariablesSchema>;
 export type PageLocator = z.infer<typeof PageLocatorSchema>;
 export type Locator = z.infer<typeof LocatorSchema>;
+export type AriaRole = z.infer<typeof AriaRoleSchema>;
+export type GetByRoleOptions = z.infer<typeof GetByRoleOptionsSchema>;
+export type RoleSelectorQuery = z.infer<typeof RoleSelectorQuerySchema>;
+export type LocatorQuerySelector = z.infer<typeof LocatorQuerySelectorSchema>;
+export type LocatorQueryStep = z.infer<typeof LocatorQueryStepSchema>;
+export type LocatorFrameStep = z.infer<typeof LocatorFrameStepSchema>;
+export type LocatorNthStep = z.infer<typeof LocatorNthStepSchema>;
+export type LocatorFilterStep = z.infer<typeof LocatorFilterStepSchema>;
+export type LocatorFilterOptions = z.infer<typeof LocatorFilterOptionsSchema>;
+export type LocatorStep = z.infer<typeof LocatorStepSchema>;
+export type LocatorChain = z.infer<typeof LocatorChainSchema>;
 export type MouseButton = z.infer<typeof MouseButtonSchema>;
 export type StagehandMetrics = z.infer<typeof StagehandMetricsSchema>;
 export type CallbackBatchOptions = z.infer<typeof CallbackBatchOptionsSchema>;
@@ -361,6 +387,10 @@ export type WebMCPInvocationDescriptor = z.infer<typeof WebMCPInvocationDescript
 export type WebMCPInvocationStatus = z.infer<typeof WebMCPInvocationStatusSchema>;
 export type WebMCPRemoteObject = z.infer<typeof WebMCPRemoteObjectSchema>;
 export type WebMCPToolResponse = z.infer<typeof WebMCPToolResponseSchema>;
+export type ChainLocator = z.infer<typeof ChainLocatorSchema>;
+export type GetByTextOptions = z.infer<typeof GetByTextOptionsSchema>;
+export type LocatorInput = z.infer<typeof LocatorInputSchema>;
+export type LocatorRequestDescriptor = z.infer<typeof LocatorRequestDescriptorSchema>;
 export type LocatorDescriptor = z.infer<typeof LocatorDescriptorSchema>;
 export type StagehandInitParams = z.infer<typeof StagehandInitParamsSchema>;
 export type TelemetryConfig = z.infer<typeof TelemetryConfigSchema>;

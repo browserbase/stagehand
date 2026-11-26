@@ -144,7 +144,6 @@ it("runs the shared facade against same-origin and out-of-process local frames",
     expect(snapshot).toContain("Same value");
     expect(snapshot).toContain("Cross value");
     expect(snapshot).toContain("Shadow-only action");
-    // Snapshot-ID actions resolve their XPaths inside the batch, across frames.
     const crossValue = /\[(\d+-\d+)\] textbox: Cross value/u.exec(snapshot)?.[1];
     expect(crossValue).toBeDefined();
     await expect(

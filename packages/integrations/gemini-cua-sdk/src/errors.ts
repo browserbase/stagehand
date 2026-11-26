@@ -2,7 +2,6 @@ import { StagehandFacadeSessionLostError } from "@browserbasehq/stagehand-integr
 
 export type BrowserSessionLossReader = () => { cause: string } | undefined;
 
-/** Transport ownership, never page/model error text, decides terminal loss. */
 export function isTerminalFacadeError(
   error: unknown,
   browserSessionLoss?: BrowserSessionLossReader,

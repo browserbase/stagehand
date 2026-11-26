@@ -391,9 +391,7 @@ class UnderstudySession implements CoreSession {
     this.closed = true;
     try {
       await this.v3Result.v3.close();
-    } catch {
-      // best-effort
-    }
+    } catch {}
     await endBrowserbaseSession(this.v3Result.v3);
   }
 

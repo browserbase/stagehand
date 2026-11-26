@@ -15,21 +15,10 @@ export interface AgentToolRuntimeInput {
 
 export interface StartedAgentToolRuntime {
   running: ToolStartResult;
-  /**
-   * Browser behind the surface, whether the runner provided it (Browserbase
-   * CDP target) or the tool created it (facade, stagehand_code). Known before
-   * the agent starts so the session URL can head the task log.
-   */
   browserSession: BrowserSessionInfo;
-  /** Closes the tool-owned runtime, then the runner-owned browser target. */
   cleanup: () => Promise<void>;
 }
 
-/**
- * Starts a CoreTool for an external agent harness without interpreting its
- * agent mount. Harness adapters own delivery; this function owns the shared
- * tool/target lifecycle and makes cleanup idempotent.
- */
 export async function startAgentToolRuntime(
   input: AgentToolRuntimeInput,
 ): Promise<StartedAgentToolRuntime> {

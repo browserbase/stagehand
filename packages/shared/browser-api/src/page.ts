@@ -28,7 +28,8 @@ import {
   StagehandNotifications,
 } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { decodeBase64 } from "./base64.js";
-import { Locator } from "./locator.js";
+import { Locator, type GetByTextOptions, type GetByRoleOptions, type AriaRole } from "./locator.js";
+import { textQueryStep, roleQueryStep } from "@browserbasehq/stagehand-protocol/locatorSelectors";
 import {
   type InitScriptSource,
   normalizeEvaluationExpression,
@@ -326,12 +327,12 @@ export class Page {
         pageId: this.pageId,
         subscriptionId,
         event,
+        ...(event === "toolsadded" || event === "toolsremoved" ? { includeToolIds: true } : {}),
       });
       return subscription;
     } catch (error) {
       removeNotificationListener();
       try {
-        // A failed response does not mean the runtime stopped registering.
         await this.rpcClient.send(StagehandMethods.pageOff, { subscriptionId });
         this.eventSubscriptions.delete(subscription);
       } catch (cleanupError) {
@@ -433,6 +434,7 @@ export class Page {
   async tools(options?: WebMCPToolsOptions): Promise<WebMCPTool[]> {
     const result = await this.rpcClient.send(StagehandMethods.pageWebMCPTools, {
       pageId: this.pageId,
+      includeToolIds: true,
       ...(options ? { options } : {}),
     });
     return result.tools.map(
@@ -463,6 +465,20 @@ export class Page {
     return new Locator(this.rpcClient, {
       pageId: this.pageId,
       selector,
+    });
+  }
+
+  getByText(text: string, options?: GetByTextOptions): Locator {
+    return new Locator(this.rpcClient, {
+      pageId: this.pageId,
+      chain: { steps: [textQueryStep(text, options)] },
+    });
+  }
+
+  getByRole(role: AriaRole, options?: GetByRoleOptions): Locator {
+    return new Locator(this.rpcClient, {
+      pageId: this.pageId,
+      chain: { steps: [roleQueryStep(role, options)] },
     });
   }
 }

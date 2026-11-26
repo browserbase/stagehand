@@ -7,6 +7,7 @@ import {
   timeoutMsFlag,
   waitUntilFlag,
 } from "../lib/driver/command-cli.js";
+import { normalizeUrlScheme } from "../lib/normalize-url.js";
 
 export default class Open extends BrowseCommand {
   static override description = "Open a URL in a browse driver session.";
@@ -38,9 +39,10 @@ export default class Open extends BrowseCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(Open);
+    const url = normalizeUrlScheme(args.url);
     await runDriverCommandFromFlags(
       "open",
-      { timeoutMs: flags.timeout, url: args.url, waitUntil: flags.wait },
+      { timeoutMs: flags.timeout, url, waitUntil: flags.wait },
       flags,
     );
   }

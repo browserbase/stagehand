@@ -99,16 +99,10 @@ export function validateZodSchema(schema: z.ZodType, data: unknown) {
   throw result.error;
 }
 
-/**
- * Strip a leading `provider/` segment from a model id, e.g.
- * "anthropic/claude-opus-4-8" -> "claude-opus-4-8". Ids without a
- * provider prefix pass through unchanged.
- */
 export function stripModelProvider(modelId: string): string {
   return modelId.includes("/") ? modelId.slice(modelId.indexOf("/") + 1) : modelId;
 }
 
-// Helper function to check the type of Zod schema
 export function getZodType(schema: z.ZodType): string {
   const schemaWithDef = schema as unknown as SchemaInternals & {
     _zod?: { def?: { type?: string } };
@@ -122,19 +116,6 @@ export function getZodType(schema: z.ZodType): string {
   return TYPE_NAME_MAP[rawType] ?? rawType;
 }
 
-/**
- * Recursively traverses a given Zod schema, scanning for any fields of type `z.string().url()`.
- * For each such field, it replaces the `z.string().url()` with `z.number()`.
- *
- * This function is used internally by higher-level utilities (e.g., transforming entire object schemas)
- * and handles nested objects, arrays, unions, intersections, optionals.
- *
- * @param schema - The Zod schema to transform.
- * @param currentPath - An array of string/number keys representing the current schema path (used internally for recursion).
- * @returns A two-element tuple:
- *   1. The updated Zod schema, with any `.url()` fields replaced by `z.number()`.
- *   2. An array of {@link ZodPathSegments} objects representing each replaced field, including the path segments.
- */
 export function transformSchema(
   schema: z.ZodType,
   currentPath: Array<string | number>,
@@ -288,12 +269,6 @@ export function transformSchema(
   return [schema, []];
 }
 
-/**
- * Once we get the final extracted object that has numeric IDs in place of URLs,
- * use `injectUrls` to walk the object and replace numeric IDs
- * with the real URL strings from idToUrlMapping. The `path` may include `*`
- * for array indices (indicating "all items in the array").
- */
 export function injectUrls(
   obj: unknown,
   path: Array<string | number>,
@@ -341,7 +316,6 @@ export function injectUrls(
   }
 }
 
-// Helper to check if a schema is of a specific type
 function isKind(s: z.ZodType, kind: string): boolean {
   try {
     return getZodType(s) === kind;

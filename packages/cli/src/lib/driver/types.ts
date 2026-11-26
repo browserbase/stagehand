@@ -11,10 +11,6 @@ export type ConnectionTarget =
 
 export type RemoteConnectionTarget = Extract<ConnectionTarget, { kind: "remote" }>;
 
-/**
- * Browserbase session identity for a live remote session. Populated only once a
- * remote driver has initialized; absent for local/cdp/auto-connect targets.
- */
 export interface BrowserbaseIdentity {
   browserbaseSessionId?: string;
   browserbaseSessionUrl?: string;

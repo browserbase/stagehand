@@ -11,10 +11,6 @@ import {
 } from "./helpers/fake-browserbase-server.js";
 import { runCli } from "./helpers/run-cli.js";
 
-// Integration coverage: these exercise the built CLI end-to-end (real
-// command_not_found hook, real telemetry transport against a dummy server),
-// as opposed to the pure-function unit tests in cli-command-not-found.test.ts.
-
 const cleanupPaths: string[] = [];
 
 afterEach(async () => {

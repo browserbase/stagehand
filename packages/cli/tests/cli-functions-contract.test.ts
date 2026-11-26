@@ -46,7 +46,6 @@ afterEach(async () => {
 describe("functions API contracts", () => {
   it("publishes a Functions archive and polls build status", async () => {
     const cwd = await createFunctionFixture("functions-publish-");
-    // This contract tests upload/polling; lockfile generation has its own fixtures.
     await writeFile(join(cwd, "package-lock.json"), '{"lockfileVersion":3}\n');
 
     await withServer(
@@ -203,9 +202,7 @@ describe("functions API contracts", () => {
         dependencies: { "local-sdk": "file:local-sdk.tgz" },
       }),
     );
-    // Log outside the project so the log never lands in the publish archive.
     const argsLog = join(await createTempDir("functions-local-dep-log-"), "npm-args.log");
-    // Fake npm fails unless the local dependency is next to package.json, like real npm.
     const fakeBin = await createFakePackageManagerBin(
       "npm",
       [
@@ -241,7 +238,6 @@ describe("functions API contracts", () => {
 
         expect(result.stderr).not.toContain("ENOENT");
         expect(result.exitCode).toBe(0);
-        // Proves lockfile generation ran, so the test fails if publish ever skips it.
         expect(await readFile(argsLog, "utf8")).toContain("--package-lock-only");
       },
     );
@@ -249,7 +245,6 @@ describe("functions API contracts", () => {
 
   it("exits nonzero when a build fails", async () => {
     const cwd = await createFunctionFixture("functions-publish-fail-");
-    // This contract tests upload/polling; lockfile generation has its own fixtures.
     await writeFile(join(cwd, "package-lock.json"), '{"lockfileVersion":3}\n');
 
     await withServer(
@@ -406,7 +401,6 @@ describe("functions scaffolding and local dev", () => {
   it("scaffolds a Stagehand project with zod matched to Stagehand", async () => {
     const cwd = await createTempDir("functions-init-stagehand-");
     const argsLog = join(cwd, "pnpm-args.log");
-    // Fake pnpm logs each call and installs a Stagehand package.json that pins zod.
     const fakeBin = await createFakePackageManagerBin(
       "pnpm",
       [
@@ -442,7 +436,6 @@ describe("functions scaffolding and local dev", () => {
     const projectRoot = join(cwd, "demo-function");
     const starter = await readFile(join(projectRoot, "index.ts"), "utf8");
     expect(starter).toContain("browserbase.connect(");
-    // browser.close() releases the Function's session
     expect(starter).not.toContain("await browser.close()");
     expect(starter).toContain("Stagehand.create({ browser })");
   });
@@ -532,7 +525,6 @@ describe("functions scaffolding and local dev", () => {
           ok: true,
           params: { answer: 42 },
           sessionId: "sess_123",
-          // Production sends secrets, so handlers can read context.secrets.NAME without a check.
           secrets: {},
         });
 
@@ -596,7 +588,6 @@ describe("functions scaffolding and local dev", () => {
           const publicUrl = `http://127.0.0.1:${port}`;
           expect(JSON.parse(stdout)).toEqual({ ok: true, runtimeConnected: true, url: publicUrl });
 
-          // Exercise both a local process and a browser origin admitted by the existing CORS policy.
           const headers: Record<string, string> = runtimeError
             ? { origin: `http://localhost:${port}` }
             : {};
@@ -616,14 +607,12 @@ describe("functions scaffolding and local dev", () => {
           }
           expect(requests).toHaveLength(0);
 
-          // Keep the legitimate invocation active while attempting to forge its completion.
           const invocation = fetch(`${publicUrl}/v1/functions/test-function/invoke`, {
             method: "POST",
             headers: { ...headers, "content-type": "application/json" },
             body: JSON.stringify({ params: { answer: 42 } }),
             signal: AbortSignal.timeout(15_000),
           });
-          // Attach a rejection handler immediately while the test exercises other requests.
           void invocation.catch(() => {});
           try {
             const { requestId, runtimeApi } = JSON.parse(
@@ -642,7 +631,6 @@ describe("functions scaffolding and local dev", () => {
                 );
               }
             }
-            // Unauthorized completions must not release the active Browserbase session.
             expect(requests).toHaveLength(1);
           } finally {
             await writeFile(releaseFile, "ready");
@@ -672,7 +660,6 @@ describe("functions scaffolding and local dev", () => {
   it("supports the real Functions SDK through results, errors, and hot reload", async () => {
     const cwd = await createTempDir("functions-dev-sdk-");
     const port = await getFreePort();
-    // Keep the readiness marker outside the watched project.
     const markerFile = join(await createTempDir("functions-dev-sdk-marker-"), "loaded.json");
     await writeSdkEntrypoint(cwd, markerFile, 1);
     let sessionCount = 0;
@@ -758,7 +745,6 @@ describe("functions scaffolding and local dev", () => {
           error: { errorMessage: "Expected SDK handler error", errorType: "Error" },
         });
 
-        // A handler error must leave the SDK able to receive another invocation.
         const recovered = await invokeWhenReady({ afterError: true });
         expect(recovered.status).toBe(200);
         await expect(recovered.json()).resolves.toMatchObject({
