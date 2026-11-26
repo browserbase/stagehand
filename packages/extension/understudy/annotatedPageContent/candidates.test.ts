@@ -215,4 +215,73 @@ describe("APC locator candidates", () => {
       progress.dispose();
     }
   });
+
+  it("uses the accessibility role when APC reports an unspecified control type", async () => {
+    const send = vi.fn(async (method: string, params: { backendNodeId?: number }) =>
+      method === "Accessibility.getPartialAXTree"
+        ? {
+            nodes: [
+              {
+                backendDOMNodeId: params.backendNodeId,
+                role: { value: "switch" },
+                name: { value: "Dark mode" },
+              },
+            ],
+          }
+        : {},
+    );
+    const frame = { frameId: "main", session: { send } } as unknown as Frame;
+    const toggle = control("FORM_CONTROL_TYPE_UNSPECIFIED", "", {
+      interactionInfo: { clickabilityReasons: ["CLICKABILITY_REASON_CLICK_HANDLER"] },
+    });
+    const query = prepareAnnotatedPageContentQuery(
+      { rootNode: { childrenNodes: [toggle] } },
+      ["click"],
+      undefined,
+      new Map([[toggle, { id: "0-1", frame, backendNodeId: 1 }]]),
+    );
+    const page = { queryAnnotatedPageContent: async () => query } as unknown as Page;
+    const progress = new Progress("locate", 1000);
+    try {
+      const result = await queryAnnotatedPageContentCandidates(
+        page,
+        { operation: "click" },
+        progress,
+      );
+      expect(result.candidates.map((candidate) => candidate.description)).toEqual([
+        'switch: "Dark mode"',
+      ]);
+    } finally {
+      progress.dispose();
+    }
+  });
+
+  it("stops reading nearby text once the deadline passes", async () => {
+    const send = vi.fn(async (method: string) => {
+      if (method === "Accessibility.getPartialAXTree") {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        return { nodes: [] };
+      }
+      return {};
+    });
+    const frame = { frameId: "main", session: { send } } as unknown as Frame;
+    const box = control("FORM_CONTROL_TYPE_INPUT_CHECKBOX", "opt");
+    const query = prepareAnnotatedPageContentQuery(
+      { rootNode: { childrenNodes: [box] } },
+      ["click"],
+      undefined,
+      new Map([[box, { id: "0-1", frame, backendNodeId: 1 }]]),
+    );
+    const page = { queryAnnotatedPageContent: async () => query } as unknown as Page;
+    const progress = new Progress("locate", 10);
+    try {
+      await expect(
+        queryAnnotatedPageContentCandidates(page, { operation: "click" }, progress),
+      ).rejects.toThrow();
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      expect(send.mock.calls.map(([method]) => method)).toEqual(["Accessibility.getPartialAXTree"]);
+    } finally {
+      progress.dispose();
+    }
+  });
 });

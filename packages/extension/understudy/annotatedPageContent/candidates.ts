@@ -175,7 +175,17 @@ function describeCandidate(
   const description = formatAnnotatedPageContentCandidate(
     {
       ...node,
-      source: { ...node.source, contentAttributes: { ...attributes, ariaRole } },
+      source: {
+        ...node.source,
+        contentAttributes: {
+          ...attributes,
+          ariaRole,
+          // The formatter prints a control type before the role; "unspecified" says nothing.
+          ...(attributes.formControlData && !hasControlType(attributes)
+            ? { formControlData: { ...attributes.formControlData, formControlType: undefined } }
+            : {}),
+        },
+      },
       label: hints.label ?? node.label,
     },
     progress,
@@ -184,9 +194,14 @@ function describeCandidate(
   return path === undefined ? description : description + " [href=" + JSON.stringify(path) + "]";
 }
 
+function hasControlType(attributes: ContentAttributesJson): boolean {
+  const type = attributes.formControlData?.formControlType;
+  return !!type && type !== "FORM_CONTROL_TYPE_UNSPECIFIED";
+}
+
 function hasUnknownRole(attributes: ContentAttributesJson): boolean {
   return (
-    !attributes.formControlData?.formControlType &&
+    !hasControlType(attributes) &&
     (attributes.ariaRole === undefined || attributes.ariaRole === "AX_ROLE_UNKNOWN")
   );
 }
@@ -228,6 +243,7 @@ async function labelUnnamedCandidates(
         (controlType === "FORM_CONTROL_TYPE_INPUT_CHECKBOX" ||
           controlType === "FORM_CONTROL_TYPE_INPUT_RADIO")
       ) {
+        progress.throwIfStopped();
         hints.label = await nearbyText(target);
       }
       progress.throwIfStopped();
@@ -303,7 +319,7 @@ function readNearbyText(this: HTMLInputElement): string {
     );
     if (text) return text.slice(0, 80);
   }
-  const stop = /^(BR|HR|INPUT|SELECT|TEXTAREA|BUTTON|P|DIV|LI|TR|TD)$/;
+  const stop = /^(BR|HR|INPUT|SELECT|TEXTAREA|BUTTON|P|DIV|LI|TR|TD|H[1-6])$/;
   const collect = (start: ChildNode | null, forward: boolean) => {
     const parts: string[] = [];
     for (let node = start; node; node = forward ? node.nextSibling : node.previousSibling) {
@@ -322,10 +338,12 @@ function readNearbyText(this: HTMLInputElement): string {
   };
   const text = collect(this.nextSibling, true) || collect(this.previousSibling, false);
   if (text) return text.slice(0, 80);
+  // The parent's text is the label only when nothing in it is a block or another control.
   const parent = this.parentElement;
-  return parent?.querySelectorAll("input,select,textarea,button").length === 1
-    ? clean(parent.innerText).slice(0, 80)
-    : "";
+  const blocks = parent?.querySelectorAll(
+    "input,select,textarea,button,p,div,li,tr,td,h1,h2,h3,h4,h5,h6",
+  );
+  return parent && blocks?.length === 1 ? clean(parent.innerText).slice(0, 80) : "";
 }
 
 /** Identical descriptions give the model no basis to choose; document order does. */
