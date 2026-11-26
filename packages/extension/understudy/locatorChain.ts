@@ -166,6 +166,14 @@ export class ChainTargetLocator extends Locator {
     );
     if (!object.objectId) throw new Error("Locator chain target is no longer attached");
     if (typeof this.selector !== "string" && this.selector.type === "prompt") {
+      const release = async () => {
+        const work = () =>
+          this.frame.session
+            .send("Runtime.releaseObject", { objectId: object.objectId })
+            .catch(() => {});
+        if (progress) await progress.cleanup(work);
+        else await work();
+      };
       try {
         const attached = await runLocatorStep(progress, "checking prompt target attachment", () =>
           this.frame.session.send<Protocol.Runtime.CallFunctionOnResponse>(
@@ -184,21 +192,14 @@ export class ChainTargetLocator extends Locator {
         if (attached.result.value === "document") {
           // APC reports page scrolling on the document node, but actions need an element.
           const element = await this.documentScrollingElement(object.objectId, progress);
-          await this.frame.session
-            .send("Runtime.releaseObject", { objectId: object.objectId })
-            .catch(() => {});
+          await release();
           return { objectId: element, nodeId: null };
         }
         if (attached.result.value !== true) {
           throw new Error("Prompt locator target is no longer attached");
         }
       } catch (error) {
-        const release = () =>
-          this.frame.session
-            .send("Runtime.releaseObject", { objectId: object.objectId })
-            .catch(() => {});
-        if (progress) await progress.cleanup(release);
-        else await release();
+        await release();
         throw error;
       }
     }

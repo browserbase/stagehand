@@ -295,6 +295,40 @@ describe("prompt locator action delegation", () => {
     expect(h.send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "document" });
   });
 
+  it("does not wait past the cleanup bound when releasing the document handle stalls", async () => {
+    vi.useFakeTimers();
+    const h = harness();
+    vi.spyOn(executionContexts, "waitForLocatorWorld").mockResolvedValue({
+      kind: "extension",
+      contextId: 7,
+      capabilities: { closedShadowRoots: true },
+    });
+    h.send.mockImplementation(async (method, params) => {
+      const call = params as { objectId?: string; functionDeclaration?: string };
+      if (method === "DOM.resolveNode") return { object: { objectId: "document" } };
+      if (method === "Runtime.releaseObject" && call.objectId === "document") {
+        return new Promise(() => {});
+      }
+      if (method === "Runtime.callFunctionOn") {
+        if (call.functionDeclaration === scrollElementToPercent.toString()) {
+          return { result: { value: true } };
+        }
+        if (call.functionDeclaration?.includes("DOCUMENT_NODE")) {
+          return { result: { value: "document" } };
+        }
+        return { result: { objectId: "scroller" } };
+      }
+      return {};
+    });
+    const scrolled = h.runtime.locatorScrollTo({ ...descriptor, percent: 50 });
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(scrolled).resolves.toEqual({ scrolled: true });
+    expect(h.send).toHaveBeenCalledWith(
+      "Runtime.callFunctionOn",
+      expect.objectContaining({ objectId: "scroller" }),
+    );
+  });
+
   it("releases the captured handle when attachment verification times out", async () => {
     vi.useFakeTimers();
     const h = harness();
