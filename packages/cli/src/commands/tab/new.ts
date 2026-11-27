@@ -2,6 +2,7 @@ import { Args } from "@oclif/core";
 
 import { BrowseCommand } from "../../base.js";
 import { driverCommandFlags, runDriverCommandFromFlags } from "../../lib/driver/command-cli.js";
+import { normalizeUrlScheme } from "../../lib/normalize-url.js";
 
 export default class TabNew extends BrowseCommand {
   static override description = "Open a new tab and make it active.";
@@ -25,6 +26,7 @@ export default class TabNew extends BrowseCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(TabNew);
-    await runDriverCommandFromFlags("tab.new", { url: args.url }, flags);
+    const url = args.url === undefined ? undefined : normalizeUrlScheme(args.url);
+    await runDriverCommandFromFlags("tab.new", { url }, flags);
   }
 }
