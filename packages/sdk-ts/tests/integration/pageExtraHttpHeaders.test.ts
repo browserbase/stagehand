@@ -49,4 +49,60 @@ describe("page.setExtraHTTPHeaders", () => {
     expect(headers["x-second"]).toBe("yes");
     expect(headers["x-first"]).toBeUndefined();
   });
+
+  it("keeps context headers when page headers are set", async () => {
+    await stagehand.browser.context.setExtraHTTPHeaders({ "x-context-header": "from-context" });
+    const page = await firstPage(stagehand);
+    await page.setExtraHTTPHeaders({ "x-page-header": "from-page" });
+    await page.goto(fixture.url);
+
+    const headers = await page.evaluate<Record<string, string>>(() =>
+      JSON.parse(document.body.innerText),
+    );
+    expect(headers["x-context-header"]).toBe("from-context");
+    expect(headers["x-page-header"]).toBe("from-page");
+  });
+
+  it("keeps page headers when context headers are set later", async () => {
+    const page = await firstPage(stagehand);
+    await page.setExtraHTTPHeaders({ "x-page-header": "from-page" });
+    await stagehand.browser.context.setExtraHTTPHeaders({ "x-context-header": "from-context" });
+    await page.goto(fixture.url);
+
+    const headers = await page.evaluate<Record<string, string>>(() =>
+      JSON.parse(document.body.innerText),
+    );
+    expect(headers["x-context-header"]).toBe("from-context");
+    expect(headers["x-page-header"]).toBe("from-page");
+  });
+
+  it("page headers override context headers with the same name", async () => {
+    await stagehand.browser.context.setExtraHTTPHeaders({
+      "X-Shared-Header": "from-context",
+      "x-context-header": "from-context",
+    });
+    const page = await firstPage(stagehand);
+    await page.setExtraHTTPHeaders({ "x-shared-header": "from-page" });
+    await page.goto(fixture.url);
+
+    const headers = await page.evaluate<Record<string, string>>(() =>
+      JSON.parse(document.body.innerText),
+    );
+    expect(headers["x-shared-header"]).toBe("from-page");
+    expect(headers["x-context-header"]).toBe("from-context");
+  });
+
+  it("clearing page headers keeps context headers", async () => {
+    await stagehand.browser.context.setExtraHTTPHeaders({ "x-context-header": "from-context" });
+    const page = await firstPage(stagehand);
+    await page.setExtraHTTPHeaders({ "x-page-header": "from-page" });
+    await page.setExtraHTTPHeaders({});
+    await page.goto(fixture.url);
+
+    const headers = await page.evaluate<Record<string, string>>(() =>
+      JSON.parse(document.body.innerText),
+    );
+    expect(headers["x-context-header"]).toBe("from-context");
+    expect(headers["x-page-header"]).toBeUndefined();
+  });
 });

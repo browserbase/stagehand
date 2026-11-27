@@ -200,7 +200,10 @@ export class Page {
 
   readonly networkManager: NetworkManager;
   readonly initScripts: string[] = [];
+  /** Headers set with page.setExtraHTTPHeaders(). */
   extraHTTPHeaders: Record<string, string> = {};
+  /** Headers set with context.setExtraHTTPHeaders(); the page's own headers win on a clash. */
+  contextExtraHTTPHeaders: Record<string, string> = {};
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
   private readonly webMCPResponseSessions = new Map<CDPSessionLike, WebMCPResponseSessionState>();
   private readonly webMCPToolSessions = new Map<CDPSessionLike, WebMCPToolSessionState>();
@@ -431,8 +434,11 @@ export class Page {
     }
 
     this.networkManager.trackSession(childSession, networkCapture, childMainFrameId);
-    if (this.extraHTTPHeaders)
-      void this.applyExtraHTTPHeadersToSession(childSession, this.extraHTTPHeaders).catch(() => {});
+    // The context already sent its headers before the child resumed. Only send when there
+    // is something to add, since an empty set would erase the context's headers.
+    const extraHTTPHeaders = this.mergedExtraHTTPHeaders();
+    if (Object.keys(extraHTTPHeaders).length > 0)
+      void this.applyExtraHTTPHeadersToSession(childSession, extraHTTPHeaders).catch(() => {});
 
     void this.applyInitScriptsToSession(childSession).catch(() => {});
 
@@ -1171,6 +1177,23 @@ export class Page {
     return this.registry.asProtocolFrameTree(rootMainFrameId);
   }
 
+  /**
+   * The headers every session of this page sends: the context's headers with this page's
+   * own headers on top. Network.setExtraHTTPHeaders replaces the whole set, so both layers
+   * have to be sent together. Header names are case-insensitive, so a page header also
+   * replaces a context header whose name differs only in case.
+   */
+  mergedExtraHTTPHeaders(): Record<string, string> {
+    const pageHeaderNames = new Set(
+      Object.keys(this.extraHTTPHeaders).map((name) => name.toLowerCase()),
+    );
+    const merged: Record<string, string> = {};
+    for (const [name, value] of Object.entries(this.contextExtraHTTPHeaders)) {
+      if (!pageHeaderNames.has(name.toLowerCase())) merged[name] = value;
+    }
+    return { ...merged, ...this.extraHTTPHeaders };
+  }
+
   async applyExtraHTTPHeadersToSession(
     session: CDPSessionLike,
     headers: Record<string, string>,
@@ -1532,8 +1555,8 @@ export class Page {
   }
 
   async setExtraHTTPHeaders(headers: Record<string, string>): Promise<void> {
-    const headersToSet = { ...headers };
-    this.extraHTTPHeaders = headersToSet;
+    this.extraHTTPHeaders = { ...headers };
+    const headersToSet = this.mergedExtraHTTPHeaders();
 
     const sessions: CDPSessionLike[] = [this.mainSession];
     for (const session of this.sessions.values()) {
