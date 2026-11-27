@@ -1311,6 +1311,9 @@
             },
             "tools": {
               "type": "boolean"
+            },
+            "target_readiness": {
+              "type": "boolean"
             }
           },
           "required": ["api_key"],

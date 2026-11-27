@@ -1,3 +1,4 @@
+import { runInNewContext } from "node:vm";
 import { trace } from "@opentelemetry/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Action, ActResultData } from "@browserbasehq/stagehand-protocol/types";
@@ -834,6 +835,54 @@ describe("decisions act pipeline", () => {
     ]);
   });
 
+  it("stops watching frames for choices once the wait is over", async () => {
+    const before = "[0-1] combobox: State";
+    const after = ["[0-1] combobox: State", "  [0-2] listbox", "    [0-4] option: Alaska"].join(
+      "\n",
+    );
+    const prefer = (question: { criteria?: Record<string, unknown> }) =>
+      question.criteria ? choice("0-4" in question.criteria ? "0-4" : "0-1") : noul(0.95);
+    stubDecisions({
+      family: choice("fill"),
+      after_typing: choice("pick_suggestion"),
+      strict: prefer,
+      best: prefer,
+    });
+    const xpaths = { "0-1": "/html/body/input", "0-4": "/html/body/ul/li" };
+    const harness = deps(before, xpaths, {
+      instruction: "type 'Ala' into the State box and pick the suggestion 'Alaska'",
+    });
+    harness.captureSnapshot
+      .mockResolvedValueOnce({ combinedTree: before, combinedXpathMap: xpaths, combinedUrlMap: {} })
+      .mockResolvedValue({ combinedTree: after, combinedXpathMap: xpaths, combinedUrlMap: {} });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValueOnce({
+      inputValue: async () => "Ala",
+    } as never);
+    const frames: Array<() => void> = [];
+    let cap = (): void => {};
+    const evaluate = vi.fn(async (expression: string) => {
+      const waiting = runInNewContext(expression, {
+        document: { querySelectorAll: () => [] },
+        innerHeight: 600,
+        requestAnimationFrame: (callback: () => void) => frames.push(callback),
+        setTimeout: (callback: () => void) => {
+          cap = callback;
+        },
+      }) as Promise<boolean>;
+      for (let frame = 0; frame < 3; frame++) frames.shift()!();
+      cap();
+      await waiting;
+      frames.shift()!();
+    });
+    (harness.value.page as unknown as { mainFrame: () => unknown }).mainFrame = () => ({
+      evaluate,
+    });
+
+    expect((await runDecisionsAct(config, harness.value)).kind).toBe("done");
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect(frames).toHaveLength(0);
+  });
+
   it("drags with two independent picks", async () => {
     const tree = [
       "[0-1] div",
@@ -1026,5 +1075,258 @@ describe("decisions act pipeline and DOM settle", () => {
     );
     expect(outcome.kind).toBe("done");
     expect(order).toEqual(["intent", "settled", "act"]);
+  });
+});
+
+describe("decisions act pipeline target readiness", () => {
+  const tree = ["[0-1] RootWebArea: Shop", "  [0-7] button: Checkout"].join("\n");
+  const xpaths = { "0-7": "/html/body/button" };
+  const never = new Promise<void>(() => {});
+
+  function locator(verdicts: string[], backendNodeId = 7, value = "") {
+    let calls = 0;
+    return {
+      backendNodeId: async () => backendNodeId,
+      resolveNode: async () => ({ objectId: "obj-1" }),
+      getFrame: () => ({
+        session: {
+          send: async (method: string) =>
+            method === "Runtime.callFunctionOn"
+              ? {
+                  result: { value: { verdict: verdicts[Math.min(calls++, verdicts.length - 1)] } },
+                }
+              : {},
+        },
+      }),
+      inputValue: async () => value,
+    } as never;
+  }
+
+  it("acts before the DOM-settle wait is over when the target is found and stays put", async () => {
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValueOnce(locator(["ok"]));
+    const d = deps(tree, xpaths, { instruction: "click Checkout", settled: never });
+    const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
+    expect(outcome.kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    expect(d.captureSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for the settle heuristic while the target is moving or covered", async () => {
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["moving", "covered", "moving"]));
+    let settle!: () => void;
+    const settled = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    const d = deps(tree, xpaths, { instruction: "click Checkout", settled });
+    const running = runDecisionsAct({ ...config, targetReadiness: true }, d.value);
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(d.takeAction).not.toHaveBeenCalled();
+    settle();
+    expect((await running).kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
+  it("treats a failed snapshot during readiness as not-ready and keeps looking", async () => {
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["ok"]));
+    let captures = 0;
+    const d = deps(tree, xpaths, { instruction: "click Checkout", settled: never });
+    d.captureSnapshot.mockImplementation(async () => {
+      if (++captures <= 2) throw new Error("Frame with the given id was not found");
+      return { combinedTree: tree, combinedXpathMap: xpaths, combinedUrlMap: {} };
+    });
+    const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
+    expect(outcome.kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    expect(captures).toBe(3);
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
+  it("redacts %variable% values from the cover the guard names", async () => {
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    const lines: string[] = [];
+    const logger = new StagehandLogger(
+      { tracer: trace.getTracer("decisions-cover-test") },
+      (line) => {
+        lines.push(JSON.stringify(line));
+      },
+    );
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue({
+      backendNodeId: async () => 7,
+      resolveNode: async () => ({ objectId: "obj-1" }),
+      getFrame: () => ({
+        session: {
+          send: async (method: string) =>
+            method === "Runtime.callFunctionOn"
+              ? { result: { value: { verdict: "covered", cover: "li: jane@corp.com" } } }
+              : {},
+        },
+      }),
+      inputValue: async () => "",
+    } as never);
+    const d = deps(tree, xpaths, {
+      instruction: "click Checkout",
+      variables: { email: "jane@corp.com" },
+      settled: Promise.resolve(),
+      logger,
+    });
+    await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
+    const logged = lines.join("\n");
+    expect(logged).toContain("%email%");
+    expect(logged).not.toContain("jane@corp.com");
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
+  it("keeps looking while the settle wait runs and acts the moment a late target lands", async () => {
+    const calls = stubDecisions({
+      family: choice("click"),
+      strict: choice("0-7"),
+      best: best("0-7", 0.95),
+    });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["ok"]));
+    const empty = "[0-1] RootWebArea: Shop";
+    let snapshots = 0;
+    const d = deps(empty, xpaths, { instruction: "click Checkout", settled: never });
+    d.captureSnapshot.mockImplementation(async () => ({
+      combinedTree: ++snapshots >= 4 ? tree : empty,
+      combinedXpathMap: xpaths,
+      combinedUrlMap: {},
+    }));
+    const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
+    expect(outcome.kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    expect(snapshots).toBe(4);
+    const picks = calls.filter((call) => "best" in call.questions && !("family" in call.questions));
+    expect(picks.length).toBeLessThanOrEqual(2);
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
+  it("after the settle wait, holds a click while the target is covered and clicks once it clears", async () => {
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue(
+      locator(["covered", "covered", "covered", "ok"]),
+    );
+    const d = deps(tree, xpaths, { instruction: "click Checkout", settled: Promise.resolve() });
+    const started = Date.now();
+    const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
+    expect(outcome.kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(250);
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
+  it("after the settle wait, still clicks a target that stays covered past the guard cap", async () => {
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["covered"]));
+    const d = deps(tree, xpaths, { instruction: "click Checkout", settled: Promise.resolve() });
+    const started = Date.now();
+    const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
+    expect(outcome.kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(1400);
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
+  it("does not fill a field that was replaced while the text to type was being extracted", async () => {
+    stubDecisions({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
+    let resolutions = 0;
+    vi.mocked(resolveLocatorWithHops).mockImplementation(async () =>
+      locator(["ok"], ++resolutions === 1 ? 5 : 99, "linear algebra"),
+    );
+    let settle!: () => void;
+    const settled = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    const d = deps(
+      FORM,
+      { "0-5": "/html/body/form/input" },
+      {
+        instruction: "search for linear algebra in the username box",
+        extractText: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return "linear algebra";
+        },
+        settled,
+      },
+    );
+    const running = runDecisionsAct({ ...config, targetReadiness: true }, d.value);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(d.takeAction).not.toHaveBeenCalled();
+    settle();
+    expect((await running).kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    expect(d.takeAction).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "fill", arguments: ["linear algebra"] }),
+    );
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
+  it("fills early once the extracted text arrives when the field is still the one picked", async () => {
+    stubDecisions({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["ok"], 5, "linear algebra"));
+    const d = deps(
+      FORM,
+      { "0-5": "/html/body/form/input" },
+      {
+        instruction: "search for linear algebra in the username box",
+        extractText: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return "linear algebra";
+        },
+        settled: never,
+      },
+    );
+    const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
+    expect(outcome.kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    expect(d.captureSnapshot).toHaveBeenCalledTimes(1);
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
+  it("does not trust a selector that now resolves to a different node", async () => {
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["ok"], 99));
+    let settle!: () => void;
+    const settled = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    const d = deps(tree, xpaths, { instruction: "click Checkout", settled });
+    const running = runDecisionsAct({ ...config, targetReadiness: true }, d.value);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(d.takeAction).not.toHaveBeenCalled();
+    settle();
+    await running;
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
   });
 });
