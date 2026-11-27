@@ -11,6 +11,7 @@ export type HybridSnapshot = {
   combinedTree: string;
   combinedXpathMap: Record<string, string>;
   combinedUrlMap: Record<string, string>;
+  combinedEditableIds?: string[];
   perFrame?: PerFrameSnapshot[];
 };
 
@@ -19,6 +20,7 @@ export type PerFrameSnapshot = {
   outline: string;
   xpathMap: Record<string, string>;
   urlMap: Record<string, string>;
+  editableIds?: string[];
 };
 
 export type SessionDomIndex = {
@@ -37,6 +39,7 @@ export type FrameDomMaps = {
   xpathMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
   urlMap: Record<string, string>;
+  editableIds?: string[];
 };
 
 export type ResolvedLocation = {
@@ -89,6 +92,7 @@ export type A11yOptions = {
 export type AccessibilityTreeResult = {
   outline: string;
   urlMap: Record<string, string>;
+  editableIds?: string[];
   scopeApplied: boolean;
 };
 
