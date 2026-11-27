@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createServiceWorkerHeartbeatManager,
+  STAGEHAND_SERVICE_WORKER_HEARTBEAT_PORT,
   type ServiceWorkerHeartbeatChrome,
 } from "../service-worker-lifecycle/heartbeat-manager.ts";
 
@@ -66,5 +67,64 @@ describe("service worker heartbeat manager", () => {
 
     finishCreation?.();
     await Promise.all([startupEnsure, tabEnsure]);
+  });
+});
+
+describe("service worker heartbeat offscreen script", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("sends a heartbeat immediately and then every 20 seconds", async () => {
+    vi.useFakeTimers();
+    const message = vi.fn();
+    const connect = vi.fn(() => ({
+      onDisconnect: { addListener: vi.fn() },
+      postMessage: message,
+    }));
+    vi.stubGlobal("chrome", { runtime: { connect } });
+
+    await import("../service-worker-lifecycle/heartbeat.ts");
+
+    expect(connect).toHaveBeenCalledWith({ name: STAGEHAND_SERVICE_WORKER_HEARTBEAT_PORT });
+    expect(message).toHaveBeenCalledOnce();
+    expect(message.mock.calls[0]?.[0]).toMatchObject({
+      type: STAGEHAND_SERVICE_WORKER_HEARTBEAT_PORT,
+    });
+
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(message).toHaveBeenCalledOnce();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(message).toHaveBeenCalledTimes(2);
+  });
+
+  it("reconnects 250 ms after disconnection and sends a heartbeat immediately", async () => {
+    vi.useFakeTimers();
+    const disconnectListeners: Array<() => void> = [];
+    const message = vi.fn();
+    const connect = vi.fn(() => ({
+      onDisconnect: {
+        addListener: (listener: () => void) => {
+          disconnectListeners.push(listener);
+        },
+      },
+      postMessage: message,
+    }));
+    vi.stubGlobal("chrome", { runtime: { connect } });
+
+    await import("../service-worker-lifecycle/heartbeat.ts");
+    message.mockClear();
+
+    disconnectListeners[0]?.();
+    await vi.advanceTimersByTimeAsync(249);
+    expect(connect).toHaveBeenCalledOnce();
+    expect(message).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(connect).toHaveBeenCalledTimes(2);
+    expect(message).toHaveBeenCalledOnce();
   });
 });
