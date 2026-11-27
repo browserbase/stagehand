@@ -339,7 +339,7 @@ export function focusElement(this: Element): void {
   } catch {}
 }
 
-export function selectElementOptions(this: Element, rawValues: string | string[]): string[] {
+export function selectElementOptions(this: Element, rawValues: string | string[]): string[] | null {
   try {
     if (!(this instanceof HTMLSelectElement)) return [];
 
@@ -351,6 +351,9 @@ export function selectElementOptions(this: Element, rawValues: string | string[]
       const value = String(option.value ?? "").trim();
       return wanted.has(label) || wanted.has(value);
     };
+
+    // Leave the current selection alone rather than resetting it when nothing matches.
+    if (desired.length > 0 && !Array.from(this.options).some(matches)) return null;
 
     if (this.multiple) {
       for (const option of Array.from(this.options)) {
