@@ -1,4 +1,4 @@
-import type { JsonValue } from "./typesafeClient.js";
+import type { JsonValue } from "./client.js";
 
 export type OutlineNode = {
   id: string;

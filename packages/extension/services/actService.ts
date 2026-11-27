@@ -35,7 +35,7 @@ import {
 import { redactor } from "./decisions/args.js";
 import type { DecisionsToolDeps } from "./decisions/toolAct.js";
 import { focusOutline, parseOutline } from "./decisions/tree.js";
-import type { JsonValue } from "./decisions/typesafeClient.js";
+import type { JsonValue } from "./decisions/client.js";
 import * as llmService from "./llmService.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 

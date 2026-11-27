@@ -12,6 +12,7 @@ import { StagehandLogger } from "../logger.js";
 import * as actService from "../services/actService.js";
 import type { Page } from "../understudy/page.js";
 import { Progress } from "../understudy/progress.js";
+import { realisticAnswer } from "./decisionsTestUtils.js";
 
 vi.mock("../handlers/handlerUtils/actHandlerUtils.js", () => ({
   performUnderstudyMethod: vi.fn(),
@@ -816,11 +817,20 @@ async function settleOrder(
     "fetch",
     vi.fn(async (_url: string, init: RequestInit) => {
       order.push("intent");
-      const questions = Object.keys(JSON.parse(init.body as string).questions);
+      const { questions } = JSON.parse(init.body as string) as {
+        questions: Record<string, { type?: string; criteria?: object | null }>;
+      };
       const answer = { type: "choice", choice: "unsupported", confidence: 0.2, probabilities: {} };
       return new Response(
         JSON.stringify({
-          answers: Object.fromEntries(questions.map((key) => [key, answer])),
+          answers: Object.fromEntries(
+            Object.entries(questions).map(([key, question]) => [
+              key,
+              question.type === "noul"
+                ? { type: "noul", noul: 0 }
+                : realisticAnswer(question, answer),
+            ]),
+          ),
           usage: { input_tokens: 1 },
         }),
       );

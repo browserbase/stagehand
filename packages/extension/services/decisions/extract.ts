@@ -12,12 +12,7 @@ import {
   type TraceEntry,
 } from "./pick.js";
 import { buildView, pageDigest, textOf, type OutlineNode } from "./tree.js";
-import {
-  choiceAnswer,
-  noulAnswer,
-  type DecisionModelConfig,
-  type JsonValue,
-} from "./typesafeClient.js";
+import { choiceAnswer, noulAnswer, type DecisionModelConfig, type JsonValue } from "./client.js";
 
 export type JsonSchema = {
   type?: string | string[];

@@ -6,7 +6,7 @@ import type {
 import type { Page } from "../../understudy/page.js";
 import { redactor, substituteVariables } from "./args.js";
 import type { TraceEntry } from "./pick.js";
-import type { JsonValue } from "./typesafeClient.js";
+import type { JsonValue } from "./client.js";
 
 const RESULT_TIMEOUT_MS = 30_000;
 const RESULT_MESSAGE_CHARS = 2_000;

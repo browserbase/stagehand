@@ -12,12 +12,12 @@ import {
 import {
   choiceAnswer,
   noulAnswer,
-  systemOne,
+  decide,
   type DecisionModelConfig,
   type DecisionQuestion,
   type DecisionResponse,
   type JsonValue,
-} from "./typesafeClient.js";
+} from "./client.js";
 
 export type TraceEntry = Record<string, JsonValue>;
 
@@ -85,7 +85,7 @@ export async function ask(
     state = redactDeep(state, ctx.redact);
     questions = redactDeep(questions, ctx.redact);
   }
-  const response = await systemOne(ctx.config, state, questions);
+  const response = await decide(ctx.config, state, questions);
   ctx.trace.push({
     node,
     ms: response.durationMs,

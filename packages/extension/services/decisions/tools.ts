@@ -6,7 +6,7 @@ import {
   type DecisionQuestion,
   type DecisionResponse,
   type JsonValue,
-} from "./typesafeClient.js";
+} from "./client.js";
 
 const NONE = "none_of_these";
 const UNSET = "unset";

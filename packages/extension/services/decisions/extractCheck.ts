@@ -1,5 +1,5 @@
 import { ask, round, type AskContext } from "./pick.js";
-import { noulAnswer } from "./typesafeClient.js";
+import { noulAnswer } from "./client.js";
 
 const MAX_EXTRACTED_CHARS = 6000;
 

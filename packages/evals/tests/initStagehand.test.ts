@@ -127,4 +127,80 @@ describe("native Stagehand evaluation initialization", () => {
       expect(stagehand.browser.context.activePage).not.toHaveBeenCalled();
     },
   );
+
+  describe("EVAL_DECISIONS provider routing", () => {
+    const keys: Record<string, string> = {
+      OPENAI_API_KEY: "test-model-key",
+      TYPESAFE_API_KEY: "test-typesafe-key",
+      CLOUDFLARE_API_TOKEN: "test-cloudflare-token",
+      PERPLEXITY_API_KEY: "test-perplexity-key",
+    };
+    const init = () =>
+      initStagehand({ logger, modelName: "openai/gpt-6-astra", environment: "LOCAL" });
+    const sentDecisions = async () => {
+      let sent: string | undefined;
+      mocks.create.mockImplementation(async () => {
+        sent = process.env.STAGEHAND_EXPERIMENTAL_DECISIONS;
+        return stagehand;
+      });
+      await init();
+      return JSON.parse(sent ?? "null") as Record<string, unknown> | null;
+    };
+
+    beforeEach(() => {
+      mocks.resolveKey.mockImplementation((name: string) => ({
+        value: keys[name] ?? "",
+        source: "process-env",
+      }));
+      vi.stubEnv("EVAL_DECISIONS", "1");
+      vi.stubEnv("EVAL_DECISIONS_PROVIDER", undefined);
+      vi.stubEnv("CLOUDFLARE_ACCOUNT_ID", undefined);
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      delete process.env.STAGEHAND_EXPERIMENTAL_DECISIONS;
+    });
+
+    it("defaults to TypeSafe without naming a provider", async () => {
+      const sent = await sentDecisions();
+      expect(sent).toMatchObject({ apiKey: "test-typesafe-key" });
+      expect(sent).not.toHaveProperty("provider");
+      expect(sent).not.toHaveProperty("accountId");
+    });
+
+    it.each([
+      ["cloudflare", { apiKey: "test-cloudflare-token", accountId: "acct123" }],
+      ["perplexity", { apiKey: "test-perplexity-key" }],
+      ["openai", { apiKey: "test-model-key" }],
+    ])("sends %s its own key", async (provider, expected) => {
+      vi.stubEnv("EVAL_DECISIONS_PROVIDER", provider);
+      vi.stubEnv("CLOUDFLARE_ACCOUNT_ID", "acct123");
+      const sent = await sentDecisions();
+      expect(sent).toMatchObject({ provider, ...expected });
+      if (provider !== "cloudflare") expect(sent).not.toHaveProperty("accountId");
+    });
+
+    it("rejects an unknown provider before anything is launched", async () => {
+      vi.stubEnv("EVAL_DECISIONS_PROVIDER", "nope");
+      await expect(init()).rejects.toThrow('unknown EVAL_DECISIONS_PROVIDER "nope"');
+      expect(mocks.launchLocal).not.toHaveBeenCalled();
+    });
+
+    it("names the key a provider is missing", async () => {
+      vi.stubEnv("EVAL_DECISIONS_PROVIDER", "perplexity");
+      mocks.resolveKey.mockImplementation((name: string) => ({
+        value: name === "PERPLEXITY_API_KEY" ? "" : (keys[name] ?? ""),
+        source: "process-env",
+      }));
+      await expect(init()).rejects.toThrow('provider "perplexity" requires PERPLEXITY_API_KEY');
+      expect(mocks.launchLocal).not.toHaveBeenCalled();
+    });
+
+    it("requires CLOUDFLARE_ACCOUNT_ID for Cloudflare", async () => {
+      vi.stubEnv("EVAL_DECISIONS_PROVIDER", "cloudflare");
+      await expect(init()).rejects.toThrow('provider "cloudflare" requires CLOUDFLARE_ACCOUNT_ID');
+      expect(mocks.launchLocal).not.toHaveBeenCalled();
+    });
+  });
 });

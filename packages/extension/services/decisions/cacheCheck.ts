@@ -2,7 +2,7 @@ import type { Action } from "@browserbasehq/stagehand-protocol/types";
 import { trimTrailingTextNode } from "../../utils.js";
 import { ask, round, type AskContext, type Snapshot } from "./pick.js";
 import { describeCandidate } from "./tree.js";
-import { noulAnswer } from "./typesafeClient.js";
+import { noulAnswer } from "./client.js";
 
 export type CacheVerdict =
   | { verdict: "match"; score: number }

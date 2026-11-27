@@ -49,7 +49,7 @@ import {
   noulAnswer,
   type DecisionModelConfig,
   type DecisionResponse,
-} from "./typesafeClient.js";
+} from "./client.js";
 
 export { fillValueCandidates, parseKey, parsePercent } from "./args.js";
 

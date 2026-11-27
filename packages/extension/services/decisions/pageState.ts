@@ -1,6 +1,6 @@
 import { ask, round, type AskContext } from "./pick.js";
 import { pageDigest, type OutlineNode } from "./tree.js";
-import { noulAnswer } from "./typesafeClient.js";
+import { noulAnswer } from "./client.js";
 
 export const PAGE_STATE_SIGNALS = {
   access_denied:
