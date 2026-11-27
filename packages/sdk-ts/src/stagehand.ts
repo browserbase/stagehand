@@ -217,11 +217,13 @@ export class Stagehand {
         );
       }
 
-      this.initRequestStarted = true;
-      await rpcClient.sendStagehandInit(
-        stagehandCreateParamsForWorker(createConfig, browser, browserbaseConnection !== undefined),
-        signal,
+      const initParams = stagehandCreateParamsForWorker(
+        createConfig,
+        browser,
+        browserbaseConnection !== undefined,
       );
+      this.initRequestStarted = true;
+      await rpcClient.sendStagehandInit(initParams, signal);
       attachStagehandBrowserContext(
         this.browserHandle,
         new BrowserContext(rpcClient, () => this.browserHandle.close()),
@@ -366,6 +368,17 @@ function isDefinitiveRPCErrorResponse(error: unknown): boolean {
   return error instanceof Error && JSONRPCErrorObjectSchema.safeParse(error.cause).success;
 }
 
+function experimentalDecisionsFromEnv(): unknown {
+  const raw =
+    typeof process === "undefined" ? undefined : process.env?.STAGEHAND_EXPERIMENTAL_DECISIONS;
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error("STAGEHAND_EXPERIMENTAL_DECISIONS must be a JSON object");
+  }
+}
+
 function stagehandCreateParamsForWorker(
   createConfig: ResolvedStagehandClientCreateConfig,
   browser: ClaimedStagehandBrowser,
@@ -374,7 +387,9 @@ function stagehandCreateParamsForWorker(
   const { logging, model, apiKey: _apiKey, apiUrl: _apiUrl, ...protocolParams } = createConfig;
   const protocolModel = model && "generate" in model ? { source: "client" as const } : model;
 
+  const experimentalDecisions = experimentalDecisionsFromEnv();
   return StagehandInitParamsSchema.parse({
+    ...(experimentalDecisions === undefined ? {} : { experimentalDecisions }),
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     clientInfo: STAGEHAND_SDK_CLIENT_INFO,
     browserCdpUrl:

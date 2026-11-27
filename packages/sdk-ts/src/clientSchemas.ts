@@ -306,6 +306,7 @@ export const StagehandClientCreateConfigSchema = z
     browserCdpUrl: true,
     logLevel: true,
     browser: true,
+    experimentalDecisions: true,
   })
   .extend({
     apiKey: z.string().min(1).optional().meta({

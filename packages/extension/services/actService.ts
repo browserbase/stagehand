@@ -26,8 +26,17 @@ import type { Page } from "../understudy/page.js";
 import { type Progress, runWithProgress } from "../understudy/progress.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
+import {
+  runDecisionsAct,
+  type DecisionsConfig,
+  type DecisionsActOutcome,
+} from "./decisions/pipeline.js";
+import { redactor } from "./decisions/args.js";
+import { focusOutline, parseOutline } from "./decisions/tree.js";
 import * as llmService from "./llmService.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
+
+const FOCUS_MIN_TREE_CHARS = 120_000;
 
 type ActInferenceResponse = Awaited<ReturnType<typeof inference.act>>;
 type ActInferenceElement = NonNullable<ActInferenceResponse["element"]>;
@@ -42,6 +51,7 @@ type ActContext = {
   domSettleTimeoutMs?: number;
   progress: Progress;
   gateway?: GatewayContext;
+  decisions?: DecisionsConfig;
   recordUsage: (response: ActInferenceResponse) => void;
 };
 
@@ -57,6 +67,8 @@ type ActServiceOptions = {
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
   progress?: Progress;
+  decisions?: DecisionsConfig;
+  openPageCount?: () => number;
 };
 
 export async function act(options: ActServiceOptions): Promise<ActResult> {
@@ -78,6 +90,8 @@ async function actWithProgress(
     domSettleTimeoutMs,
     cache,
     gateway,
+    decisions,
+    openPageCount,
   }: ActServiceOptions,
   progress: Progress,
 ): Promise<ActResult> {
@@ -97,6 +111,7 @@ async function actWithProgress(
     domSettleTimeoutMs,
     progress,
     gateway,
+    decisions,
     recordUsage,
   };
 
@@ -119,6 +134,11 @@ async function actWithProgress(
   };
   await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs, progress);
   progress.throwIfStopped();
+  let actPath: "llm" | "decisions" | "decisions+arg-llm" | "decisions+llm" = "llm";
+  let usedArgumentLlm = false;
+  let decisionsFocusIds: string[] = [];
+  let decisionsNoCache = false;
+  let decisionsPriorActions: ActResultData["actions"] = [];
 
   return await cacheService.withCache<ActResult>({
     method: "act",
@@ -131,12 +151,29 @@ async function actWithProgress(
     progress,
     onHit: (value) => replayCachedActions(value, instruction, variables, context),
     execute: async () => {
+      const startedAt = performance.now();
       const result = await runActPipeline();
+      if (decisionsPriorActions.length > 0) {
+        result.data.actions = [...decisionsPriorActions, ...result.data.actions];
+      }
+      if (decisions)
+        logger.info("Act pipeline finished", {
+          category: "decisions-eval",
+          instruction,
+          path: actPath,
+          success: result.data.success,
+          durationMs: Math.round(performance.now() - startedAt),
+          llmInputTokens: result.metadata.usage.inputTokens,
+          llmOutputTokens: result.metadata.usage.outputTokens,
+          llmMs: result.metadata.usage.inferenceTimeMs,
+        });
       const { usage } = result.metadata;
       return {
         result,
         cacheValue:
-          result.data.success && result.data.actions.length > 0 ? result.data.actions : undefined,
+          result.data.success && result.data.actions.length > 0 && !decisionsNoCache
+            ? result.data.actions
+            : undefined,
         llmUsage: {
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
@@ -147,6 +184,66 @@ async function actWithProgress(
   });
 
   async function runActPipeline(): Promise<ActResult> {
+    if (decisions && decisions.enabled !== false) {
+      actPath = "decisions";
+      const outcome = await runDecisionsAct(decisions, {
+        page,
+        logger,
+        instruction,
+        variables,
+        snapshotOptions,
+        ensureTimeRemaining: () => progress.throwIfStopped(),
+        openPageCount,
+        extractText: async (text) => {
+          const response = await inference.actTextArgument({
+            instruction: text,
+            variableNames: Object.keys(variables ?? {}),
+            generate: (input) =>
+              llmService.generate(context.model, input, context.clientLLMGenerate, context.gateway),
+          });
+          recordUsage({ ...response, element: null, twoStep: false });
+          usedArgumentLlm = true;
+          return response.text;
+        },
+        takeAction: (action) =>
+          takeDeterministicAction({ action, variables, context: { ...context, selfHeal: false } }),
+      }).catch((error: unknown) => {
+        progress.throwIfStopped();
+        if (error instanceof TimeoutError) throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          kind: "fallback",
+          reason: `decision_error:${message}`,
+        } satisfies DecisionsActOutcome as DecisionsActOutcome;
+      });
+      if (outcome.kind === "done") {
+        decisionsNoCache = outcome.noCache === true;
+        if (usedArgumentLlm) actPath = "decisions+arg-llm";
+        return actResult(outcome.result, operationUsage);
+      }
+      actPath = "decisions+llm";
+      decisionsPriorActions = outcome.priorActions ?? [];
+      if (outcome.noCache) decisionsNoCache = true;
+      decisionsFocusIds = decisions.focusFallback ? (outcome.focusIds ?? []) : [];
+      logger.info("Decisions act fell back to the LLM pipeline", {
+        category: "decisions",
+        instruction,
+        reason: outcome.reason,
+      });
+      if (decisions.llmFallback === false) {
+        actPath = "decisions";
+        return actResult(
+          {
+            success: false,
+            message: `Failed to perform act: the decision model abstained (${(redactor(variables) ?? ((text: string) => text))(outcome.reason).slice(0, 160)})`,
+            actionDescription: instruction,
+            actions: [],
+          },
+          operationUsage,
+        );
+      }
+    }
+
     const { combinedTree, combinedXpathMap } = await page.captureSnapshot(
       snapshotOptions,
       progress,
@@ -158,8 +255,31 @@ async function actWithProgress(
       variables,
     );
 
+    let firstInference: Awaited<ReturnType<typeof getActionFromLLM>> | undefined;
+    if (decisionsFocusIds.length > 0 && combinedTree.length > FOCUS_MIN_TREE_CHARS) {
+      const focused = focusOutline(parseOutline(combinedTree), decisionsFocusIds);
+      if (focused.trim() && focused.length < combinedTree.length / 2) {
+        progress.throwIfStopped();
+        const attempt = await getActionFromLLM({
+          instruction: actPrompt,
+          domElements: focused,
+          xpathMap: combinedXpathMap,
+          context,
+        });
+        logger.info("the decision model focused LLM fallback", {
+          category: "decisions",
+          instruction,
+          focusIds: decisionsFocusIds.length,
+          focusedChars: focused.length,
+          fullChars: combinedTree.length,
+          found: Boolean(attempt.action),
+        });
+        if (attempt.action) firstInference = attempt;
+      }
+    }
+
     progress.throwIfStopped();
-    const firstInference = await getActionFromLLM({
+    firstInference ??= await getActionFromLLM({
       instruction: actPrompt,
       domElements: combinedTree,
       xpathMap: combinedXpathMap,

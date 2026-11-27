@@ -92,6 +92,8 @@ export function createStagehandController(
           runtime.adapters.clientBrowserbaseRequest,
         ),
         gateway,
+        decisions: state.initParams.experimentalDecisions,
+        openPageCount: () => runtime.requireBrowserSession().pages().length,
       });
       runtime.metrics.record("act", result.metadata.usage);
       return result;
