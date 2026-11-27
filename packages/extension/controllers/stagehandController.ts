@@ -165,6 +165,12 @@ export function createStagehandController(
           runtime.adapters.clientBrowserbaseRequest,
         ),
         gateway,
+        decisions:
+          state.initParams.experimentalDecisions?.extract &&
+          state.initParams.experimentalDecisions.extract !== "off" &&
+          state.initParams.experimentalDecisions.enabled !== false
+            ? state.initParams.experimentalDecisions
+            : undefined,
       });
       runtime.metrics.record("extract", result.metadata.usage);
       return result;

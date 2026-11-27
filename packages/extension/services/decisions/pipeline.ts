@@ -60,6 +60,7 @@ export type DecisionsConfig = DecisionModelConfig & {
   retryNoEffect?: boolean;
   focusFallback?: boolean;
   cacheCheck?: boolean;
+  extract?: "off" | "judge" | "pick";
   observe?: boolean;
 };
 

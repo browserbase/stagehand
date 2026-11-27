@@ -131,6 +131,7 @@ export async function extract<T extends z.ZodObject>(params: {
   generate: GenerateLlm;
   userProvidedInstructions?: string;
   screenshot?: LLMImageContent;
+  judgeCompleted?: (extracted: unknown) => Promise<boolean>;
 }): Promise<
   z.infer<T> & {
     metadata: z.infer<typeof ExtractMetadataSchema>;
@@ -150,13 +151,21 @@ export async function extract<T extends z.ZodObject>(params: {
     promptText(buildExtractSystemPrompt(false, userProvidedInstructions, Boolean(screenshot))),
     buildExtractUserPrompt(instruction, domElements, false, screenshot),
   );
-  const metadata = await generateStructured(
-    generate,
-    "Metadata",
-    ExtractMetadataSchema,
-    promptText(buildMetadataSystemPrompt()),
-    promptText(buildMetadataPrompt(instruction, extraction.data)),
-  );
+  const judged = params.judgeCompleted
+    ? await Promise.resolve()
+        .then(() => params.judgeCompleted!(extraction.data))
+        .catch(() => undefined)
+    : undefined;
+  const metadata =
+    judged === undefined
+      ? await generateStructured(
+          generate,
+          "Metadata",
+          ExtractMetadataSchema,
+          promptText(buildMetadataSystemPrompt()),
+          promptText(buildMetadataPrompt(instruction, extraction.data)),
+        )
+      : { data: { progress: "", completed: judged }, usage: undefined, durationMs: 0 };
 
   return {
     ...extraction.data,
