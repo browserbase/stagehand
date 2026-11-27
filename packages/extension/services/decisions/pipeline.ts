@@ -18,6 +18,8 @@ import {
   redactor,
   substituteVariables,
 } from "./args.js";
+import { invokeTool, type DecisionsToolDeps } from "./toolAct.js";
+import { readToolDecision, toolQuestions } from "./tools.js";
 import { blockingSignal, readPageState } from "./pageState.js";
 import {
   NONE,
@@ -62,6 +64,7 @@ export type DecisionsConfig = DecisionModelConfig & {
   cacheCheck?: boolean;
   extract?: "off" | "judge" | "pick";
   observe?: boolean;
+  tools?: boolean;
 };
 
 export type DecisionsActDeps = {
@@ -74,6 +77,7 @@ export type DecisionsActDeps = {
   openPageCount?: () => number;
   extractText?: (instruction: string) => Promise<string | null>;
   takeAction: (action: Action) => Promise<ActResultData>;
+  webmcp?: DecisionsToolDeps;
 };
 
 export type DecisionsActOutcome =
@@ -81,6 +85,7 @@ export type DecisionsActOutcome =
       kind: "done";
       result: ActResultData;
       noCache?: boolean;
+      viaTool?: { argumentLlm: boolean };
     }
   | {
       kind: "fallback";
@@ -221,6 +226,13 @@ async function decideAndAct(
   };
 
   const fillValues = fillValueCandidates(deps.instruction, deps.variables);
+  const tools = deps.webmcp ? await deps.webmcp.tools.catch(() => []) : [];
+  const asked = tools.length > 0 ? toolQuestions(deps.instruction, tools) : undefined;
+  const speculative = asked?.needsArgumentLlm;
+  const speculativeInput =
+    speculative && deps.webmcp?.fillArguments && config.argumentLlm !== false
+      ? deps.webmcp.fillArguments(speculative).catch(() => null)
+      : undefined;
   const intent = await ask(
     ctx,
     "intent",
@@ -296,10 +308,51 @@ async function decideAndAct(
           other: "Some other key, or the instruction is not a key press",
         },
       },
+      ...asked?.questions,
     },
   );
+  const intentEntry = trace[trace.length - 1]!;
+  if (asked && deps.webmcp) {
+    const decision = await readToolDecision(ctx, intent, asked, intentEntry);
+    if (decision.kind === "tool") {
+      let input = decision.input;
+      let argumentLlm = false;
+      if (!input && deps.webmcp.fillArguments && config.argumentLlm !== false) {
+        argumentLlm = true;
+        const started = performance.now();
+        input =
+          (await (decision.tool === speculative && speculativeInput
+            ? speculativeInput
+            : deps.webmcp.fillArguments(decision.tool).catch(() => null))) ?? undefined;
+        trace.push({
+          node: "tool_arguments_llm",
+          ms: Math.round(performance.now() - started),
+          speculative: decision.tool === speculative,
+        });
+      }
+      if (input) {
+        deps.ensureTimeRemaining();
+        const result = await invokeTool(
+          deps.webmcp,
+          deps.instruction,
+          deps.variables,
+          decision.tool,
+          input,
+          trace,
+        );
+        return { kind: "done", result, noCache: true, viaTool: { argumentLlm } };
+      }
+      intentEntry.tool_skip = "arguments_not_filled";
+    } else {
+      intentEntry.tool_skip = decision.reason;
+    }
+  }
   const family = resolveFamily(choiceAnswer(intent, "family"), ctx.threshold);
-  annotate(trace, { choice: family.choice, confidence: family.confidence, top: family.top });
+  Object.assign(intentEntry, {
+    choice: family.choice,
+    confidence: family.confidence,
+    top: family.top,
+  });
   if (family.confidence < ctx.threshold) return fallback(`intent_low_confidence:${family.top}`);
 
   if (family.choice === "not_an_action") {
