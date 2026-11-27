@@ -354,16 +354,44 @@ export class Page {
   }
 
   public onFrameAttached(frameId: string, parentId: string | null, session: CDPSessionLike): void {
-    this.ensureOrdinal(frameId);
+    const prevRoot = this.mainFrameId();
     this.registry.onFrameAttached(frameId, parentId, session.id ?? "root");
+    const newRoot = this.mainFrameId();
+    if (newRoot !== prevRoot) {
+      const oldOrd = this.frameOrdinals.get(prevRoot) ?? 0;
+      this.frameOrdinals.delete(prevRoot);
+      this.frameOrdinals.set(newRoot, oldOrd);
+      this.frameCache.delete(prevRoot);
+      this.mainFrameWrapper = new Frame(
+        this.mainSession,
+        newRoot,
+        this.pageId,
+        this.browserIsRemote,
+        this.logger,
+      );
+    } else {
+      this.ensureOrdinal(frameId);
+    }
     this.reconcilePendingWebMCPTools();
     this.frameCache.delete(frameId);
   }
 
-  public onFrameDetached(frameId: string, reason: string = "remove"): void {
-    if (reason !== "swap") this.invalidateWebMCPFrame(frameId);
-    this.registry.onFrameDetached(frameId, reason);
-    this.frameCache.delete(frameId);
+  public onFrameDetached(frameId: string, reason: string = "remove"): string[] {
+    const removed = this.registry.onFrameDetached(frameId, reason);
+    // A late process-swap detach must not remove tools reported by the new owner.
+    if (reason === "swap") {
+      this.frameCache.delete(frameId);
+      return removed;
+    }
+    const idsToClean = removed.length > 0 ? removed : [frameId];
+    for (const id of idsToClean) {
+      this.invalidateWebMCPFrame(id);
+      this.frameCache.delete(id);
+      if (id !== this.mainFrameId()) {
+        this.frameOrdinals.delete(id);
+      }
+    }
+    return idsToClean;
   }
 
   public onFrameNavigated(frame: Protocol.Page.Frame, session: CDPSessionLike): void {
@@ -380,7 +408,9 @@ export class Page {
     const newRoot = this.mainFrameId();
     if (newRoot !== prevRoot) {
       const oldOrd = this.frameOrdinals.get(prevRoot) ?? 0;
+      this.frameOrdinals.delete(prevRoot);
       this.frameOrdinals.set(newRoot, oldOrd);
+      this.frameCache.delete(prevRoot);
       this.mainFrameWrapper = new Frame(
         this.mainSession,
         newRoot,
@@ -470,7 +500,7 @@ export class Page {
     void this.ensureWebMCPToolTracking(childSession, seedOwnership).catch(() => {});
   }
 
-  public detachOopifSession(sessionId: string): void {
+  public detachOopifSession(sessionId: string): string[] {
     const session = this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
     if (session) {
@@ -485,11 +515,20 @@ export class Page {
     for (const subscription of this.cdpEventSubscriptions) {
       this.detachCDPEventSubscription(subscription, sessionId);
     }
-    for (const fid of this.registry.framesForSession(sessionId)) {
-      this.registry.onFrameDetached(fid, "remove");
+    const ownedFrames = this.registry.framesForSession(sessionId);
+    const removed = this.registry.detachSession(sessionId);
+    for (const fid of ownedFrames) {
       this.frameCache.delete(fid);
     }
+    for (const fid of removed) {
+      this.invalidateWebMCPFrame(fid);
+      this.frameCache.delete(fid);
+      if (fid !== this.mainFrameId()) {
+        this.frameOrdinals.delete(fid);
+      }
+    }
     this.networkManager.untrackSession(sessionId);
+    return removed;
   }
 
   public getSessionForFrame(frameId: string): CDPSessionLike {
@@ -1138,10 +1177,38 @@ export class Page {
 
   public dispose(): void {
     this.disposed = true;
-    for (const dispose of this.pageEventDisposers) dispose();
-    for (const session of this.webMCPToolSessions.keys()) this.stopWebMCPToolTracking(session);
-    this.teardownWebMCPInvocations();
-    this.networkManager.dispose();
+    let firstError: unknown;
+    const disposers = Array.from(this.pageEventDisposers);
+    this.pageEventDisposers.clear();
+    for (const dispose of disposers) {
+      try {
+        dispose();
+      } catch (error) {
+        firstError ??= error;
+      }
+    }
+    for (const session of Array.from(this.webMCPToolSessions.keys())) {
+      try {
+        this.stopWebMCPToolTracking(session);
+      } catch (error) {
+        firstError ??= error;
+      }
+    }
+    try {
+      this.teardownWebMCPInvocations();
+    } catch (error) {
+      firstError ??= error;
+    }
+    try {
+      this.networkManager.dispose();
+    } catch (error) {
+      firstError ??= error;
+    }
+    this.frameCache.clear();
+    this.frameOrdinals.clear();
+    if (firstError !== undefined) {
+      throw firstError;
+    }
   }
 
   public async close(): Promise<void> {
