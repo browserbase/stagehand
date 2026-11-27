@@ -77,6 +77,7 @@ export type DecisionsActDeps = {
   openPageCount?: () => number;
   extractText?: (instruction: string) => Promise<string | null>;
   takeAction: (action: Action) => Promise<ActResultData>;
+  settled?: Promise<void>;
   webmcp?: DecisionsToolDeps;
 };
 
@@ -331,6 +332,7 @@ async function decideAndAct(
         });
       }
       if (input) {
+        await deps.settled;
         deps.ensureTimeRemaining();
         const result = await invokeTool(
           deps.webmcp,
@@ -948,6 +950,7 @@ async function act(
   action: Action,
   options: { before?: Snapshot; expectedValue?: string } = {},
 ): Promise<Done | Fallback> {
+  await ctx.deps.settled;
   const urlBefore = ctx.deps.page.url();
   const pagesBefore = ctx.deps.openPageCount?.();
   ctx.deps.ensureTimeRemaining();
@@ -1210,6 +1213,7 @@ async function readInputValue(
 }
 
 async function snapshot(deps: DecisionsActDeps): Promise<Snapshot> {
+  await deps.settled;
   deps.ensureTimeRemaining();
   const { combinedTree, combinedXpathMap, combinedEditableIds } = await deps.page.captureSnapshot(
     deps.snapshotOptions,

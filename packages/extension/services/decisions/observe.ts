@@ -73,9 +73,10 @@ export async function runDecisionsObserve(
     return outcome;
   };
 
-  const snap = await snapshot(deps);
+  const snapshotting = snapshot(deps);
 
   if (!deps.instruction) {
+    const snap = await snapshotting;
     const everything = uniqueById([
       ...buildView(snap.nodes, "pointer"),
       ...buildView(snap.nodes, "input"),
@@ -97,7 +98,8 @@ export async function runDecisionsObserve(
     redact: redactor(deps.variables),
   };
 
-  const intent = await ask(
+  snapshotting.catch(() => {});
+  const asking = ask(
     ctx,
     "intent",
     { instruction: deps.instruction },
@@ -125,6 +127,8 @@ export async function runDecisionsObserve(
       },
     },
   );
+  asking.catch(() => {});
+  const [intent, snap] = await Promise.all([asking, snapshotting]);
   const family = resolveFamily(choiceAnswer(intent, "family"), ctx.threshold);
   const cardinality = choiceAnswer(intent, "cardinality");
   annotate(trace, {

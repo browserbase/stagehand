@@ -166,7 +166,16 @@ async function actWithProgress(
           },
         }
       : undefined;
-  await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs, progress);
+  const actStartedAt = performance.now();
+  const settled = waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs, progress);
+  const cacheBypass = cacheService.shouldBypassCacheForLocatorScope(options);
+  const cacheLookup =
+    cache !== undefined &&
+    !cacheBypass &&
+    (options?.cache ?? cache.defaultCaching ?? true) !== false;
+  const overlapSettle = decisions !== undefined && decisions.enabled !== false && !cacheLookup;
+  if (overlapSettle) settled.catch(() => {});
+  else await settled;
   progress.throwIfStopped();
   let actPath:
     | "llm"
@@ -185,11 +194,14 @@ async function actWithProgress(
     page,
     data: cacheService.buildActCacheData(params),
     caching: options?.cache,
-    bypass: cacheService.shouldBypassCacheForLocatorScope(options),
+    bypass: cacheBypass,
     context: cache,
     logger,
     progress,
-    onHit: (value) => replayCachedActions(value, instruction, variables, context),
+    onHit: async (value) => {
+      await settled;
+      return await replayCachedActions(value, instruction, variables, context);
+    },
     execute: async () => {
       const startedAt = performance.now();
       const result = await runActPipeline();
@@ -203,6 +215,7 @@ async function actWithProgress(
           path: actPath,
           success: result.data.success,
           durationMs: Math.round(performance.now() - startedAt),
+          totalMs: Math.round(performance.now() - actStartedAt),
           llmInputTokens: result.metadata.usage.inputTokens,
           llmOutputTokens: result.metadata.usage.outputTokens,
           llmMs: result.metadata.usage.inferenceTimeMs,
@@ -234,6 +247,7 @@ async function actWithProgress(
         snapshotOptions,
         ensureTimeRemaining: () => progress.throwIfStopped(),
         openPageCount,
+        settled,
         ...(webmcp ? { webmcp } : {}),
         extractText: async (text) => {
           const response = await inference.actTextArgument({
@@ -287,6 +301,7 @@ async function actWithProgress(
       }
     }
 
+    await settled;
     const { combinedTree, combinedXpathMap } = await page.captureSnapshot(
       snapshotOptions,
       progress,
