@@ -1,0 +1,174 @@
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+export type DecisionQuestion =
+  | { type: "choice"; instructions: JsonValue; criteria: Record<string, JsonValue> }
+  | { type: "noul"; instructions: JsonValue; criteria?: { true: JsonValue; false: JsonValue } };
+
+export type DecisionChoiceAnswer = {
+  type: "choice";
+  choice: string;
+  probabilities: Record<string, number>;
+  confidence: number;
+};
+
+export type DecisionNoulAnswer = { type: "noul"; noul: number };
+
+export type DecisionAnswer = DecisionChoiceAnswer | DecisionNoulAnswer;
+
+export type DecisionModelConfig = { apiKey: string; model?: string; apiUrl?: string };
+
+export type DecisionResponse = {
+  model: string;
+  answers: Record<string, DecisionAnswer>;
+  usage: { inputTokens: number; outputTokens: number };
+  durationMs: number;
+};
+
+export const TYPESAFE_DEFAULT_API_URL = "https://api.typesafe.ai";
+export const TYPESAFE_DEFAULT_MODEL = "jev-latest";
+
+const RETRY_STATUSES = new Set([429, 529]);
+const MAX_ATTEMPTS = 3;
+const REQUEST_TIMEOUT_MS = 8_000;
+const AUTH_STATUSES = new Set([401, 403]);
+const BREAKER_MS = 60_000;
+
+const FAILURES_TO_OPEN = 3;
+const OUTAGE_BREAKER_MS = 30_000;
+
+const breakers = new Map<string, { openUntil: number; failures: number }>();
+
+function breakerFor(config: DecisionModelConfig) {
+  const key = `${config.apiUrl ?? TYPESAFE_DEFAULT_API_URL}\u0000${config.apiKey}`;
+  let breaker = breakers.get(key);
+  if (!breaker) breakers.set(key, (breaker = { openUntil: 0, failures: 0 }));
+  return breaker;
+}
+
+export class DecisionRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+    this.name = "DecisionRequestError";
+  }
+}
+
+export async function systemOne(
+  config: DecisionModelConfig,
+  state: JsonValue,
+  questions: Record<string, DecisionQuestion>,
+): Promise<DecisionResponse> {
+  const url = `${(config.apiUrl ?? TYPESAFE_DEFAULT_API_URL).replace(/\/+$/, "")}/v1/systemone`;
+  const body = JSON.stringify({ state, model: config.model ?? TYPESAFE_DEFAULT_MODEL, questions });
+  const startedAt = Date.now();
+  const breaker = breakerFor(config);
+  if (startedAt < breaker.openUntil) {
+    throw new DecisionRequestError("TypeSafe requests are paused after repeated failures");
+  }
+  const failed = () => {
+    if (++breaker.failures >= FAILURES_TO_OPEN) {
+      breaker.openUntil = Date.now() + OUTAGE_BREAKER_MS;
+      breaker.failures = 0;
+    }
+  };
+
+  for (let attempt = 1; ; attempt++) {
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body,
+      });
+    } catch (error) {
+      failed();
+      const cause = error instanceof Error ? error.name : "network";
+      throw new DecisionRequestError(
+        cause === "TimeoutError"
+          ? `TypeSafe systemone request timed out after ${REQUEST_TIMEOUT_MS} ms`
+          : `TypeSafe systemone request failed (${cause})`,
+      );
+    }
+
+    if (response.ok) {
+      const payload = (await response.json().catch(() => undefined)) as
+        | {
+            model?: string;
+            answers?: Record<string, DecisionAnswer>;
+            usage?: { input_tokens?: number; output_tokens?: number };
+          }
+        | undefined;
+      if (
+        !payload ||
+        typeof payload !== "object" ||
+        !payload.answers ||
+        typeof payload.answers !== "object"
+      ) {
+        failed();
+        throw new DecisionRequestError(
+          "TypeSafe systemone response was not a systemone payload",
+          response.status,
+        );
+      }
+      breaker.failures = 0;
+      return {
+        model: payload.model ?? "",
+        answers: payload.answers,
+        usage: {
+          inputTokens: payload.usage?.input_tokens ?? 0,
+          outputTokens: payload.usage?.output_tokens ?? 0,
+        },
+        durationMs: Date.now() - startedAt,
+      };
+    }
+
+    if (RETRY_STATUSES.has(response.status) && attempt < MAX_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** (attempt - 1)));
+      continue;
+    }
+
+    if (AUTH_STATUSES.has(response.status)) {
+      breaker.openUntil = Date.now() + BREAKER_MS;
+      breaker.failures = 0;
+    } else if (response.status >= 500 || RETRY_STATUSES.has(response.status)) {
+      failed();
+    } else {
+      breaker.failures = 0;
+    }
+    const detail = (await response.text().catch(() => "")).match(
+      /"error_type"\s*:\s*"([\w-]{1,64})"/,
+    );
+    throw new DecisionRequestError(
+      `TypeSafe systemone request failed (${response.status}${detail ? `: ${detail[1]}` : ""})`,
+      response.status,
+    );
+  }
+}
+
+export function choiceAnswer(response: DecisionResponse, key: string): DecisionChoiceAnswer {
+  const answer = response.answers[key];
+  if (!answer || !("choice" in answer)) {
+    throw new DecisionRequestError(`TypeSafe response is missing choice answer "${key}"`);
+  }
+  return answer;
+}
+
+export function noulAnswer(response: DecisionResponse, key: string): DecisionNoulAnswer {
+  const answer = response.answers[key];
+  if (!answer || !("noul" in answer)) {
+    throw new DecisionRequestError(`TypeSafe response is missing noul answer "${key}"`);
+  }
+  return answer;
+}
