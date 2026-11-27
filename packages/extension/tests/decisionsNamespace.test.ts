@@ -22,45 +22,56 @@ const METADATA = { cache: { status: "DISABLED" as const }, usage: USAGE };
 afterEach(() => vi.restoreAllMocks());
 
 describe("stagehand.experimentalDecisions routing", () => {
-  it("gives the decision config only to the namespace methods", async () => {
+  it("hands decision-first drivers to the services for namespace calls", async () => {
     const { router, services, close } = await setup({ apiKey: "decision-key", tools: true });
 
     await router.handle(call("stagehand.experimental_decisions_act", { instruction: "click it" }));
     await router.handle(call("stagehand.experimental_decisions_observe", { instruction: "find" }));
     await router.handle(call("stagehand.experimental_decisions_extract", { instruction: "get" }));
 
-    const asked = {
-      apiKey: "decision-key",
-      tools: true,
-      enabled: true,
-      observe: true,
-      extract: "pick",
-    };
-    expect(services.act.mock.calls[0][0].decisions).toStrictEqual(asked);
-    expect(services.observe.mock.calls[0][0].decisions).toStrictEqual(asked);
-    expect(services.extract.mock.calls[0][0].decisions).toStrictEqual(asked);
+    expect(services.act.mock.calls[0][0]).toMatchObject({
+      driver: { name: "decisions+llm", startsBeforeSettle: true },
+      logTiming: true,
+    });
+    expect(services.act.mock.calls[0][0].cachedActionGuard).toBeUndefined();
+    expect(services.observe.mock.calls[0][0].driver?.name).toBe("decisions+llm");
+    expect(services.extract.mock.calls[0][0].driver?.name).toBe("decisions+llm");
     await close();
   });
 
-  it("keeps the plain methods on the LLM path when a decision config exists", async () => {
+  it("hands language-model drivers to the services for the plain methods", async () => {
     const { router, services, close } = await setup({ apiKey: "decision-key", tools: true });
 
     await router.handle(call("stagehand.act", { instruction: "click it" }));
     await router.handle(call("stagehand.observe", { instruction: "find" }));
     await router.handle(call("stagehand.extract", { instruction: "get" }));
 
-    expect(services.act.mock.calls[0][0].decisions).toMatchObject({ enabled: false });
-    expect(services.observe.mock.calls[0][0].decisions).toBeUndefined();
-    expect(services.extract.mock.calls[0][0].decisions).toBeUndefined();
+    expect(services.act.mock.calls[0][0]).toMatchObject({
+      driver: { name: "llm", startsBeforeSettle: false },
+      logTiming: true,
+    });
+    expect(services.act.mock.calls[0][0].cachedActionGuard).toBeUndefined();
+    expect(services.observe.mock.calls[0][0].driver?.name).toBe("llm");
+    expect(services.extract.mock.calls[0][0].driver?.name).toBe("llm");
     await close();
   });
 
-  it("honours the configured extract mode", async () => {
-    const { router, services, close } = await setup({ apiKey: "decision-key", extract: "judge" });
+  it("composes the drivers from the configuration", async () => {
+    const { router, services, close } = await setup({
+      apiKey: "decision-key",
+      extract: "judge",
+      llmFallback: false,
+      cacheCheck: true,
+    });
 
+    await router.handle(call("stagehand.experimental_decisions_act", { instruction: "click it" }));
+    await router.handle(call("stagehand.experimental_decisions_observe", { instruction: "find" }));
     await router.handle(call("stagehand.experimental_decisions_extract", { instruction: "get" }));
 
-    expect(services.extract.mock.calls[0][0].decisions).toMatchObject({ extract: "judge" });
+    expect(services.act.mock.calls[0][0].driver?.name).toBe("decisions");
+    expect(services.act.mock.calls[0][0].cachedActionGuard).toBeDefined();
+    expect(services.observe.mock.calls[0][0].driver?.name).toBe("decisions");
+    expect(services.extract.mock.calls[0][0].driver?.name).toBe("llm");
     await close();
   });
 
@@ -83,7 +94,10 @@ describe("stagehand.experimentalDecisions routing", () => {
     await expect(
       router.handle(call("stagehand.act", { instruction: "click it" })),
     ).resolves.toMatchObject({ data: { success: true } });
-    expect(services.act.mock.calls[0][0].decisions).toBeUndefined();
+    expect(services.act.mock.calls[0][0]).toMatchObject({
+      driver: { name: "llm" },
+      logTiming: false,
+    });
     await close();
   });
 

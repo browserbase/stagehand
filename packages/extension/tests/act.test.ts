@@ -10,6 +10,8 @@ import {
 import * as inference from "../inference.js";
 import { StagehandLogger } from "../logger.js";
 import * as actService from "../services/actService.js";
+import { decisionsCachedActionGuard } from "../services/decisions/drivers.js";
+import { decisionDrivers } from "../services/drivers/index.js";
 import type { Page } from "../understudy/page.js";
 import { Progress } from "../understudy/progress.js";
 import { realisticAnswer } from "./decisionsTestUtils.js";
@@ -693,7 +695,7 @@ describe("act service", () => {
           client: { get, set } as unknown as CacheClient,
           defaultCaching: true as const,
         },
-        decisions: { apiKey: "test", cacheCheck: true },
+        cachedActionGuard: decisionsCachedActionGuard({ apiKey: "test" }),
       });
 
       expect(result.metadata.cache.status).toBe("MISS");
@@ -854,7 +856,7 @@ async function settleOrder(
         client: { get, set } as unknown as CacheClient,
         defaultCaching,
       },
-      decisions: { apiKey: "test" },
+      driver: decisionDrivers({ apiKey: "test" }).act,
     });
     expect(result.data.success).toBe(true);
   } finally {
