@@ -3,6 +3,37 @@
 This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
 describe the TypeScript SDK.
 
+## TypeScript SDK 4.6.0
+
+### Minor Changes
+
+- [#3567](https://github.com/browserbase/stagehand/pull/3567) [`97ff3e1`](https://github.com/browserbase/stagehand/commit/97ff3e1189d3205bee10127fdde992f3313ef228) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add `Locator.filter()` to match locators by included or excluded text.
+
+## Python SDK 4.6.0
+
+### Minor Changes
+
+- [#3567](https://github.com/browserbase/stagehand/pull/3567) [`97ff3e1`](https://github.com/browserbase/stagehand/commit/97ff3e1189d3205bee10127fdde992f3313ef228) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add `Locator.filter()` to match locators by included or excluded text.
+
+## Extension Runtime 1.5.0
+
+### Minor Changes
+
+- [#3567](https://github.com/browserbase/stagehand/pull/3567) [`97ff3e1`](https://github.com/browserbase/stagehand/commit/97ff3e1189d3205bee10127fdde992f3313ef228) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add `Locator.filter()` to match locators by included or excluded text.
+
+## Protocol 3.3.0
+
+### Minor Changes
+
+- [#3567](https://github.com/browserbase/stagehand/pull/3567) [`97ff3e1`](https://github.com/browserbase/stagehand/commit/97ff3e1189d3205bee10127fdde992f3313ef228) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Add `Locator.filter()` to match locators by included or excluded text.
+
+## Eve Extension 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [[`97ff3e1`](https://github.com/browserbase/stagehand/commit/97ff3e1189d3205bee10127fdde992f3313ef228)]:
+  - @browserbasehq/stagehand@4.6.0
+
 ## TypeScript SDK 4.5.0
 
 ### Minor Changes
