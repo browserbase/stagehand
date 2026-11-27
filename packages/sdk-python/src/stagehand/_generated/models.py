@@ -387,6 +387,7 @@ class BrowserbaseSessionCreateParams(WireModel):
     keep_alive: Optional[StrictBool] = None
     proxies: Optional[Union[StrictBool, list[ProxyConfig]]] = None
     region: Optional[BrowserbaseRegion] = None
+    stagehand: Optional[StrictBool] = None
     timeout: Optional[StrictFloat] = None
     user_metadata: Optional[dict[StrictStr, Any]] = None
 

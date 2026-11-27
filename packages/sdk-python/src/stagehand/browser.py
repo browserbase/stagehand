@@ -763,6 +763,7 @@ class BrowserbaseBrowser:
         keep_alive: bool | None = None,
         proxies: bool | list[ProxyConfig] | None = None,
         region: BrowserbaseRegion | None = None,
+        stagehand: bool | None = None,
         timeout: float | None = None,
         user_metadata: Mapping[str, Any] | None = None,
     ) -> StagehandBrowser:
@@ -780,6 +781,7 @@ class BrowserbaseBrowser:
                 ("keep_alive", keep_alive),
                 ("proxies", proxies),
                 ("region", region),
+                ("stagehand", stagehand),
                 ("timeout", timeout),
                 ("user_metadata", dict(user_metadata) if user_metadata is not None else None),
             )

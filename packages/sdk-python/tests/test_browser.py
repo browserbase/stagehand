@@ -16,6 +16,7 @@ from stagehand._generated.models import (
     BrowserbaseRegion,
     BrowserbaseSessionCreateParams,
 )
+from stagehand._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from stagehand.browser import (
     _DEFAULT_CHROME_FLAGS,
     StagehandBrowser,
@@ -32,6 +33,7 @@ from stagehand.browser import (
     local_browser,
 )
 from stagehand.browser_context import BrowserContext
+from stagehand.browserbase_session import BrowserbaseSessionError
 from stagehand.cdp_client import CDPConnectionClosedError
 from stagehand.client_models import LocalBrowserLaunchOptions, LocalViewport
 
@@ -1069,6 +1071,67 @@ async def test_browserbase_launch_uses_preloaded_extension_and_owns_session(
     assert configurations == [("api-key", "https://api.dev.browserbase.com", None)]
     assert client.created.close_calls == 1
     assert fake_cdp.instances[-1].close_calls == 1
+
+
+async def test_browserbase_launch_with_stagehand_skips_the_extension_upload(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path == "/v1/sessions":
+            return httpx.Response(200, json={"id": "session-id", "connectUrl": "wss://browser"})
+        return httpx.Response(200, json={"id": "session-id"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        handle = await browserbase.launch(
+            api_key="api-key",
+            client_options={"http_client": http_client, "max_retries": 0},
+            stagehand=True,
+        )
+        await handle.close()
+
+    assert [(request.method, request.url.path) for request in requests] == [
+        ("POST", "/v1/sessions"),
+        ("POST", "/v1/sessions/session-id"),
+    ]
+    body = json.loads(requests[0].content)
+    assert body["stagehand"]["protocolVersion"] == STAGEHAND_PROTOCOL_VERSION
+    assert body["stagehand"]["clientInfo"]["name"] == "stagehand-sdk-python"
+    assert "extensionId" not in body
+
+
+async def test_browserbase_launch_hints_at_removing_stagehand_on_a_bad_request(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"message": "not available for secret"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        with pytest.raises(BrowserbaseSessionError) as raised:
+            await browserbase.launch(
+                api_key="api-key",
+                client_options={"http_client": http_client, "max_retries": 0},
+                stagehand=True,
+            )
+
+    assert str(raised.value).startswith("Failed to create a Browserbase session. ")
+    assert "remove `stagehand=True`" in str(raised.value)
+    assert "secret" not in str(raised.value)
+    assert raised.value.__cause__ is None
+    assert fake_cdp.instances == []
+
+
+async def test_browserbase_launch_rejects_a_non_boolean_stagehand(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, _ = _install_browserbase_client(monkeypatch)
+
+    with pytest.raises(ValidationError):
+        await browserbase.launch(api_key="api-key", stagehand="yes")  # ty: ignore[invalid-argument-type]
+
+    assert client.create_calls == []
 
 
 async def test_browserbase_launch_keep_alive_still_closes_session_explicitly(

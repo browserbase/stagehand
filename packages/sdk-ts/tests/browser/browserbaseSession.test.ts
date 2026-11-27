@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import Browserbase from "@browserbasehq/sdk";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import {
   BrowserbaseSessionError,
   createBrowserbaseApiClient,
@@ -6,7 +8,10 @@ import {
   type BrowserbaseApiClient,
 } from "../../src/browser/browserbaseSession.js";
 import type { BrowserbaseClientOptions } from "../../src/clientSchemas.js";
+import { STAGEHAND_SDK_CLIENT_INFO } from "../../src/sdkIdentity.js";
 import { STAGEHAND_SDK_VERSION } from "../../src/version.js";
+
+const FINGERPRINT = "a".repeat(64);
 
 describe("Browserbase session creation", () => {
   it("maps session creation and release to the official SDK surface", async () => {
@@ -268,33 +273,213 @@ describe("Browserbase session creation", () => {
     },
   );
 
-  it("deletes the uploaded extension when session creation fails", async () => {
-    const createError = new Error("concurrency limit reached");
-    const cleanupExtension = vi.fn(async () => {});
-    const browserbase = fakeBrowserbaseApiClient({
-      createSession: vi.fn(async () => {
-        throw createError;
-      }),
-    });
+  it.each([{}, { extensionId: "ext_caller" }, { browserSettings: { extensionId: "ext_caller" } }])(
+    "loads the built-in extension without uploading one when stagehand is true",
+    async (params) => {
+      const createSession = vi.fn(async () => ({
+        id: "session_123",
+        connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      }));
+      const releaseSession = vi.fn(async () => {});
+      const provisionExtension = vi.fn();
+      const client = createBrowserbaseSessionClient(
+        "bb_key",
+        "https://api.browserbase.com",
+        {},
+        {
+          browserbase: fakeBrowserbaseApiClient({ createSession, releaseSession }),
+          provisionExtension,
+          readExtensionFingerprint: async () => FINGERPRINT,
+        },
+      );
+
+      const session = await client.createSession({ ...params, stagehand: true });
+      await session.close?.();
+
+      expect(provisionExtension).not.toHaveBeenCalled();
+      expect(createSession).toHaveBeenCalledWith({
+        ...params,
+        stagehand: {
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+          clientInfo: { ...STAGEHAND_SDK_CLIENT_INFO },
+          extensionFingerprint: FINGERPRINT,
+        },
+        userMetadata: {
+          stagehand: "true",
+          stagehand_sdk_language: "typescript",
+          stagehand_sdk_version: STAGEHAND_SDK_VERSION,
+        },
+      });
+      expect(releaseSession).toHaveBeenCalledWith("session_123");
+    },
+  );
+
+  it("keeps the caller's metadata next to the SDK tags when stagehand is true", async () => {
+    const createSession = vi.fn(async () => ({
+      id: "session_123",
+      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+    }));
     const client = createBrowserbaseSessionClient(
       "bb_key",
       "https://api.browserbase.com",
       {},
       {
-        browserbase,
-        provisionExtension: async () => ({
-          extensionId: "ext_stagehand",
-          cleanup: cleanupExtension,
-        }),
+        browserbase: fakeBrowserbaseApiClient({ createSession }),
+        readExtensionFingerprint: async () => FINGERPRINT,
       },
     );
 
-    const error = await client.createSession({}).catch((caught: unknown) => caught);
-    expect(error).toBeInstanceOf(BrowserbaseSessionError);
-    expect((error as Error).message).toBe("Failed to create a Browserbase session");
-    expect((error as Error).cause).toBeUndefined();
+    await client.createSession({ stagehand: true, userMetadata: { suite: "unit" } });
+
+    expect(createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userMetadata: {
+          suite: "unit",
+          stagehand: "true",
+          stagehand_sdk_language: "typescript",
+          stagehand_sdk_version: STAGEHAND_SDK_VERSION,
+        },
+      }),
+    );
+  });
+
+  it("omits an unreadable extension fingerprint from the built-in extension request", async () => {
+    const createSession = vi.fn(async () => ({
+      id: "session_123",
+      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+    }));
+    const client = createBrowserbaseSessionClient(
+      "bb_key",
+      "https://api.browserbase.com",
+      {},
+      {
+        browserbase: fakeBrowserbaseApiClient({ createSession }),
+        provisionExtension: vi.fn(),
+        readExtensionFingerprint: async () => {
+          throw new Error("missing build file");
+        },
+      },
+    );
+
+    await client.createSession({ stagehand: true });
+
+    expect(createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stagehand: {
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+          clientInfo: { ...STAGEHAND_SDK_CLIENT_INFO },
+        },
+      }),
+    );
+  });
+
+  it("uploads the bundled extension and sends no stagehand key when stagehand is false", async () => {
+    const cleanupExtension = vi.fn(async () => {});
+    const createSession = vi.fn(async () => ({
+      id: "session_123",
+      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+    }));
+    const provisionExtension = vi.fn(async () => ({
+      extensionId: "ext_stagehand",
+      cleanup: cleanupExtension,
+    }));
+    const readExtensionFingerprint = vi.fn(async () => FINGERPRINT);
+    const client = createBrowserbaseSessionClient(
+      "bb_key",
+      "https://api.browserbase.com",
+      {},
+      {
+        browserbase: fakeBrowserbaseApiClient({ createSession }),
+        provisionExtension,
+        readExtensionFingerprint,
+      },
+    );
+
+    const session = await client.createSession({ stagehand: false });
+    await session.close?.();
+
+    expect(provisionExtension).toHaveBeenCalledOnce();
+    expect(readExtensionFingerprint).not.toHaveBeenCalled();
+    expect(createSession).toHaveBeenCalledWith({
+      extensionId: "ext_stagehand",
+      userMetadata: {
+        stagehand: "true",
+        stagehand_sdk_language: "typescript",
+        stagehand_sdk_version: STAGEHAND_SDK_VERSION,
+      },
+    });
     expect(cleanupExtension).toHaveBeenCalledOnce();
   });
+
+  it.each([
+    { status: 400, hinted: true },
+    { status: 401, hinted: false },
+    { status: undefined, hinted: false },
+  ])(
+    "adds the built-in extension hint only to a 400 when stagehand is true (status $status)",
+    async ({ status, hinted }) => {
+      const client = createBrowserbaseSessionClient(
+        "bb_key",
+        "https://api.browserbase.com",
+        {},
+        {
+          browserbase: fakeBrowserbaseApiClient({
+            createSession: vi.fn(async () => {
+              throw status === undefined
+                ? new Error("socket hang up for bb_secret")
+                : apiError(status, "stagehand rejected for bb_secret");
+            }),
+          }),
+          provisionExtension: vi.fn(),
+          readExtensionFingerprint: async () => FINGERPRINT,
+        },
+      );
+
+      const error = await client
+        .createSession({ stagehand: true })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(BrowserbaseSessionError);
+      expect((error as Error).message).toBe(
+        hinted
+          ? "Failed to create a Browserbase session. If Browserbase's built-in Stagehand extension " +
+              "is not available for this project or region yet, remove `stagehand: true` to " +
+              "upload the bundled one."
+          : "Failed to create a Browserbase session",
+      );
+      expect((error as Error).cause).toBeUndefined();
+    },
+  );
+
+  it.each([{}, { stagehand: false }])(
+    "deletes the uploaded extension when session creation fails with %j",
+    async (params) => {
+      const cleanupExtension = vi.fn(async () => {});
+      const browserbase = fakeBrowserbaseApiClient({
+        createSession: vi.fn(async () => {
+          throw apiError(400, "stagehand rejected for bb_secret");
+        }),
+      });
+      const client = createBrowserbaseSessionClient(
+        "bb_key",
+        "https://api.browserbase.com",
+        {},
+        {
+          browserbase,
+          provisionExtension: async () => ({
+            extensionId: "ext_stagehand",
+            cleanup: cleanupExtension,
+          }),
+        },
+      );
+
+      const error = await client.createSession(params).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(BrowserbaseSessionError);
+      expect((error as Error).message).toBe("Failed to create a Browserbase session");
+      expect((error as Error).cause).toBeUndefined();
+      expect(cleanupExtension).toHaveBeenCalledOnce();
+    },
+  );
 
   it.each([
     {
@@ -390,6 +575,10 @@ describe("Browserbase session creation", () => {
     expect(cleanupExtension).toHaveBeenCalledTimes(2);
   });
 });
+
+function apiError(status: number, message: string) {
+  return Browserbase.APIError.generate(status, { message }, undefined, {});
+}
 
 function fakeBrowserbaseApiClient(
   overrides: Partial<BrowserbaseApiClient> = {},

@@ -5,6 +5,9 @@ import {
   invalidateStagehandBrowser,
 } from "../../src/browser/factories.js";
 import { attachStagehandBrowserContext } from "../../src/browser/index.js";
+import type { BrowserbaseClientOptions } from "../../src/clientSchemas.js";
+import { STAGEHAND_SDK_CLIENT_INFO } from "../../src/sdkIdentity.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import type { BrowserContext } from "@browserbasehq/stagehand-browser-api/browserContext";
 import {
   CDPConnectionClosedError,
@@ -786,6 +789,71 @@ describe("Stagehand browser factories", () => {
       },
     });
     expect(browser).toMatchObject({ provider: "browserbase", origin: "launched" });
+  });
+
+  it("launches Browserbase with the built-in extension without uploading one", async () => {
+    const fetch = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify({
+            id: "session_123",
+            connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+    );
+    const connectCdp = vi.fn(async (_options: CDPClientOptions) => fakeCdpClient());
+    const { browserbase } = createBrowserFactoriesForTest({ connectCdp });
+
+    const browser = await browserbase.launch({
+      apiKey: "bb_key",
+      clientOptions: {
+        maxRetries: 0,
+        fetch: fetch as unknown as BrowserbaseClientOptions["fetch"],
+      },
+      stagehand: true,
+    });
+
+    expect(fetch).toHaveBeenCalledOnce();
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(new URL(String(url)).pathname).toBe("/v1/sessions");
+    const body = JSON.parse(init?.body as string);
+    expect(body.stagehand).toMatchObject({
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      clientInfo: { ...STAGEHAND_SDK_CLIENT_INFO },
+    });
+    expect(body).not.toHaveProperty("extensionId");
+    await invalidateStagehandBrowser(browser);
+  });
+
+  it("hints at removing stagehand when Browserbase refuses it with a 400", async () => {
+    const fetch = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(JSON.stringify({ statusCode: 400, message: "not available for bb_secret" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    const { browserbase } = createBrowserFactoriesForTest({
+      connectCdp: vi.fn(async (_options: CDPClientOptions) => fakeCdpClient()),
+    });
+
+    const error = await browserbase
+      .launch({
+        apiKey: "bb_key",
+        clientOptions: {
+          maxRetries: 0,
+          fetch: fetch as unknown as BrowserbaseClientOptions["fetch"],
+        },
+        stagehand: true,
+      })
+      .catch((caught: unknown) => caught);
+
+    expect((error as Error).message).toMatch(
+      /^Failed to create a Browserbase session\. .*remove `stagehand: true`/,
+    );
+    expect((error as Error).message).not.toContain("bb_secret");
+    expect((error as Error).cause).toBeUndefined();
   });
 
   it.each([undefined, "", "installed-stagehand", "wrong-id"])(

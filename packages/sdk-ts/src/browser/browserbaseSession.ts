@@ -6,13 +6,16 @@ import {
   type BrowserbaseExtensionSdk,
   type ProvisionedBrowserbaseExtension,
 } from "../browserbaseExtension.js";
-import { STAGEHAND_SESSION_METADATA } from "../sdkIdentity.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
+import { getExtensionFingerprint } from "../extensionAssets.js";
+import { STAGEHAND_SDK_CLIENT_INFO, STAGEHAND_SESSION_METADATA } from "../sdkIdentity.js";
 import {
   BrowserbaseSessionConnectionSchema,
   type BrowserbaseClientOptions,
   BrowserbaseSessionCreateResultSchema,
   BrowserbaseSessionRetrieveResultSchema,
   type BrowserbaseSessionConnection,
+  type BrowserbaseSessionCreateOptions,
   type BrowserbaseSessionCreateResult,
   type BrowserbaseSessionRetrieveResult,
 } from "../clientSchemas.js";
@@ -22,7 +25,7 @@ type OwnedBrowserbaseSession = BrowserbaseSessionConnection & {
 };
 
 export type BrowserbaseSessionClient = {
-  createSession(params: Browserbase.SessionCreateParams): Promise<OwnedBrowserbaseSession>;
+  createSession(params: BrowserbaseSessionCreateOptions): Promise<OwnedBrowserbaseSession>;
   connectSession?(sessionId: string): Promise<OwnedBrowserbaseSession>;
 };
 
@@ -32,8 +35,19 @@ export type BrowserbaseSessionClientFactory = (
   clientOptions?: BrowserbaseClientOptions,
 ) => BrowserbaseSessionClient;
 
+// @browserbasehq/sdk does not type `stagehand` yet; use Browserbase.SessionCreateParams once it does.
+type BrowserbaseSessionCreateBody = Omit<Browserbase.SessionCreateParams, "stagehand"> & {
+  stagehand?: BuiltInExtensionParams;
+};
+
+type BuiltInExtensionParams = {
+  protocolVersion?: string;
+  clientInfo?: { name: string; version: string };
+  extensionFingerprint?: string;
+};
+
 export type BrowserbaseApiClient = BrowserbaseExtensionClient & {
-  createSession(params: Browserbase.SessionCreateParams): Promise<BrowserbaseSessionCreateResult>;
+  createSession(params: BrowserbaseSessionCreateBody): Promise<BrowserbaseSessionCreateResult>;
   retrieveSession(sessionId: string): Promise<BrowserbaseSessionRetrieveResult>;
   releaseSession(sessionId: string): Promise<void>;
 };
@@ -43,6 +57,7 @@ type BrowserbaseSessionClientDependencies = {
   provisionExtension?: (
     client: BrowserbaseExtensionClient,
   ) => Promise<ProvisionedBrowserbaseExtension>;
+  readExtensionFingerprint?: () => Promise<string>;
 };
 
 type BrowserbaseSdk = BrowserbaseExtensionSdk & {
@@ -58,6 +73,10 @@ type BrowserbaseSdkFactory = (
   baseUrl: string,
   clientOptions: BrowserbaseClientOptions,
 ) => BrowserbaseSdk;
+
+const BUILT_IN_EXTENSION_HINT =
+  "If Browserbase's built-in Stagehand extension is not available for this project or region " +
+  "yet, remove `stagehand: true` to upload the bundled one.";
 
 export class BrowserbaseSessionError extends Error {
   constructor(message: string) {
@@ -75,26 +94,38 @@ export function createBrowserbaseSessionClient(
   const browserbase =
     dependencies.browserbase ?? createBrowserbaseApiClient(apiKey, baseUrl, clientOptions);
   const provisionExtension = dependencies.provisionExtension ?? provisionBrowserbaseExtension;
+  const readExtensionFingerprint = dependencies.readExtensionFingerprint ?? getExtensionFingerprint;
 
   return {
-    async createSession(params) {
+    async createSession({ stagehand, ...params }) {
+      const builtInExtension =
+        stagehand === true ? await builtInExtensionParams(readExtensionFingerprint) : undefined;
       const callerExtensionId = params.extensionId ?? params.browserSettings?.extensionId;
       const extension =
-        callerExtensionId === undefined ? await provisionExtension(browserbase) : undefined;
+        callerExtensionId === undefined && builtInExtension === undefined
+          ? await provisionExtension(browserbase)
+          : undefined;
       let session: BrowserbaseSessionCreateResult;
 
       try {
         session = await browserbase.createSession({
           ...params,
           ...(extension === undefined ? {} : { extensionId: extension.extensionId }),
+          ...(builtInExtension === undefined ? {} : { stagehand: builtInExtension }),
           userMetadata: {
             ...params.userMetadata,
             ...STAGEHAND_SESSION_METADATA,
           },
         });
-      } catch {
+      } catch (error) {
         await extension?.cleanup().catch(() => undefined);
-        throw new BrowserbaseSessionError("Failed to create a Browserbase session");
+        throw new BrowserbaseSessionError(
+          builtInExtension !== undefined &&
+            error instanceof Browserbase.APIError &&
+            error.status === 400
+            ? "Failed to create a Browserbase session. " + BUILT_IN_EXTENSION_HINT
+            : "Failed to create a Browserbase session",
+        );
       }
 
       const sessionId = session.id.trim();
@@ -196,6 +227,17 @@ export function createBrowserbaseApiClient(
     async releaseSession(sessionId) {
       await sdk.sessions.update(sessionId, { status: "REQUEST_RELEASE" });
     },
+  };
+}
+
+async function builtInExtensionParams(
+  readExtensionFingerprint: () => Promise<string>,
+): Promise<BuiltInExtensionParams> {
+  const extensionFingerprint = await readExtensionFingerprint().catch(() => undefined);
+  return {
+    protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+    clientInfo: { ...STAGEHAND_SDK_CLIENT_INFO },
+    ...(extensionFingerprint === undefined ? {} : { extensionFingerprint }),
   };
 }
 
