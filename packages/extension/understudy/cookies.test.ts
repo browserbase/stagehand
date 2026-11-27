@@ -41,6 +41,15 @@ describe("cookie URL filtering", () => {
     expect(filterCookies([candidate], ["http://example.com/"])).toEqual([]);
   });
 
+  it.each(["http://foo.localhost:3000/", "http://127.0.0.2:3000/"])(
+    "keeps secure cookies for loopback URL %s",
+    (url) => {
+      const domain = new URL(url).hostname;
+      const candidate = { ...cookie, domain, secure: true };
+      expect(filterCookies([candidate], [url])).toEqual([candidate]);
+    },
+  );
+
   it.each(["example.com", ".example.com"])("preserves path boundaries for %s", (domain) => {
     const candidate = { ...cookie, domain, path: "/account" };
     for (const path of ["/account", "/account/profile"]) {
