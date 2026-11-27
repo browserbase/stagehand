@@ -21,31 +21,39 @@ from its own environment and reports no token usage to the runner. Its execution
 
 ## Setup
 
-Use Node.js 24 or newer. Clone karpo-browser; the eval agent runs from the clone, with nothing to
-install:
+Build the eval CLI with Node.js 24 using the [evals quickstart](../../evals/README.md#quickstart).
+In the same shell, install the published agent and export the absolute path to its executable.
 
 ```bash
-git clone https://github.com/machinepulse-ai/karpo-browser.git
+karpo_dir="$(mktemp -d)"
+(cd "$karpo_dir" && npm install @machinepulse_ai/karpo-browser@0.1.0)
+export EVAL_KARPO_BROWSER_PATH="$karpo_dir/node_modules/.bin/karpo-browser-stagehand"
 ```
 
-Then export, in the shell you run evals from:
+The following configuration uses the Karpo router for System 1 and OpenRouter for both
+System 2 and the HardBench verifier. Set `SYSTEM1_API_KEY`, `OPENROUTER_API_KEY`,
+`BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` in your shell first.
 
 ```bash
-export EVAL_KARPO_BROWSER_PATH=/absolute/path/to/karpo-browser/evals/stagehand/agent.sh
-export SYSTEM1_MODEL=... SYSTEM1_API_KEY=...   # System 1; SYSTEM1_URL if not on OpenRouter
-export SYSTEM2_API_KEY=...                     # System 2: an OpenRouter key
-export BROWSERBASE_API_KEY=... BROWSERBASE_PROJECT_ID=...
+export SYSTEM1_MODEL=karpo-decision-27b-act
+export SYSTEM1_URL=https://router.karpo.ai/v1/systemone
+export SYSTEM2_API_KEY="$OPENROUTER_API_KEY"
+export EVAL_VERIFIER_MODEL=openai/google/gemini-3.5-flash
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1
+export OPENAI_API_KEY="$OPENROUTER_API_KEY"
 ```
 
-karpo-browser's README describes the System 1 models and System 2's settings.
+For development against a karpo-browser checkout, point `EVAL_KARPO_BROWSER_PATH` to the absolute
+path of its `evals/stagehand/agent.sh`.
 
 ## Run
 
-From `packages/evals`:
+From `packages/evals`, check the harness and run one trial for each of the 38 HardBench Core tasks.
 
 ```bash
-evals doctor --harness karpo_browser
-evals run b:hardbenchmark --harness karpo_browser -e browserbase
+./bin/evals doctor --harness karpo_browser
+EVAL_HARDBENCHMARK_SET=core EVAL_MAX_K=38 \
+  ./bin/evals run b:hardbenchmark --harness karpo_browser -e browserbase -t 1
 ```
 
 | Variable                         | Meaning                                     | Default                                                              |
