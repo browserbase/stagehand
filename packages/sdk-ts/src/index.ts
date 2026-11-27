@@ -52,6 +52,7 @@ export { CDPConnectionClosedError } from "./cdpClient.js";
 export { RPCResponseTimeoutError } from "./rpcErrors.js";
 export type { InitScriptSource } from "@browserbasehq/stagehand-browser-api/pageScripts";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
+export { ExperimentalDecisions } from "./experimentalDecisions.js";
 export { StagehandRuntimeIncompatibleError } from "./cdpClient.js";
 export type {
   ReportedRuntimeDescriptor,
@@ -93,6 +94,7 @@ export type {
   CacheStatus,
   CacheTokenSavings,
   Caching,
+  ExperimentalDecisionsConfig,
   LoadState,
   LocatorCentroidResult,
   ModelConfig,

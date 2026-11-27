@@ -5,13 +5,13 @@ from typing import TypedDict, assert_type, cast
 
 import pytest
 
+from stagehand._ai_options import _serialize_locator
 from stagehand._generated.input_types import LocatorQueryStep
 from stagehand._generated.models import PageRef
 from stagehand._locator_selectors import locator_steps
 from stagehand.locator import Locator
 from stagehand.page import Page
 from stagehand.rpc_client import RPCClient
-from stagehand.stagehand import _serialize_locator
 
 from ._support import RecordingRPCClient
 

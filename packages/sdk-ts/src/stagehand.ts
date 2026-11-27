@@ -56,20 +56,14 @@ import {
   type ExperimentalBatchCallback,
   type ExperimentalBatchOptions,
 } from "./batch.js";
+import { ExperimentalDecisions } from "./experimentalDecisions.js";
+import { isZodSchema } from "./zodSchema.js";
 
 type ProtocolExtractResult = import("@browserbasehq/stagehand-protocol/types").ExtractResult;
 
 export type ExtractResult<Schema extends z.ZodType> = Omit<ProtocolExtractResult, "data"> & {
   data: z.output<Schema>;
 };
-
-const isZodSchema = (value: unknown): value is z.ZodType =>
-  typeof value === "object" &&
-  value !== null &&
-  "parse" in value &&
-  typeof value.parse === "function" &&
-  "safeParse" in value &&
-  typeof value.safeParse === "function";
 
 // setTimeout treats larger delays as 1ms; MAX_CALLBACK_BATCH_TIMEOUT_MS leaves 10s below this.
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
@@ -85,6 +79,7 @@ export class Stagehand {
   private removeBrowserbaseTransport: (() => void) | undefined;
   closePromise: Promise<void> | undefined;
   initRequestStarted = false;
+  private decisions: ExperimentalDecisions | undefined;
 
   private constructor(
     private readonly browserHandle: StagehandBrowser,
@@ -125,6 +120,18 @@ export class Stagehand {
 
   get browser(): StagehandBrowser {
     return this.browserHandle;
+  }
+
+  /**
+   * Experimental: act, observe and extract resolved by a decision model
+   * instead of an LLM call. Requires `experimentalDecisions` in `create()`.
+   */
+  get experimentalDecisions(): ExperimentalDecisions {
+    this.decisions ??= new ExperimentalDecisions({
+      rpcClient: () => this.connectedRpcClient,
+      activePage: () => this.browser.context.activePage(),
+    });
+    return this.decisions;
   }
 
   get initialized(): boolean {
@@ -368,17 +375,6 @@ function isDefinitiveRPCErrorResponse(error: unknown): boolean {
   return error instanceof Error && JSONRPCErrorObjectSchema.safeParse(error.cause).success;
 }
 
-function experimentalDecisionsFromEnv(): unknown {
-  const raw =
-    typeof process === "undefined" ? undefined : process.env?.STAGEHAND_EXPERIMENTAL_DECISIONS;
-  if (!raw) return undefined;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    throw new Error("STAGEHAND_EXPERIMENTAL_DECISIONS must be a JSON object");
-  }
-}
-
 function stagehandCreateParamsForWorker(
   createConfig: ResolvedStagehandClientCreateConfig,
   browser: ClaimedStagehandBrowser,
@@ -387,9 +383,7 @@ function stagehandCreateParamsForWorker(
   const { logging, model, apiKey: _apiKey, apiUrl: _apiUrl, ...protocolParams } = createConfig;
   const protocolModel = model && "generate" in model ? { source: "client" as const } : model;
 
-  const experimentalDecisions = experimentalDecisionsFromEnv();
   return StagehandInitParamsSchema.parse({
-    ...(experimentalDecisions === undefined ? {} : { experimentalDecisions }),
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     clientInfo: STAGEHAND_SDK_CLIENT_INFO,
     browserCdpUrl:

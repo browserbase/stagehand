@@ -138,13 +138,16 @@ describe("native Stagehand evaluation initialization", () => {
     const init = () =>
       initStagehand({ logger, modelName: "openai/gpt-6-astra", environment: "LOCAL" });
     const sentDecisions = async () => {
-      let sent: string | undefined;
-      mocks.create.mockImplementation(async () => {
-        sent = process.env.STAGEHAND_EXPERIMENTAL_DECISIONS;
-        return stagehand;
+      mocks.create.mockResolvedValue({
+        ...stagehand,
+        act: vi.fn(),
+        experimentalDecisions: { act: vi.fn() },
       });
       await init();
-      return JSON.parse(sent ?? "null") as Record<string, unknown> | null;
+      return (mocks.create.mock.calls[0][0].experimentalDecisions ?? null) as Record<
+        string,
+        unknown
+      > | null;
     };
 
     beforeEach(() => {
@@ -159,7 +162,6 @@ describe("native Stagehand evaluation initialization", () => {
 
     afterEach(() => {
       vi.unstubAllEnvs();
-      delete process.env.STAGEHAND_EXPERIMENTAL_DECISIONS;
     });
 
     it("defaults to TypeSafe without naming a provider", async () => {
@@ -202,5 +204,134 @@ describe("native Stagehand evaluation initialization", () => {
       await expect(init()).rejects.toThrow('provider "cloudflare" requires CLOUDFLARE_ACCOUNT_ID');
       expect(mocks.launchLocal).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("EVAL_DECISIONS namespace routing", () => {
+  const logger = { log: vi.fn() } as unknown as EvalLogger;
+  const newStagehand = () => ({
+    close: vi.fn().mockResolvedValue(undefined),
+    browser: { context: { activePage: vi.fn().mockResolvedValue({ id: "test-page" }) } },
+    act: vi.fn().mockResolvedValue("llm-act"),
+    observe: vi.fn().mockResolvedValue("llm-observe"),
+    extract: vi.fn().mockResolvedValue("llm-extract"),
+    experimentalDecisions: {
+      act: vi.fn().mockResolvedValue("decisions-act"),
+      observe: vi.fn().mockResolvedValue("decisions-observe"),
+      extract: vi.fn().mockResolvedValue("decisions-extract"),
+    },
+  });
+  let created: ReturnType<typeof newStagehand>;
+  const init = async () => {
+    await initStagehand({ logger, modelName: "openai/gpt-6-astra", environment: "LOCAL" });
+    return {
+      config: mocks.create.mock.calls[0][0].experimentalDecisions,
+      act: await created.act("click"),
+      observe: await created.observe("find"),
+      extract: await created.extract("read"),
+    };
+  };
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    created = newStagehand();
+    mocks.create.mockResolvedValue(created);
+    mocks.launchLocal.mockResolvedValue({ close: vi.fn().mockResolvedValue(undefined) });
+    mocks.resolveKey.mockImplementation((name: string) => ({
+      value: name === "OPENAI_API_KEY" ? "test-model-key" : "test-typesafe-key",
+      source: "process-env",
+    }));
+    for (const name of Object.keys(process.env)) {
+      if (name.startsWith("EVAL_DECISIONS")) vi.stubEnv(name, undefined);
+    }
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await cleanupActiveRunResources();
+  });
+
+  it("leaves act, observe, and extract on the LLM path without EVAL_DECISIONS", async () => {
+    expect(await init()).toEqual({
+      config: undefined,
+      act: "llm-act",
+      observe: "llm-observe",
+      extract: "llm-extract",
+    });
+  });
+
+  it("routes only act through the namespace by default", async () => {
+    vi.stubEnv("EVAL_DECISIONS", "1");
+
+    expect(await init()).toEqual({
+      config: { apiKey: "test-typesafe-key" },
+      act: "decisions-act",
+      observe: "llm-observe",
+      extract: "llm-extract",
+    });
+    expect(created.experimentalDecisions.act).toHaveBeenCalledExactlyOnceWith("click");
+    expect(created.experimentalDecisions.act.mock.contexts[0]).toBe(created.experimentalDecisions);
+  });
+
+  it("routes observe through the namespace with EVAL_DECISIONS_OBSERVE=1", async () => {
+    vi.stubEnv("EVAL_DECISIONS", "1");
+    vi.stubEnv("EVAL_DECISIONS_OBSERVE", "1");
+
+    expect(await init()).toMatchObject({
+      act: "decisions-act",
+      observe: "decisions-observe",
+      extract: "llm-extract",
+    });
+  });
+
+  it.each(["pick", "judge"] as const)(
+    "routes extract through the namespace with EVAL_DECISIONS_EXTRACT=%s",
+    async (mode) => {
+      vi.stubEnv("EVAL_DECISIONS", "1");
+      vi.stubEnv("EVAL_DECISIONS_EXTRACT", mode);
+
+      expect(await init()).toEqual({
+        config: { apiKey: "test-typesafe-key", extract: mode },
+        act: "decisions-act",
+        observe: "llm-observe",
+        extract: "decisions-extract",
+      });
+    },
+  );
+
+  it("ignores an unknown EVAL_DECISIONS_EXTRACT value", async () => {
+    vi.stubEnv("EVAL_DECISIONS", "1");
+    vi.stubEnv("EVAL_DECISIONS_EXTRACT", "1");
+
+    expect(await init()).toEqual({
+      config: { apiKey: "test-typesafe-key" },
+      act: "decisions-act",
+      observe: "llm-observe",
+      extract: "llm-extract",
+    });
+  });
+
+  it("ignores the observe and extract switches without EVAL_DECISIONS", async () => {
+    vi.stubEnv("EVAL_DECISIONS_OBSERVE", "1");
+    vi.stubEnv("EVAL_DECISIONS_EXTRACT", "pick");
+
+    expect(await init()).toEqual({
+      config: undefined,
+      act: "llm-act",
+      observe: "llm-observe",
+      extract: "llm-extract",
+    });
+  });
+
+  it("configures the instrument-only baseline without routing any call", async () => {
+    vi.stubEnv("EVAL_DECISIONS_INSTRUMENT", "1");
+
+    expect(await init()).toEqual({
+      config: { apiKey: "instrument-only" },
+      act: "llm-act",
+      observe: "llm-observe",
+      extract: "llm-extract",
+    });
+    expect(created.experimentalDecisions.act).not.toHaveBeenCalled();
   });
 });

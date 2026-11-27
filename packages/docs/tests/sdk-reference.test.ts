@@ -142,6 +142,11 @@ const DOCUMENTATION_LANGUAGES = [...LANGUAGES, "Go"] as const;
 const LANGUAGE_TAB_TITLES = new Set<string>(DOCUMENTATION_LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
+const AI_METHOD_CLASS_SLUGS = new Set(["stagehand", "experimental-decisions"]);
+const EXTRACT_OPERATIONS = new Set([
+  "stagehand.extract",
+  "stagehand.experimental_decisions_extract",
+]);
 
 const PUBLIC_REFERENCE_FIELD_TYPES = new Map<string, string>([
   ["context.add_cookies:TypeScript:cookies.sameSite", "CookieParam['sameSite']"],
@@ -155,10 +160,12 @@ const PUBLIC_REFERENCE_FIELD_TYPES = new Map<string, string>([
   ["page.screenshot:TypeScript:options.mask", "Locator[]"],
   ["page.screenshot:TypeScript:options.scale", "ScreenshotOptions['scale']"],
   ["page.screenshot:TypeScript:options.type", "ScreenshotOptions['type']"],
-  ...["act", "observe", "extract"].flatMap((method): Array<[string, string]> => [
-    [`stagehand.${method}:TypeScript:options.locator`, "Locator"],
-    [`stagehand.${method}:TypeScript:options.ignoreLocators`, "Locator[]"],
-  ]),
+  ...["act", "observe", "extract"]
+    .flatMap((method) => [`stagehand.${method}`, `stagehand.experimental_decisions_${method}`])
+    .flatMap((operation): Array<[string, string]> => [
+      [`${operation}:TypeScript:options.locator`, "Locator"],
+      [`${operation}:TypeScript:options.ignoreLocators`, "Locator[]"],
+    ]),
 ]);
 
 const SDK_OBJECTS = [
@@ -167,6 +174,12 @@ const SDK_OBJECTS = [
     classSlug: "stagehand",
     typescriptFile: "stagehand.ts",
     pythonFile: "stagehand.py",
+  },
+  {
+    className: "ExperimentalDecisions",
+    classSlug: "experimental-decisions",
+    typescriptFile: "experimentalDecisions.ts",
+    pythonFile: "experimental_decisions.py",
   },
   {
     className: "BrowserContext",
@@ -1025,7 +1038,7 @@ ${titles
         if (!result) continue;
         const actual = normalizePublicType(result.type, language, false, pythonAliases);
         const returnType =
-          language === "TypeScript" && method.operationName === "stagehand.extract"
+          language === "TypeScript" && EXTRACT_OPERATIONS.has(method.operationName ?? "")
             ? "Promise<ExtractResult<Schema>>"
             : method.returnType;
         const expected = publicTypeCandidates(
@@ -1112,7 +1125,7 @@ ${titles
           if (!actual) continue;
           const expectedType =
             publicReferenceFieldType(method, language, field.key) ??
-            (method.operationName === "stagehand.extract" && field.key === "result.data"
+            (EXTRACT_OPERATIONS.has(method.operationName ?? "") && field.key === "result.data"
               ? language === "TypeScript"
                 ? "z.output<Schema>"
                 : "ResultModel"
@@ -2653,7 +2666,7 @@ function isNestedSdkLocatorInputField(method: SdkMethod, path: string): boolean 
   ) {
     return true;
   }
-  if (method.classSlug !== "stagehand") return false;
+  if (!AI_METHOD_CLASS_SLUGS.has(method.classSlug)) return false;
   if (!["act", "observe", "extract"].includes(method.methodName)) return false;
   return ["options.locator.", "options.ignoreLocators.", "locator.", "ignore_locators."].some(
     (prefix) => path.startsWith(prefix),

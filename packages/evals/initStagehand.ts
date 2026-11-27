@@ -59,8 +59,6 @@ function createStagehandOnLog(logger: EvalLogger): (event: StagehandLogEvent) =>
   };
 }
 
-let decisionsBridgeSetByEvals = false;
-
 export async function initStagehand({
   logger,
   modelName,
@@ -77,19 +75,29 @@ export async function initStagehand({
     );
   }
 
-  let experimentalDecisions: Record<string, unknown> | undefined;
-  if (process.env.EVAL_DECISIONS !== "1" && process.env.EVAL_DECISIONS_INSTRUMENT === "1") {
-    experimentalDecisions = { apiKey: "instrument-only", enabled: false };
+  const useDecisions = process.env.EVAL_DECISIONS === "1";
+  let experimentalDecisions: StagehandCreateOptions["experimentalDecisions"];
+  if (!useDecisions && process.env.EVAL_DECISIONS_INSTRUMENT === "1") {
+    experimentalDecisions = { apiKey: "instrument-only" };
   }
-  if (process.env.EVAL_DECISIONS === "1") {
-    const provider = process.env.EVAL_DECISIONS_PROVIDER ?? "typesafe";
-    const keyName = {
+  const decisionsObserve = useDecisions && process.env.EVAL_DECISIONS_OBSERVE === "1";
+  const decisionsExtract =
+    useDecisions &&
+    (process.env.EVAL_DECISIONS_EXTRACT === "pick" ||
+      process.env.EVAL_DECISIONS_EXTRACT === "judge");
+  if (useDecisions) {
+    const keyNames = {
       typesafe: "TYPESAFE_API_KEY",
       cloudflare: "CLOUDFLARE_API_TOKEN",
       perplexity: "PERPLEXITY_API_KEY",
       openai: "OPENAI_API_KEY",
-    }[provider];
-    if (!keyName) throw new Error(`Stagehand init: unknown EVAL_DECISIONS_PROVIDER "${provider}"`);
+    } as const;
+    const requested = process.env.EVAL_DECISIONS_PROVIDER ?? "typesafe";
+    if (!(requested in keyNames)) {
+      throw new Error(`Stagehand init: unknown EVAL_DECISIONS_PROVIDER "${requested}"`);
+    }
+    const provider = requested as keyof typeof keyNames;
+    const keyName = keyNames[provider];
     const decisionsApiKey = resolveKey(keyName).value;
     if (!decisionsApiKey) {
       throw new Error(
@@ -115,25 +123,15 @@ export async function initStagehand({
           : {}),
       ...(process.env.EVAL_DECISIONS_LLM_FALLBACK === "0" ? { llmFallback: false } : {}),
       ...(process.env.EVAL_DECISIONS_ARG_LLM === "0" ? { argumentLlm: false } : {}),
-      ...(process.env.EVAL_DECISIONS_OBSERVE === "1" ? { observe: true } : {}),
       ...(process.env.EVAL_DECISIONS_TOOLS === "1" ? { tools: true } : {}),
       ...(process.env.EVAL_DECISIONS_READINESS === "1" ? { targetReadiness: true } : {}),
-      ...(process.env.EVAL_DECISIONS_EXTRACT === "pick" ||
-      process.env.EVAL_DECISIONS_EXTRACT === "judge"
-        ? { extract: process.env.EVAL_DECISIONS_EXTRACT }
+      ...(decisionsExtract
+        ? { extract: process.env.EVAL_DECISIONS_EXTRACT as "pick" | "judge" }
         : {}),
       ...(process.env.EVAL_DECISIONS_CACHE_CHECK === "1" ? { cacheCheck: true } : {}),
       ...(process.env.EVAL_DECISIONS_RETRY === "1" ? { retryNoEffect: true } : {}),
       ...(process.env.EVAL_DECISIONS_FOCUS === "1" ? { focusFallback: true } : {}),
     };
-  }
-
-  if (experimentalDecisions) {
-    process.env.STAGEHAND_EXPERIMENTAL_DECISIONS = JSON.stringify(experimentalDecisions);
-    decisionsBridgeSetByEvals = true;
-  } else if (decisionsBridgeSetByEvals) {
-    delete process.env.STAGEHAND_EXPERIMENTAL_DECISIONS;
-    decisionsBridgeSetByEvals = false;
   }
 
   let browser;
@@ -184,7 +182,14 @@ export async function initStagehand({
       selfHeal: true,
       model: { modelName, apiKey } as NonNullable<StagehandCreateOptions["model"]>,
       logging: { onLog: createStagehandOnLog(logger) },
+      ...(experimentalDecisions ? { experimentalDecisions } : {}),
     });
+    if (useDecisions) {
+      const decisions = stagehand.experimentalDecisions;
+      stagehand.act = decisions.act.bind(decisions);
+      if (decisionsObserve) stagehand.observe = decisions.observe.bind(decisions);
+      if (decisionsExtract) stagehand.extract = decisions.extract.bind(decisions);
+    }
   } catch (error) {
     await cleanup();
     throw error;

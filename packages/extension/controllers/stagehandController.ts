@@ -17,6 +17,7 @@ import * as actService from "../services/actService.js";
 import * as cacheService from "../services/cacheService.js";
 import * as extractService from "../services/extractService.js";
 import { buildGatewayContext } from "../llm/gatewayClient.js";
+import type { DecisionsConfig } from "../services/decisions/pipeline.js";
 import * as observeService from "../services/observeService.js";
 
 export type StagehandControllerOptions = {
@@ -61,9 +62,25 @@ export function createStagehandController(
     return { closed: true as const };
   }
 
-  async function act(params: StagehandActParams, context: HandlerContext) {
-    return await runOperation("stagehand.act", context, async (logger) => {
-      logger.debug("stagehand.act", {});
+  type Via = "llm" | "decisions";
+
+  function decisionsFor(via: Via, operation: string): DecisionsConfig | undefined {
+    const state = runtime.state.getState();
+    const configured =
+      state.status === "initialized" ? state.initParams.experimentalDecisions : undefined;
+    if (via === "llm") return configured ? { ...configured, enabled: false } : undefined;
+    if (!configured) {
+      throw new Error(
+        `stagehand.experimentalDecisions.${operation}() needs experimentalDecisions to be configured when Stagehand is created`,
+      );
+    }
+    return { ...configured, enabled: true, observe: true, extract: configured.extract ?? "pick" };
+  }
+
+  async function act(params: StagehandActParams, context: HandlerContext, via: Via = "llm") {
+    const operation = via === "llm" ? "stagehand.act" : "stagehand.experimental_decisions_act";
+    return await runOperation(operation, context, async (logger) => {
+      logger.debug(operation, {});
       const state = runtime.state.getState();
       if (state.status !== "initialized") {
         throw new Error("Stagehand must be initialized before acting");
@@ -92,7 +109,7 @@ export function createStagehandController(
           runtime.adapters.clientBrowserbaseRequest,
         ),
         gateway,
-        decisions: state.initParams.experimentalDecisions,
+        decisions: decisionsFor(via, "act"),
         openPageCount: () => runtime.requireBrowserSession().pages().length,
       });
       runtime.metrics.record("act", result.metadata.usage);
@@ -100,9 +117,15 @@ export function createStagehandController(
     });
   }
 
-  async function observe(params: StagehandObserveParams, context: HandlerContext) {
-    return await runOperation("stagehand.observe", context, async (logger) => {
-      logger.debug("stagehand.observe", {});
+  async function observe(
+    params: StagehandObserveParams,
+    context: HandlerContext,
+    via: Via = "llm",
+  ) {
+    const operation =
+      via === "llm" ? "stagehand.observe" : "stagehand.experimental_decisions_observe";
+    return await runOperation(operation, context, async (logger) => {
+      logger.debug(operation, {});
       const state = runtime.state.getState();
       if (state.status !== "initialized") {
         throw new Error("Stagehand must be initialized before observing");
@@ -129,16 +152,22 @@ export function createStagehandController(
           runtime.adapters.clientBrowserbaseRequest,
         ),
         gateway,
-        decisions: state.initParams.experimentalDecisions,
+        decisions: via === "decisions" ? decisionsFor(via, "observe") : undefined,
       });
       runtime.metrics.record("observe", result.metadata.usage);
       return result;
     });
   }
 
-  async function extract(params: StagehandExtractParams, context: HandlerContext) {
-    return await runOperation("stagehand.extract", context, async (logger) => {
-      logger.debug("stagehand.extract", {});
+  async function extract(
+    params: StagehandExtractParams,
+    context: HandlerContext,
+    via: Via = "llm",
+  ) {
+    const operation =
+      via === "llm" ? "stagehand.extract" : "stagehand.experimental_decisions_extract";
+    return await runOperation(operation, context, async (logger) => {
+      logger.debug(operation, {});
       const state = runtime.state.getState();
       if (state.status !== "initialized") {
         throw new Error("Stagehand must be initialized before extracting");
@@ -165,12 +194,7 @@ export function createStagehandController(
           runtime.adapters.clientBrowserbaseRequest,
         ),
         gateway,
-        decisions:
-          state.initParams.experimentalDecisions?.extract &&
-          state.initParams.experimentalDecisions.extract !== "off" &&
-          state.initParams.experimentalDecisions.enabled !== false
-            ? state.initParams.experimentalDecisions
-            : undefined,
+        decisions: via === "decisions" ? decisionsFor(via, "extract") : undefined,
       });
       runtime.metrics.record("extract", result.metadata.usage);
       return result;
