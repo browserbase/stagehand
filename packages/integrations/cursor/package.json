@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations-cursor",
-  "version": "4.0.7",
+  "version": "4.0.8",
   "private": true,
   "description": "Cursor SDK example and harness adapter for Stagehand integrations",
   "files": [
