@@ -138,3 +138,4 @@ minimumReleaseAgeExclude:
   - "@oxfmt/binding-win32-ia32-msvc@0.76.0"
   - "@oxfmt/binding-win32-x64-msvc@0.76.0"
   - oxfmt@0.76.0
+  - "@browserbasehq/stagehand@4.5.0"
