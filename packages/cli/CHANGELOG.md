@@ -1,5 +1,15 @@
 # browse
 
+## 0.12.1
+
+### Patch Changes
+
+- [#3515](https://github.com/browserbase/stagehand/pull/3515) [`b3391cd`](https://github.com/browserbase/stagehand/commit/b3391cdbf264ae20818e4f1fc623cb61b2246a71) Thanks [@shrey150](https://github.com/shrey150)! - classify page-level failures with stable error codes instead of reporting unexpected
+
+- [#3512](https://github.com/browserbase/stagehand/pull/3512) [`f7d7037`](https://github.com/browserbase/stagehand/commit/f7d70374bbc040c55f77fe58601584354e451593) Thanks [@shrey150](https://github.com/shrey150)! - accept bare hostnames in `browse open` (e.g. `example.com` instead of `https://example.com`)
+
+- [#3568](https://github.com/browserbase/stagehand/pull/3568) [`2290e72`](https://github.com/browserbase/stagehand/commit/2290e72aeecea208ca9fe11c941c74b4480326f4) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - bump stagehand dependency to 4.5.0
+
 ## 0.12.0
 
 ### Minor Changes

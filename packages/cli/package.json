@@ -1,6 +1,6 @@
 {
   "name": "browse",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "private": false,
   "description": "Browser automation CLI for AI agents: local Chrome, Browserbase cloud, snapshots, and skills.",
   "keywords": [
