@@ -129,6 +129,7 @@ export function createStagehandController(
           runtime.adapters.clientBrowserbaseRequest,
         ),
         gateway,
+        decisions: state.initParams.experimentalDecisions,
       });
       runtime.metrics.record("observe", result.metadata.usage);
       return result;

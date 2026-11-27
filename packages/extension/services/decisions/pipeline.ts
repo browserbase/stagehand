@@ -59,6 +59,8 @@ export type DecisionsConfig = DecisionModelConfig & {
   enabled?: boolean;
   retryNoEffect?: boolean;
   focusFallback?: boolean;
+  cacheCheck?: boolean;
+  observe?: boolean;
 };
 
 export type DecisionsActDeps = {

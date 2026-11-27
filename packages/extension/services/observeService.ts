@@ -1,3 +1,5 @@
+import { runDecisionsObserve } from "./decisions/observe.js";
+import type { DecisionsConfig } from "./decisions/pipeline.js";
 import type {
   Action,
   ClientModelReference,
@@ -9,6 +11,7 @@ import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
 import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
+import { TimeoutError } from "../errors.js";
 import type { Page } from "../understudy/page.js";
 import { type Progress, runWithProgress } from "../understudy/progress.js";
 import { SupportedUnderstudyAction } from "../types/private/handlers.js";
@@ -31,6 +34,7 @@ type ObserveServiceOptions = {
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
   progress?: Progress;
+  decisions?: DecisionsConfig & { observe?: boolean };
 };
 
 export async function observe(options: ObserveServiceOptions): Promise<ObserveResult> {
@@ -50,6 +54,7 @@ async function observeWithProgress(
     systemPrompt = "",
     cache,
     gateway,
+    decisions,
   }: ObserveServiceOptions,
   progress: Progress,
 ): Promise<ObserveResult> {
@@ -83,6 +88,42 @@ async function observeWithProgress(
   });
 
   async function runObservation(): Promise<cacheService.CacheExecuteOutcome<ObserveResult>> {
+    if (decisions?.observe && decisions.enabled !== false) {
+      const outcome = await runDecisionsObserve(decisions, {
+        page,
+        logger,
+        instruction,
+        variables: options?.variables,
+        snapshotOptions: {
+          focusLocator: options?.locator,
+          ignoreLocators: options?.ignoreLocators,
+        },
+        ensureTimeRemaining: () => progress.throwIfStopped(),
+      }).catch((error: unknown) => {
+        progress.throwIfStopped();
+        if (error instanceof TimeoutError) throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        return { kind: "fallback" as const, reason: `decision_error:${message}` };
+      });
+      if (outcome.kind === "done") {
+        return {
+          result: {
+            data: outcome.actions,
+            metadata: { usage: zeroStagehandResultUsage(), cache: disabledCacheMetadata() },
+          },
+          cacheValue: outcome.actions.length > 0 ? outcome.actions : undefined,
+          llmUsage: { inputTokens: 0, outputTokens: 0, llmDurationMs: 0 },
+        };
+      }
+      logger.info("Decisions observe fell back to the LLM", {
+        category: "decisions",
+        reason: outcome.reason,
+      });
+      if (decisions.llmFallback === false) {
+        throw new Error(`Decisions observe abstained (${outcome.reason.slice(0, 160)})`);
+      }
+    }
+
     progress.throwIfStopped();
     const { combinedTree, combinedXpathMap } = await page.captureSnapshot(
       {

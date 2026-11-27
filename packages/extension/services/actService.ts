@@ -26,6 +26,7 @@ import type { Page } from "../understudy/page.js";
 import { type Progress, runWithProgress } from "../understudy/progress.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
+import { checkCachedAction } from "./decisions/cacheCheck.js";
 import {
   runDecisionsAct,
   type DecisionsConfig,
@@ -374,8 +375,23 @@ async function replayCachedActions(
     throw new Error("Cached act value contained no usable actions");
   }
 
+  const checking = context.decisions?.cacheCheck === true && context.decisions.enabled !== false;
   const results: ActResultData[] = [];
   for (const action of actions) {
+    if (checking) {
+      const verdict = await validateCachedAction(action, instruction, context, variables).catch(
+        (error: unknown) => {
+          context.progress.throwIfStopped();
+          if (error instanceof TimeoutError) throw error;
+          return undefined;
+        },
+      );
+      if (verdict?.verdict === "stale") {
+        throw new Error(
+          `Cached action no longer matches the page: selector now resolves to "${(redactor(variables) ?? ((text: string) => text))(verdict.found ?? "")}" (match ${verdict.score})`,
+        );
+      }
+    }
     const result = await takeDeterministicAction({
       action,
       variables,
@@ -393,6 +409,44 @@ async function replayCachedActions(
     actionDescription: instruction,
     actions: results.flatMap((result) => result.actions),
   });
+}
+
+async function validateCachedAction(
+  action: Action,
+  instruction: string,
+  context: ActContext,
+  variables: Variables | undefined,
+) {
+  const decisions = context.decisions!;
+  const { combinedTree, combinedXpathMap } = await context.page.captureSnapshot(
+    {},
+    context.progress,
+  );
+  const trace: Record<string, unknown>[] = [];
+  const verdict = await checkCachedAction(
+    {
+      config: decisions,
+      instruction,
+      trace: trace as never,
+      threshold: decisions.actConfidence ?? 0.7,
+      logger: context.logger,
+      ensureTimeRemaining: () => context.progress.throwIfStopped(),
+      redact: redactor(variables),
+    },
+    {
+      tree: combinedTree,
+      xpathMap: combinedXpathMap as Record<string, string>,
+      nodes: parseOutline(combinedTree),
+    },
+    action,
+  );
+  context.logger.info("Decisions cache check", {
+    category: "decisions",
+    instruction,
+    verdict: verdict.verdict,
+    trace: JSON.stringify(trace),
+  });
+  return verdict;
 }
 
 async function getActionFromLLM({
