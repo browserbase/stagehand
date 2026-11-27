@@ -38,9 +38,8 @@ System 2 and the HardBench verifier. Set `SYSTEM1_API_KEY`, `OPENROUTER_API_KEY`
 export SYSTEM1_MODEL=karpo-decision-27b-act
 export SYSTEM1_URL=https://router.karpo.ai/v1/systemone
 export SYSTEM2_API_KEY="$OPENROUTER_API_KEY"
+export SYSTEM2_BASE_URL=https://openrouter.ai/api/v1
 export EVAL_VERIFIER_MODEL=openai/google/gemini-3.5-flash
-export OPENAI_BASE_URL=https://openrouter.ai/api/v1
-export OPENAI_API_KEY="$OPENROUTER_API_KEY"
 ```
 
 For development against a karpo-browser checkout, point `EVAL_KARPO_BROWSER_PATH` to the absolute
