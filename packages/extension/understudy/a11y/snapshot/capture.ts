@@ -70,7 +70,13 @@ export async function captureHybridSnapshot(
     if (scopedSnapshot) return scopedSnapshot;
   }
 
-  const sessionToIndex = await buildSessionIndexes(page, framesInScope, pierce, progress);
+  const sessionToIndex = await buildSessionIndexes(
+    page,
+    framesInScope,
+    pierce,
+    progress,
+    context.rootId,
+  );
   const ignoredNodesByFrame = await resolveIgnoredNodes(
     page,
     options?.ignoreLocators,
@@ -133,6 +139,7 @@ export function buildFrameContext(page: Page): FrameContext {
   const frameTree = page.asProtocolFrameTree(rootId);
   const parentByFrame: FrameParentIndex = new Map();
   (function index(n: Protocol.Page.FrameTree, parent: string | null) {
+    if (parentByFrame.has(n.frame.id)) return;
     parentByFrame.set(n.frame.id, parent);
     for (const c of n.childFrames ?? []) index(c, n.frame.id);
   })(frameTree, null);
@@ -345,19 +352,36 @@ export async function buildSessionIndexes(
   frames: string[],
   pierce: boolean,
   progress?: Progress,
+  rootFrameId: string | undefined = frames[0],
 ): Promise<Map<string, SessionDomIndex>> {
   const sessionToIndex = new Map<string, SessionDomIndex>();
   const sessionById = new Map<string, CDPSessionLike>();
+  let rootSessionId: string | undefined;
+
   for (const frameId of frames) {
     progress?.throwIfStopped();
-    const sess = ownerSession(page, frameId);
+    let sess: CDPSessionLike;
+    try {
+      sess = ownerSession(page, frameId);
+    } catch (error) {
+      progress?.throwIfStopped();
+      if (frameId === rootFrameId) throw error;
+      continue;
+    }
     const sid = sess.id ?? "root";
+    if (frameId === rootFrameId) rootSessionId = sid;
     if (!sessionById.has(sid)) sessionById.set(sid, sess);
   }
   for (const [sid, sess] of sessionById.entries()) {
     progress?.throwIfStopped();
-    const idx = await buildSessionDomIndex(sess, pierce, progress);
-    sessionToIndex.set(sid, idx);
+    try {
+      const idx = await buildSessionDomIndex(sess, pierce, progress);
+      sessionToIndex.set(sid, idx);
+    } catch (error) {
+      progress?.throwIfStopped();
+      if (sid === rootSessionId) throw error;
+      continue;
+    }
   }
   return sessionToIndex;
 }
@@ -377,19 +401,45 @@ export async function collectPerFrameMaps(
 }> {
   const perFrameMaps = new Map<string, FrameDomMaps>();
   const perFrameOutlines: Array<{ frameId: string; outline: string }> = [];
+  const seenFrames = new Set<string>();
 
   for (const frameId of frameIds) {
     progress?.throwIfStopped();
-    const sess = ownerSession(page, frameId);
+    if (seenFrames.has(frameId)) continue;
+    seenFrames.add(frameId);
+
+    const isRootFrame = frameId === context.rootId;
+    let sess: CDPSessionLike;
+    try {
+      sess = ownerSession(page, frameId);
+    } catch (error) {
+      progress?.throwIfStopped();
+      if (isRootFrame) throw error;
+      continue;
+    }
     const sid = sess.id ?? "root";
     let idx = sessionToIndex.get(sid);
     if (!idx) {
-      idx = await buildSessionDomIndex(sess, pierce, progress);
-      sessionToIndex.set(sid, idx);
+      try {
+        idx = await buildSessionDomIndex(sess, pierce, progress);
+        sessionToIndex.set(sid, idx);
+      } catch (error) {
+        progress?.throwIfStopped();
+        if (isRootFrame) throw error;
+        continue;
+      }
     }
 
     const parentId = context.parentByFrame.get(frameId);
-    const sameSessionAsParent = !!parentId && ownerSession(page, parentId) === sess;
+    let sameSessionAsParent = false;
+    if (parentId) {
+      try {
+        sameSessionAsParent = ownerSession(page, parentId) === sess;
+      } catch {
+        progress?.throwIfStopped();
+        sameSessionAsParent = false;
+      }
+    }
 
     const docRootBe = await resolveFrameDocRootBackendId(
       page,
@@ -422,17 +472,25 @@ export async function collectPerFrameMaps(
       if (idx.scrollByBe.get(be)) scrollableMap[key] = true;
     }
 
-    const { outline, urlMap } = await a11yForFrame(
-      sess,
-      frameId,
-      {
-        isIgnoredBackendNode,
-        tagNameMap,
-        scrollableMap,
-        encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
-      },
-      progress,
-    );
+    let outline: string;
+    let urlMap: Record<string, string>;
+    try {
+      ({ outline, urlMap } = await a11yForFrame(
+        sess,
+        frameId,
+        {
+          isIgnoredBackendNode,
+          tagNameMap,
+          scrollableMap,
+          encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
+        },
+        progress,
+      ));
+    } catch (error) {
+      progress?.throwIfStopped();
+      if (isRootFrame) throw error;
+      continue;
+    }
 
     perFrameOutlines.push({ frameId, outline });
     perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap });
@@ -698,10 +756,10 @@ async function resolveChildFramesByParent(
     const parentId = context.parentByFrame.get(frameId);
     if (!parentId) continue;
 
-    const session = parentSession(page, context.parentByFrame, frameId);
-    if (!session) continue;
-
     try {
+      const session = parentSession(page, context.parentByFrame, frameId);
+      if (!session) continue;
+
       const { backendNodeId } = await runLocatorStep(
         progress,
         "finding snapshot iframe owner",
@@ -765,8 +823,12 @@ function ownerSessionIndexForFrame(
   frameId: string,
   sessionToIndex: Map<string, SessionDomIndex>,
 ): SessionDomIndex | undefined {
-  const session = ownerSession(page, frameId);
-  return sessionToIndex.get(session.id ?? "root");
+  try {
+    const session = ownerSession(page, frameId);
+    return sessionToIndex.get(session.id ?? "root");
+  } catch {
+    return undefined;
+  }
 }
 
 async function resolveFrameDocRootBackendId(
@@ -811,8 +873,10 @@ export async function computeFramePrefixes(
   const included = new Set(frameIds);
 
   const queue: string[] = [];
+  const visited = new Set<string>();
   if (included.has(context.rootId)) {
     queue.push(context.rootId);
+    visited.add(context.rootId);
   }
 
   while (queue.length) {
@@ -821,14 +885,14 @@ export async function computeFramePrefixes(
     const parentAbs = absPrefix.get(parent)!;
 
     for (const child of context.frames) {
-      if (!included.has(child)) continue;
+      if (!included.has(child) || visited.has(child)) continue;
       if (context.parentByFrame.get(child) !== parent) continue;
+      visited.add(child);
       queue.push(child);
-
-      const parentSess = parentSession(page, context.parentByFrame, child);
 
       const ownerBackendNodeId = await (async () => {
         try {
+          const parentSess = parentSession(page, context.parentByFrame, child);
           const { backendNodeId } = await runLocatorStep(
             progress,
             "finding snapshot iframe owner",

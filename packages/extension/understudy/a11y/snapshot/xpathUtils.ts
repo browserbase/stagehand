@@ -32,62 +32,93 @@ export async function absoluteXPathForBackendNode(
     const objectId = object?.objectId;
     if (!objectId) return null;
 
-    const { result } = await session.send<{ result: { value?: string } }>(
-      "Runtime.callFunctionOn",
-      {
-        objectId,
-        functionDeclaration: nodeToAbsoluteXPath.toString(),
-        returnByValue: true,
-      },
-    );
-    await session.send("Runtime.releaseObject", { objectId }).catch(() => {});
-    return typeof result?.value === "string" && result.value ? result.value : null;
+    try {
+      const { result } = await session.send<{ result: { value?: string } }>(
+        "Runtime.callFunctionOn",
+        {
+          objectId,
+          functionDeclaration: nodeToAbsoluteXPath.toString(),
+          returnByValue: true,
+        },
+      );
+      return typeof result?.value === "string" && result.value ? result.value : null;
+    } finally {
+      await session.send("Runtime.releaseObject", { objectId }).catch(() => {});
+    }
   } catch {
     return null;
   }
 }
 
 export function prefixXPath(parentAbs: string, child: string): string {
-  const p = parentAbs === "/" ? "" : parentAbs.replace(/\/$/, "");
-  if (!child || child === "/") return p || "/";
-  if (child.startsWith("//")) return p ? `${p}//${child.slice(2)}` : `//${child.slice(2)}`;
-  const c = child.replace(/^\//, "");
-  return p ? `${p}/${c}` : `/${c}`;
+  const pNorm = normalizeXPath(parentAbs);
+  const p = pNorm === "/" ? "" : pNorm;
+  const cNorm = normalizeXPath(child);
+  if (!cNorm || cNorm === "/") return p || "/";
+  if (cNorm.startsWith("//")) {
+    const rest = cNorm.slice(2);
+    if (!p) return `//${rest}`;
+    return p.endsWith("//") ? `${p}${rest}` : `${p}//${rest}`;
+  }
+  const c = cNorm.slice(1);
+  if (!p) return `/${c}`;
+  return p.endsWith("//") ? `${p}${c}` : `${p}/${c}`;
 }
 
 export function normalizeXPath(x?: string): string {
   if (!x) return "";
-  let s = x.trim().replace(/^xpath=/i, "");
+  let s = x
+    .trim()
+    .replace(/^xpath=/i, "")
+    .trim();
+  if (!s) return "";
   if (!s.startsWith("/")) s = "/" + s;
-  if (s.length > 1 && s.endsWith("/")) s = s.slice(0, -1);
+  s = s.replace(/^\/{3,}/, "//");
+  if (s.endsWith("///")) {
+    s = s.replace(/\/{3,}$/, "//");
+  } else if (s.length > 1 && s.endsWith("/") && !s.endsWith("//")) {
+    s = s.slice(0, -1);
+  }
   return s;
+}
+
+function toXPathStringLiteral(value: string): string {
+  if (!value.includes("'")) return `'${value}'`;
+  if (!value.includes('"')) return `"${value}"`;
+  const parts = value.split("'").map((part) => `'${part}'`);
+  return `concat(${parts.join(',"\'",')})`;
 }
 
 export function buildChildXPathSegments(kids: Protocol.DOM.Node[]): string[] {
   const segs: string[] = [];
-  const ctr: Record<string, number> = {};
+  const ctr = new Map<string, number>();
   for (const child of kids) {
     const tag = String(child.nodeName).toLowerCase();
     const key = `${child.nodeType}:${tag}`;
-    const idx = (ctr[key] = (ctr[key] ?? 0) + 1);
+    const idx = (ctr.get(key) ?? 0) + 1;
+    ctr.set(key, idx);
     if (child.nodeType === 3) {
       segs.push(`text()[${idx}]`);
     } else if (child.nodeType === 8) {
       segs.push(`comment()[${idx}]`);
     } else {
-      segs.push(tag.includes(":") ? `*[name()='${tag}'][${idx}]` : `${tag}[${idx}]`);
+      segs.push(
+        tag.includes(":") ? `*[name()=${toXPathStringLiteral(tag)}][${idx}]` : `${tag}[${idx}]`,
+      );
     }
   }
   return segs;
 }
 
 export function joinXPath(base: string, step: string): string {
+  const normalizedBase = base ? normalizeXPath(base) : "";
   if (step === "//") {
-    if (!base || base === "/") return "//";
-    return base.endsWith("/") ? `${base}/` : `${base}//`;
+    if (!normalizedBase || normalizedBase === "/") return "//";
+    return normalizedBase.endsWith("//") ? normalizedBase : `${normalizedBase}//`;
   }
-  if (!base || base === "/") return step ? `/${step}` : "/";
-  if (base.endsWith("//")) return `${base}${step}`;
-  if (!step) return base;
-  return `${base}/${step}`;
+  const cleanStep = step.replace(/^\/+/, "");
+  if (!normalizedBase || normalizedBase === "/") return cleanStep ? `/${cleanStep}` : "/";
+  if (!cleanStep) return normalizedBase;
+  if (normalizedBase.endsWith("//")) return `${normalizedBase}${cleanStep}`;
+  return `${normalizedBase}/${cleanStep}`;
 }
