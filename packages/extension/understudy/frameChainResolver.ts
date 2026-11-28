@@ -383,6 +383,7 @@ class FrameChainOperation {
       .filter((property) => /^(0|[1-9]\d*)$/.test(property.name) && property.value?.objectId)
       .sort((a, b) => Number(a.name) - Number(b.name))
       .map((property) => property.value!.objectId!);
+    if (handles.length !== ids.length) throw new Error("Missing frame chain target handles");
     const targets: ElementChainTarget[] = [];
     let next = 0;
     let stopped = false;
@@ -416,10 +417,10 @@ class FrameChainOperation {
   }
 
   private send<T>(session: CDPSessionLike, method: string, params: object): Promise<T> {
-    this.sessions.add(session);
     return this.progress.run(
       method,
       async () => {
+        this.sessions.add(session);
         try {
           return await session.send<T>(method, params);
         } catch (error) {

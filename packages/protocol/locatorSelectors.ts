@@ -70,8 +70,9 @@ export function parseLegacySelector(raw: string): SelectorQuery {
   if (isText) {
     let value = trimmed.replace(/^text=/i, "").trim();
     if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
+      value.length >= 2 &&
+      ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'")))
     ) {
       value = value.slice(1, -1);
     }

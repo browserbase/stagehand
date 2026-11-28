@@ -66,7 +66,7 @@ export function parseXPathSteps(input: string): XPathStep[] {
       } else if (ch === "[") {
         bracketDepth++;
       } else if (ch === "]") {
-        bracketDepth--;
+        bracketDepth = Math.max(0, bracketDepth - 1);
       } else if (ch === "/" && bracketDepth === 0) {
         break;
       }
@@ -93,14 +93,18 @@ function extractPredicates(str: string): string[] {
     i++;
     const start = i;
     let quote: string | null = null;
+    let depth = 1;
     while (i < str.length) {
       const ch = str[i];
       if (quote) {
         if (ch === quote) quote = null;
       } else if (ch === "'" || ch === '"') {
         quote = ch;
+      } else if (ch === "[") {
+        depth++;
       } else if (ch === "]") {
-        break;
+        depth--;
+        if (depth === 0) break;
       }
       i++;
     }
@@ -171,7 +175,7 @@ function parseAtomicPredicate(input: string): XPathPredicate | null {
   const quoted = "(?:'([^']*)'|\"([^\"]*)\")";
 
   if (/^\d+$/.test(input)) {
-    return { type: "index", index: Math.max(1, Number(input)) };
+    return { type: "index", index: Number(input) };
   }
 
   const normalizeAttrMatch = input.match(
@@ -428,8 +432,10 @@ export function evaluatePredicate(element: Element, predicate: XPathPredicate): 
     }
     case "index":
       return true;
-    default:
-      return true;
+    default: {
+      const exhaustive: never = predicate;
+      throw new Error(`Unsupported XPath predicate: ${String(exhaustive)}`);
+    }
   }
 }
 
