@@ -275,6 +275,8 @@ class CDPClient:
         self._session_id: str | None = None
         self._service_worker: ServiceWorkerInfo | None = None
         self._closed = False
+        self._close_reason: BaseException | None = None
+        self._close_task: asyncio.Task[None] | None = None
         self._client_target_id: str | None = None
         self._client_close_browser_on_loss = False
         self._background_tasks: set[asyncio.Task[dict[str, object]]] = set()
@@ -516,6 +518,8 @@ class CDPClient:
             )
 
     async def receive(self) -> object:
+        if self._closed and self._incoming.empty():
+            raise self._close_reason or RuntimeError("CDP client closed")
         message = await self._incoming.get()
         if isinstance(message, BaseException):
             raise message
@@ -533,8 +537,6 @@ class CDPClient:
 
         command_id = self._next_id
         self._next_id += 1
-        response: asyncio.Future[object] = asyncio.get_running_loop().create_future()
-        self._pending[command_id] = (method, response)
         message: dict[str, object] = {
             "id": command_id,
             "method": method,
@@ -542,19 +544,22 @@ class CDPClient:
         }
         if session_id is not None:
             message["sessionId"] = session_id
+        payload = json.dumps(message, separators=(",", ":"))
+        response: asyncio.Future[object] = asyncio.get_running_loop().create_future()
+        self._pending[command_id] = (method, response)
 
         try:
             try:
-                await self._socket.send(json.dumps(message, separators=(",", ":")))
+                await self._socket.send(payload)
             except ConnectionClosed as error:
                 raise CDPConnectionClosedError() from error
             result = await response
-        except BaseException:
-            if not response.done():
-                response.cancel()
-            raise
         finally:
             self._pending.pop(command_id, None)
+            if not response.done():
+                response.cancel()
+            elif not response.cancelled():
+                response.exception()
 
         if result is None:
             return {}
@@ -563,19 +568,45 @@ class CDPClient:
         return cast(dict[str, object], result)
 
     async def close(self) -> None:
-        if self._closed:
+        current_task = asyncio.current_task()
+        close_task = self._start_close(
+            RuntimeError("CDP client closed"),
+            cancel_reader=current_task is not self._reader,
+        )
+        if current_task is close_task:
             return
+        await asyncio.shield(close_task)
 
+    def _start_close(
+        self,
+        reason: BaseException,
+        *,
+        cancel_reader: bool,
+    ) -> asyncio.Task[None]:
+        if self._close_task is not None:
+            return self._close_task
         self._closed = True
-        reason = RuntimeError("CDP client closed")
+        self._close_reason = reason
         self._reject_pending(reason)
         self._incoming.put_nowait(reason)
-        current_task = asyncio.current_task()
-        if self._reader is not current_task:
-            self._reader.cancel()
-            with suppress(asyncio.CancelledError):
-                await self._reader
-        await self._socket.close()
+        self._close_task = asyncio.create_task(
+            self._close_impl(cancel_reader=cancel_reader),
+            name="stagehand-cdp-close",
+        )
+        self._close_task.add_done_callback(_consume_task_exception)
+        return self._close_task
+
+    async def _close_impl(self, *, cancel_reader: bool) -> None:
+        try:
+            if cancel_reader:
+                self._reader.cancel()
+                with suppress(asyncio.CancelledError):
+                    await self._reader
+        finally:
+            try:
+                await self._cancel_background_tasks(asyncio.current_task())
+            finally:
+                await self._socket.close()
 
     async def _read(self) -> None:
         try:
@@ -590,10 +621,17 @@ class CDPClient:
         except Exception as error:
             if self._closed:
                 return
-            self._closed = True
-            self._reject_pending(error)
-            self._incoming.put_nowait(error)
-            await self._socket.close()
+            close_task = self._start_close(error, cancel_reader=False)
+            with suppress(Exception):
+                await asyncio.shield(close_task)
+
+    async def _cancel_background_tasks(self, current_task: asyncio.Task[Any] | None) -> None:
+        remaining = [task for task in self._background_tasks if task is not current_task]
+        for task in remaining:
+            task.cancel()
+        if remaining:
+            await asyncio.gather(*remaining, return_exceptions=True)
+        self._background_tasks.clear()
 
     async def _handle_message(self, data: str | bytes) -> None:
         if isinstance(data, bytes):
@@ -610,6 +648,7 @@ class CDPClient:
 
         if (
             message.get("method") != "Runtime.bindingCalled"
+            or self._session_id is None
             or message.get("sessionId") != self._session_id
         ):
             return
@@ -1007,6 +1046,11 @@ def _stale_service_worker_message(
         f"directory holds build {build.on_disk}: the browser profile kept the worker of "
         f"another build. {reason}, so it continues with the running worker."
     )
+
+
+def _consume_task_exception(task: asyncio.Task[Any]) -> None:
+    if not task.cancelled():
+        task.exception()
 
 
 def _required_string(value: Mapping[str, object], key: str, method: str) -> str:
