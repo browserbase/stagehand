@@ -16,12 +16,15 @@ from pydantic import (
     StrictStr,
 )
 from stagehand._validation import (
+    CookieParamValidation,
+    CookieRegexValidation,
+    InputFilePayloadValidation,
     LocatorChainValidation,
     LocatorFilterStepValidation,
     PageScreenshotOptionsValidation,
     RoleSelectorQueryValidation,
     StagehandInitParamsValidation,
-    TelemetryConfigValidation,
+    TelemetryTracesValidation,
     WireModel,
     WireUrl,
 )
@@ -655,7 +658,7 @@ class ContextCookiesResult(RootModel[list[Cookie]]):
     root: list[Cookie]
 
 
-class CookieParam(WireModel):
+class CookieParam(CookieParamValidation):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -671,7 +674,7 @@ class CookieParam(WireModel):
     same_site: Optional[SameSite] = None
 
 
-class CookieRegex(WireModel):
+class CookieRegex(CookieRegexValidation):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -894,7 +897,7 @@ class ImplementationInfo(WireModel):
     version: Annotated[StrictStr, Field(min_length=1)]
 
 
-class InputFilePayload(WireModel):
+class InputFilePayload(InputFilePayloadValidation):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -2838,7 +2841,7 @@ class TaskSupport(StrEnum):
     required = "required"
 
 
-class TelemetryConfig(TelemetryConfigValidation):
+class TelemetryConfig(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
@@ -2846,7 +2849,7 @@ class TelemetryConfig(TelemetryConfigValidation):
     traces: TelemetryTraces
 
 
-class TelemetryTraces(WireModel):
+class TelemetryTraces(TelemetryTracesValidation):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
