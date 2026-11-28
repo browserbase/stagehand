@@ -243,6 +243,15 @@ async function actWithProgress(
   }
 }
 
+const SUPPORTED_REPLAY_METHODS: ReadonlySet<string> = new Set<string>([
+  ...Object.values(SupportedUnderstudyAction),
+  "scrollIntoView",
+  "scrollByPixelOffset",
+  "scroll",
+  "mouse.wheel",
+  "selectOption",
+]);
+
 async function replayCachedActions(
   value: unknown,
   instruction: string,
@@ -254,14 +263,41 @@ async function replayCachedActions(
     throw new Error("Cached act value contained no usable actions");
   }
 
+  for (const action of actions) {
+    const method = action.method?.trim();
+    if (!method || !SUPPORTED_REPLAY_METHODS.has(method)) {
+      throw new Error(`Cached action has unsupported method '${method ?? ""}'`);
+    }
+  }
+
   const results: ActResultData[] = [];
   for (const action of actions) {
-    const result = await takeDeterministicAction({
-      action,
-      variables,
-      context: { ...context, selfHeal: false },
-    });
+    let result: ActResultData;
+    try {
+      result = await takeDeterministicAction({
+        action,
+        variables,
+        context: { ...context, selfHeal: false },
+      });
+    } catch (error) {
+      context.progress.throwIfStopped();
+      if (results.length > 0) {
+        throw new cacheService.CacheReplayCommittedError(
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      throw error;
+    }
     if (!result.success) {
+      if (results.length > 0) {
+        const failedResult = actResult({
+          success: false,
+          message: [...results.map((entry) => entry.message), result.message].join(" → "),
+          actionDescription: instruction,
+          actions: results.flatMap((entry) => entry.actions),
+        });
+        throw new cacheService.CacheReplayCommittedError(result.message, failedResult);
+      }
       throw new Error(result.message);
     }
     results.push(result);
@@ -498,19 +534,30 @@ function normalizeActInferenceElement(
   };
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function substituteVariablesInArguments(
   args: string[] | undefined,
   variables?: Variables,
 ): string[] | undefined {
   if (!variables || !Array.isArray(args)) return args;
 
-  return args.map((arg) => {
-    let output = arg;
-    for (const [key, value] of Object.entries(variables)) {
-      output = output.split(`%${key}%`).join(resolveVariableValue(value));
-    }
-    return output;
-  });
+  const entries = Object.entries(variables);
+  if (entries.length === 0) return args;
+
+  const replacements = new Map<string, string>();
+  const tokens: string[] = [];
+  for (const [key, value] of entries) {
+    const token = `%${key}%`;
+    replacements.set(token, resolveVariableValue(value));
+    tokens.push(token);
+  }
+  tokens.sort((a, b) => b.length - a.length);
+  const pattern = new RegExp(tokens.map(escapeRegExp).join("|"), "g");
+
+  return args.map((arg) => arg.replace(pattern, (match) => replacements.get(match) ?? match));
 }
 
 function successfulActionResult(

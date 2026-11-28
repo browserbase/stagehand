@@ -133,9 +133,8 @@ export const CookieParamSchema = z
       }
     }
 
-    const effectivelySecure = cookie.url
-      ? parsedUrl?.protocol === "https:"
-      : cookie.secure === true;
+    const effectivelySecure =
+      cookie.secure ?? (cookie.url ? parsedUrl?.protocol === "https:" : false);
     if (cookie.sameSite === "None" && !invalidUrl && !effectivelySecure) {
       context.addIssue({
         code: "custom",
