@@ -168,6 +168,7 @@ import type {
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
   PageCDPEventNotificationSchema,
+  PageCDPEventMethodSchema,
   PageCDPEventParamsSchema,
   PageCDPEventSchema,
   PageClickParamsSchema,
@@ -357,6 +358,7 @@ export type PageToolsAddedNotification = z.infer<typeof PageToolsAddedNotificati
 export type PageResponseNotification = z.infer<typeof PageResponseNotificationSchema>;
 export type PageToolsRemovedNotification = z.infer<typeof PageToolsRemovedNotificationSchema>;
 export type WebMCPToolIdentity = z.infer<typeof WebMCPToolIdentitySchema>;
+export type PageCDPEventMethod = z.infer<typeof PageCDPEventMethodSchema>;
 export type PageCDPEventParams = z.infer<typeof PageCDPEventParamsSchema>;
 export type PageCDPEvent = z.infer<typeof PageCDPEventSchema>;
 export type PageCDPEventNotification = z.infer<typeof PageCDPEventNotificationSchema>;

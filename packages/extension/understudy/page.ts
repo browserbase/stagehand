@@ -84,6 +84,7 @@ type PageCDPEventMethod = PageCDPEvent["method"];
 
 export const PAGE_TO_CDP_EVENTS: Record<PageEventName, PageCDPEventMethod> = {
   ["console"]: "Runtime.consoleAPICalled",
+  ["pageerror"]: "Runtime.exceptionThrown",
 };
 
 type Deferred<T> = {

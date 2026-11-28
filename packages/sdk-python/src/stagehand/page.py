@@ -417,15 +417,31 @@ class Page:
         event: PageEventName,
         listener: PageEventListener,
     ) -> CDPSubscription:
-        """Deprecated: use on_console(listener) instead."""
-        if event != "console":
-            raise ValueError('page.on only supports "console" events')
-        return await self.on_console(listener)
+        """Subscribe to page events from this page and its page-owned (OOPIF) sessions.
+
+        ``"pageerror"`` delivers raw ``Runtime.exceptionThrown`` events for uncaught exceptions
+        and unhandled promise rejections; ``event.params["exceptionDetails"]`` holds the CDP
+        exception details.
+
+        Deprecated for ``"console"``: use on_console(listener) instead.
+        """
+        if event == "console":
+            return await self.on_console(listener)
+        if event == "pageerror":
+            return await self._subscribe_cdp_event(event, listener)
+        raise ValueError('page.on only supports "console" and "pageerror" events')
 
     async def on_console(self, listener: ConsoleListener) -> CDPSubscription:
         """Subscribe to console messages from this page and its page-owned sessions."""
+        return await self._subscribe_cdp_event("console", listener)
+
+    async def _subscribe_cdp_event(
+        self,
+        event: PageEventName,
+        listener: PageEventListener,
+    ) -> CDPSubscription:
         return await self._subscribe(
-            "console",
+            event,
             "page.cdp_event",
             PageCDPEventNotification,
             lambda notification: listener(notification.event),

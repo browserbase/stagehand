@@ -747,12 +747,15 @@ class PageAddInitScriptParams(TypedDict):
     source: str
 
 
+PageCDPEventMethod: TypeAlias = Literal["Runtime.consoleAPICalled", "Runtime.exceptionThrown"]
+
+
 PageCDPEventParams: TypeAlias = dict[str, FieldSchema13]
 
 
 class PageCDPEvent(TypedDict):
     page_id: str
-    method: Literal["Runtime.consoleAPICalled"]
+    method: PageCDPEventMethod
     params: PageCDPEventParams
     session_id: str
     target_id: str
@@ -809,7 +812,7 @@ class PageEvaluateResult(TypedDict):
     value: FieldSchema9
 
 
-PageEventName: TypeAlias = Literal["console"]
+PageEventName: TypeAlias = Literal["console", "pageerror"]
 
 
 class PageHoverParams(TypedDict):
@@ -972,7 +975,7 @@ class PageSnapshotParams(TypedDict):
     options: NotRequired[PageSnapshotOptions]
 
 
-PageSubscriptionEventName: TypeAlias = Literal["console", "toolsadded", "toolsremoved", "response"]
+PageSubscriptionEventName: TypeAlias = Literal["console", "toolsadded", "toolsremoved", "response", "pageerror"]
 
 
 class PageOnParams(TypedDict):

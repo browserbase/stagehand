@@ -598,13 +598,71 @@ describe("Stagehand TS object wrapper", () => {
     },
   );
 
-  it.each(["toolsadded", "toolsremoved", "unknown", ""])(
+  it("subscribes to pageerror and delivers only its own Runtime.exceptionThrown events", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageOn, { ok: true });
+    client.queueResponse(StagehandMethods.pageOff, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+    const events: unknown[] = [];
+
+    const subscription = await page.on("pageerror", (event) => events.push(event));
+    const subscriptionId = (client.calls[0]!.params as { subscriptionId: string }).subscriptionId;
+    expect(client.calls[0]).toStrictEqual(
+      requestCall(StagehandMethods.pageOn, {
+        pageId: "page-1",
+        subscriptionId,
+        event: "pageerror",
+      }),
+    );
+    const exceptionEvent = {
+      pageId: "page-1",
+      method: "Runtime.exceptionThrown",
+      params: {
+        timestamp: 1,
+        exceptionDetails: {
+          exceptionId: 1,
+          text: "Uncaught",
+          lineNumber: 0,
+          columnNumber: 7,
+          exception: { type: "object", subtype: "error", description: "Error: boom" },
+        },
+      },
+      sessionId: "session-1",
+      targetId: "target-1",
+    } as const;
+    client.emitNotification({
+      jsonrpc: "2.0",
+      method: "page.cdp_event",
+      params: { subscriptionId, event: exceptionEvent },
+    });
+    client.emitNotification({
+      jsonrpc: "2.0",
+      method: "page.cdp_event",
+      params: { subscriptionId: "someone-else", event: exceptionEvent },
+    });
+
+    expect(events).toStrictEqual([exceptionEvent]);
+
+    await subscription.unsubscribe();
+    expect(client.calls[1]).toStrictEqual(
+      requestCall(StagehandMethods.pageOff, { subscriptionId }),
+    );
+    expect(client.listeners).toHaveLength(0);
+    client.emitNotification({
+      jsonrpc: "2.0",
+      method: "page.cdp_event",
+      params: { subscriptionId, event: exceptionEvent },
+    });
+    expect(events).toHaveLength(1);
+  });
+
+  it.each(["response", "toolsadded", "toolsremoved", "unknown", ""])(
     "rejects unsupported generic page.on event %j before subscribing",
     async (event) => {
       const client = new FakeProtocolClient();
       const page = new Page(client, { pageId: "page-1" });
       await expect(page.on(event as "console", () => {})).rejects.toThrow(
-        'page.on only supports "console" events',
+        'page.on only supports "console" and "pageerror" events',
       );
       expect(client.calls).toHaveLength(0);
       expect(client.listeners).toHaveLength(0);

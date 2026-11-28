@@ -887,6 +887,7 @@ export class StagehandRuntime {
         !subscription.controller.signal.aborted;
       switch (params.event) {
         case "console":
+        case "pageerror":
           subscription.dispose = await page.subscribeCDPEvent(
             params.event,
             (event) => {

@@ -58,6 +58,7 @@ export const integrationTestGroups = {
   ],
   "local/page-navigation": [
     "pageAddInitScript",
+    "pageErrorEvents",
     "pageExtraHttpHeaders",
     "pageGotoResponse",
     "pageOnConsole",

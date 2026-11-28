@@ -235,14 +235,30 @@ export class Page {
   }
 
   /** @deprecated Use onConsole(listener) instead. */
+  on(event: "console", listener: ConsoleListener): Promise<CDPSubscription>;
+  /**
+   * Subscribe to uncaught JavaScript exceptions and unhandled promise rejections from this page
+   * and its page-owned (OOPIF) sessions. Each event is a raw `Runtime.exceptionThrown` envelope;
+   * `event.params.exceptionDetails` holds the CDP exception details.
+   */
+  on(event: "pageerror", listener: PageEventListener): Promise<CDPSubscription>;
+  on(event: PageEventName, listener: PageEventListener): Promise<CDPSubscription>;
   async on(event: PageEventName, listener: PageEventListener): Promise<CDPSubscription> {
-    if (event !== "console") throw new Error('page.on only supports "console" events');
-    return this.onConsole(listener);
+    if (event === "console") return this.onConsole(listener);
+    if (event === "pageerror") return this.subscribeCDPEvent(event, listener);
+    throw new Error('page.on only supports "console" and "pageerror" events');
   }
 
   /** Subscribe to console messages from this page and its page-owned sessions. */
   async onConsole(listener: ConsoleListener): Promise<CDPSubscription> {
-    return this.subscribe("console", (notification) => {
+    return this.subscribeCDPEvent("console", listener);
+  }
+
+  private async subscribeCDPEvent(
+    event: PageEventName,
+    listener: PageEventListener,
+  ): Promise<CDPSubscription> {
+    return this.subscribe(event, (notification) => {
       if (notification.method === StagehandNotifications.pageCDPEvent.name) {
         return listener(notification.params.event);
       }
