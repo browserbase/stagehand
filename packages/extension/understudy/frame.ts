@@ -162,7 +162,11 @@ export class Frame implements FrameManager {
       });
     }
     if (res.exceptionDetails) {
-      throw new Error(res.exceptionDetails.text ?? "Evaluation failed");
+      throw new Error(
+        res.exceptionDetails.exception?.description ||
+          res.exceptionDetails.text ||
+          "Evaluation failed",
+      );
     }
     return res.result.value as R;
   }
@@ -173,7 +177,11 @@ export class Frame implements FrameManager {
   ): Promise<R> {
     const response = await this.evaluateLocatorExpression(buildExpression, { progress });
     if (response.exceptionDetails) {
-      throw new Error(response.exceptionDetails.text ?? "Locator-world evaluation failed");
+      throw new Error(
+        response.exceptionDetails.exception?.description ||
+          response.exceptionDetails.text ||
+          "Locator-world evaluation failed",
+      );
     }
     return response.result.value as R;
   }
