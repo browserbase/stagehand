@@ -28,6 +28,7 @@ export type PendingDocumentCompletion = {
   frameId: string;
   requestId: string;
   error: Error | null;
+  requestRetired?: boolean;
 };
 
 export type DocumentIdentity = {
