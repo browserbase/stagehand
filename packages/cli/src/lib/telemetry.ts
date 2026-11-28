@@ -13,12 +13,19 @@ const browserbaseTelemetryProjectToken = "phc_CKQBSpdeU2GGyBgcBhW8ZbDnhEVbZbuzMs
 type TelemetryPrimitive = string | number | boolean | null;
 type TelemetryProperties = Record<string, TelemetryPrimitive>;
 
-type CliTelemetryEvent = "cli.command_invoked" | "cli.command_completed" | "cli.command_not_found";
+type CliTelemetryEvent =
+  | "cli.command_invoked"
+  | "cli.command_completed"
+  | "cli.command_not_found"
+  | "cli.link_opened"
+  | "cli.help_links_shown";
 type CliTelemetryErrorType = "oclif" | "runtime";
 
 interface CliTelemetry {
   capture(event: CliTelemetryEvent, properties: TelemetryProperties): Promise<void>;
 }
+
+let helpLinksShownThisInvocation = false;
 
 interface CreateCliTelemetryOptions {
   cliVersion: string;
@@ -67,6 +74,7 @@ let telemetryClientVersion: string | undefined;
 export function startTelemetryInvocation(startedAtMs = Date.now()): void {
   resetRunTelemetry();
   telemetryState = { startedAtMs };
+  helpLinksShownThisInvocation = false;
 }
 
 export function captureCommandInvoked(CommandClass: Command.Class, cliVersion: string): void {
@@ -124,6 +132,40 @@ export async function captureCommandNotFound(
     .capture("cli.command_not_found", {
       attempted_command: attemptedCommand ? resolveCommandPath(attemptedCommand) : null,
       suggested_command: suggestedCommand ? resolveCommandPath(suggestedCommand) : null,
+    })
+    .catch(() => {});
+}
+
+export async function captureLinkOpened(
+  cliVersion: string,
+  properties: {
+    target: "discord" | "github_issues";
+    source: "discord_command";
+    opened: boolean;
+    browser_open_succeeded: boolean;
+  },
+): Promise<void> {
+  await getCliTelemetry(cliVersion)
+    .capture("cli.link_opened", properties)
+    .catch(() => {});
+}
+
+export async function captureHelpLinksShown(
+  cliVersion: string,
+  properties: {
+    source: "help_footer" | "error_hint";
+    error_type?: string | null;
+  },
+): Promise<void> {
+  if (helpLinksShownThisInvocation) {
+    return;
+  }
+  helpLinksShownThisInvocation = true;
+
+  await getCliTelemetry(cliVersion)
+    .capture("cli.help_links_shown", {
+      source: properties.source,
+      error_type: properties.error_type ? sanitizeErrorCode(properties.error_type) : null,
     })
     .catch(() => {});
 }

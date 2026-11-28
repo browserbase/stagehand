@@ -4,13 +4,21 @@ import { DriverError } from "./lib/driver/errors.js";
 import { CommandFailure } from "./lib/errors.js";
 import { setCliVersion } from "./lib/identity.js";
 import { DISCORD_INVITE_URL, GITHUB_ISSUES_URL } from "./lib/support-links.js";
-import { recordCommandError } from "./lib/telemetry.js";
+import { captureHelpLinksShown, recordCommandError } from "./lib/telemetry.js";
 
 const SUPPORT_HINT = `Get help: ${DISCORD_INVITE_URL} · Report a bug: ${GITHUB_ISSUES_URL}`;
 
 function isOclifError(err: Error): boolean {
   const oclifData = (err as { oclif?: { exit?: unknown } }).oclif;
   return typeof oclifData?.exit === "number";
+}
+
+function inferErrorName(err: Error): string {
+  const code = (err as { code?: unknown }).code;
+  if (typeof code === "string" && code.trim()) {
+    return code;
+  }
+  return err.name || "Error";
 }
 
 export abstract class BrowseCommand extends Command {
@@ -39,6 +47,11 @@ export abstract class BrowseCommand extends Command {
 
     if (!isOclifError(err)) {
       process.stderr.write(`${SUPPORT_HINT}\n`);
+
+      await captureHelpLinksShown(this.config.version, {
+        source: "error_hint",
+        error_type: inferErrorName(err),
+      });
     }
 
     return super.catch(err);
