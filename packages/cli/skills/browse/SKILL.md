@@ -294,7 +294,7 @@ The response includes `provider` and `mode` fields showing which provider/mode s
 
 ## Browserbase Functions
 
-Use `browse functions` to create, develop, publish, and invoke Browserbase Functions:
+Use `browse functions` to create, develop, publish, invoke, and delete Browserbase Functions:
 
 ```bash
 browse functions init my-function
@@ -303,6 +303,7 @@ browse functions publish index.ts
 browse functions publish index.ts --dry-run
 browse functions invoke <function-id> --params '{"url":"https://example.com"}'
 browse functions invoke --check-status <invocation-id>
+browse functions delete <function-id>
 ```
 
 Functions commands use `BROWSERBASE_API_KEY`. Generated projects import `defineFn` from `@browserbasehq/sdk-functions`.

@@ -44,6 +44,36 @@ afterEach(async () => {
 });
 
 describe("functions API contracts", () => {
+  it.each([true, false])("deletes a Function and prints deleted: %s", async (deleted) => {
+    await withServer(
+      (request, response) => {
+        expect(request.method).toBe("DELETE");
+        expect(request.path).toBe("/v1/functions/fn%2Fwith%3Freserved%23characters");
+        jsonResponse(response, 200, { deleted });
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "functions",
+          "delete",
+          "fn/with?reserved#characters",
+          "--api-key",
+          "override-key",
+          "--api-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode, result.stderr).toBe(0);
+        expect(JSON.parse(result.stdout)).toEqual({ deleted });
+        expectRequest(
+          requests[0],
+          "DELETE",
+          "/v1/functions/fn%2Fwith%3Freserved%23characters",
+          "override-key",
+        );
+      },
+    );
+  });
+
   it("publishes a Functions archive and polls build status", async () => {
     const cwd = await createFunctionFixture("functions-publish-");
     await writeFile(join(cwd, "package-lock.json"), '{"lockfileVersion":3}\n');
