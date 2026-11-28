@@ -1,3 +1,4 @@
+import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { normalizeEvaluationExpression, normalizeInitScriptSource } from "../src/pageScripts.js";
 
@@ -49,5 +50,36 @@ describe("page script normalization", () => {
     await expect(
       normalizeInitScriptSource((arg: unknown) => arg, { value: 1n }, "context.addInitScript"),
     ).rejects.toThrow("context.addInitScript: 'arg' must be JSON-serializable");
+  });
+
+  it("preserves async arrows with regex and division default parameters", async () => {
+    const regexDefault = runInNewContext("async (arg = /\\)/) => arg") as (
+      arg?: unknown,
+    ) => Promise<unknown>;
+    const normalizedRegex = normalizeEvaluationExpression(regexDefault);
+    expect(normalizedRegex).toBe(`(${regexDefault.toString()})(undefined)`);
+    const regexResult = (await runInNewContext(normalizedRegex)) as RegExp;
+    expect(regexResult.source).toBe("\\)");
+
+    const divisionDefault = runInNewContext("async (a = 1 / 2 / 3) => a") as (
+      a?: unknown,
+    ) => Promise<unknown>;
+    const normalizedDivision = normalizeEvaluationExpression(divisionDefault);
+    expect(normalizedDivision).toBe(`(${divisionDefault.toString()})(undefined)`);
+    await expect(runInNewContext(normalizedDivision)).resolves.toBe(1 / 2 / 3);
+
+    const divisionThenRegex = runInNewContext("async (a = 1 / /\\)/.source.length) => a") as (
+      a?: unknown,
+    ) => Promise<unknown>;
+    const normalizedMixed = normalizeEvaluationExpression(divisionThenRegex);
+    expect(normalizedMixed).toBe(`(${divisionThenRegex.toString()})(undefined)`);
+    await expect(runInNewContext(normalizedMixed)).resolves.toBe(0.5);
+
+    const conciseAsyncMethod = runInNewContext("({ async(a = /\\)/) { return a; } }).async") as (
+      a?: unknown,
+    ) => unknown;
+    const normalizedConcise = normalizeEvaluationExpression(conciseAsyncMethod);
+    const conciseResult = runInNewContext(normalizedConcise) as RegExp;
+    expect(conciseResult.source).toBe("\\)");
   });
 });

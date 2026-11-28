@@ -99,9 +99,26 @@ export class BrowserContext {
   }
 }
 
+const CLEAR_COOKIE_OPTION_KEYS = new Set(["name", "domain", "path"]);
+const regExpSourceDescriptor = Object.getOwnPropertyDescriptor(RegExp.prototype, "source");
+const regExpFlagsDescriptor = Object.getOwnPropertyDescriptor(RegExp.prototype, "flags");
+
 function serializeClearCookieOptions(
   options: ClearCookieOptions,
 ): ProtocolTypes.ClearCookieOptions {
+  if (
+    !options ||
+    typeof options !== "object" ||
+    Array.isArray(options) ||
+    extractRegExpParts(options) !== null
+  ) {
+    throw new TypeError("context.clearCookies(): options must be an object");
+  }
+  for (const key of Object.keys(options)) {
+    if (!CLEAR_COOKIE_OPTION_KEYS.has(key)) {
+      throw new TypeError(`context.clearCookies(): unknown option "${key}"`);
+    }
+  }
   return {
     ...(options.name === undefined ? {} : { name: serializeCookieFilter(options.name) }),
     ...(options.domain === undefined ? {} : { domain: serializeCookieFilter(options.domain) }),
@@ -112,5 +129,34 @@ function serializeClearCookieOptions(
 function serializeCookieFilter(
   filter: string | RegExp,
 ): string | { source: string; flags: string } {
-  return typeof filter === "string" ? filter : { source: filter.source, flags: filter.flags };
+  if (typeof filter === "string") {
+    return filter;
+  }
+  const regex = extractRegExpParts(filter);
+  if (regex !== null) {
+    return regex;
+  }
+  throw new TypeError("context.clearCookies(): cookie filter must be a string or RegExp");
+}
+
+function extractRegExpParts(value: unknown): { source: string; flags: string } | null {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    value === RegExp.prototype ||
+    typeof regExpSourceDescriptor?.get !== "function" ||
+    typeof regExpFlagsDescriptor?.get !== "function"
+  ) {
+    return null;
+  }
+  try {
+    const source: unknown = regExpSourceDescriptor.get.call(value);
+    const flags: unknown = regExpFlagsDescriptor.get.call(value);
+    if (typeof source !== "string" || typeof flags !== "string") {
+      return null;
+    }
+    return { source, flags };
+  } catch {
+    return null;
+  }
 }
