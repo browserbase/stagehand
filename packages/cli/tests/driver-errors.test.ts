@@ -19,6 +19,15 @@ describe("classifyRemoteInitError", () => {
     expect(classified.message).toContain("browse doctor");
   });
 
+  it("maps 402 to a payment-required message", () => {
+    const error = Object.assign(new Error("402 Payment Required"), { status: 402 });
+    const classified = classifyRemoteInitError(error);
+    expect(classified.code).toBe("remote_payment_required");
+    expect(classified.httpStatus).toBe(402);
+    expect(classified.message).toContain("plan limit");
+    expect(classified.message).toContain("--local");
+  });
+
   it("maps 403 to a permissions/plan message with the same escape hatches", () => {
     const error = Object.assign(new Error("403 Forbidden"), { status: 403 });
     const classified = classifyRemoteInitError(error);
@@ -28,18 +37,60 @@ describe("classifyRemoteInitError", () => {
     expect(classified.message).toContain("browse doctor");
   });
 
-  it("hides provider details for other failures", () => {
-    const classified = classifyRemoteInitError(new Error("sensitive provider detail"));
+  it("maps 429 to a rate-limited message", () => {
+    const error = Object.assign(new Error("429 Too Many Requests"), { status: 429 });
+    const classified = classifyRemoteInitError(error);
+    expect(classified.code).toBe("remote_rate_limited");
+    expect(classified.httpStatus).toBe(429);
+    expect(classified.message).toContain("concurrency or rate limit");
+    expect(classified.message).toContain("--local");
+  });
+
+  it("extracts status from the cause chain (depth ≤5)", () => {
+    const cause = Object.assign(new Error("401 Unauthorized"), { status: 401 });
+    const error = new Error("Failed to upload the Stagehand extension", { cause });
+    const classified = classifyRemoteInitError(error);
+    expect(classified.code).toBe("remote_auth_401");
+    expect(classified.httpStatus).toBe(401);
+  });
+
+  it("extracts 402 from cause chain", () => {
+    const cause = Object.assign(new Error("402 Payment Required"), { status: 402 });
+    const error = new Error("Failed to upload the Stagehand extension", { cause });
+    const classified = classifyRemoteInitError(error);
+    expect(classified.code).toBe("remote_payment_required");
+    expect(classified.httpStatus).toBe(402);
+  });
+
+  it("extracts 429 from cause chain", () => {
+    const cause = Object.assign(new Error("429 Too Many Requests"), { status: 429 });
+    const error = new Error("Failed to upload the Stagehand extension", { cause });
+    const classified = classifyRemoteInitError(error);
+    expect(classified.code).toBe("remote_rate_limited");
+    expect(classified.httpStatus).toBe(429);
+  });
+
+  it("includes the upstream message for other failures", () => {
+    const classified = classifyRemoteInitError(new Error("connection timed out"));
     expect(classified.code).toBe("remote_session_create_failed");
     expect(classified.httpStatus).toBeUndefined();
-    expect(classified.message).not.toContain("sensitive provider detail");
-    expect(classified.message).toContain("browse doctor");
+    expect(classified.message).toContain("connection timed out");
+    expect(classified.message).not.toContain("browse doctor");
   });
 
   it("handles non-Error values and non-numeric statuses", () => {
     const classified = classifyRemoteInitError("boom");
     expect(classified.code).toBe("remote_session_create_failed");
     expect(classified.message).not.toContain("boom");
+  });
+
+  it("maps an error with status property to the correct code", () => {
+    const error = Object.assign(new Error("Failed to create a Browserbase session"), {
+      status: 402,
+    });
+    const classified = classifyRemoteInitError(error);
+    expect(classified.code).toBe("remote_payment_required");
+    expect(classified.httpStatus).toBe(402);
   });
 });
 

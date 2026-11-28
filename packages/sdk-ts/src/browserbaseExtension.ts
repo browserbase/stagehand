@@ -89,9 +89,16 @@ export async function provisionBrowserbaseExtension(
     }
   }
   if (uploaded === undefined) {
-    throw new Error(
-      `Failed to upload the Stagehand extension to Browserbase after ${attemptsMade} attempt(s).`,
-      { cause: lastError },
+    const status =
+      lastError && typeof lastError === "object" && "status" in lastError
+        ? (lastError as { status?: unknown }).status
+        : undefined;
+    throw Object.assign(
+      new Error(
+        `Failed to upload the Stagehand extension to Browserbase after ${attemptsMade} attempt(s).`,
+        { cause: lastError },
+      ),
+      typeof status === "number" ? { status } : {},
     );
   }
 

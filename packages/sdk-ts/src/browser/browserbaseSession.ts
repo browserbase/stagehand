@@ -60,9 +60,11 @@ type BrowserbaseSdkFactory = (
 ) => BrowserbaseSdk;
 
 export class BrowserbaseSessionError extends Error {
-  constructor(message: string) {
+  readonly status?: number;
+  constructor(message: string, status?: number) {
     super(message);
     this.name = "BrowserbaseSessionError";
+    this.status = status;
   }
 }
 
@@ -92,9 +94,12 @@ export function createBrowserbaseSessionClient(
             ...STAGEHAND_SESSION_METADATA,
           },
         });
-      } catch {
+      } catch (error) {
         await extension?.cleanup().catch(() => undefined);
-        throw new BrowserbaseSessionError("Failed to create a Browserbase session");
+        throw new BrowserbaseSessionError(
+          "Failed to create a Browserbase session",
+          extractHttpStatus(error),
+        );
       }
 
       const sessionId = session.id.trim();
@@ -148,8 +153,11 @@ export function createBrowserbaseSessionClient(
       let session: Awaited<ReturnType<BrowserbaseApiClient["retrieveSession"]>>;
       try {
         session = await browserbase.retrieveSession(normalizedSessionId);
-      } catch {
-        throw new BrowserbaseSessionError("Failed to retrieve the Browserbase session");
+      } catch (error) {
+        throw new BrowserbaseSessionError(
+          "Failed to retrieve the Browserbase session",
+          extractHttpStatus(error),
+        );
       }
       const cdpUrl = session.connectUrl?.trim();
       if (!cdpUrl) {
@@ -208,4 +216,10 @@ async function cleanupInvalidSession(
     await browserbase.releaseSession(sessionId).catch(() => undefined);
   }
   await extension?.cleanup().catch(() => undefined);
+}
+
+function extractHttpStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const status = (error as { status?: unknown }).status;
+  return typeof status === "number" ? status : undefined;
 }
