@@ -363,7 +363,7 @@ describe("Stagehand TS object wrapper", () => {
         source: "globalThis.fromContent = true",
       }),
       requestCall(StagehandMethods.contextAddInitScript, {
-        source: `(${script.toString()})({"ready":true})`,
+        source: String.raw`(${script.toString()})(JSON.parse("{\"ready\":true}"))`,
       }),
     ]);
   });
@@ -1169,7 +1169,7 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.pageEvaluate, {
         pageId: "page-1",
-        expression: `(${expression.toString()})({"camelCase":"kept"})`,
+        expression: String.raw`(${expression.toString()})(JSON.parse("{\"camelCase\":\"kept\"}"))`,
       }),
     ]);
   });
@@ -1193,7 +1193,7 @@ describe("Stagehand TS object wrapper", () => {
       }),
       requestCall(StagehandMethods.pageAddInitScript, {
         pageId: "page-1",
-        source: `(${script.toString()})({"ready":true})`,
+        source: String.raw`(${script.toString()})(JSON.parse("{\"ready\":true}"))`,
       }),
     ]);
   });
