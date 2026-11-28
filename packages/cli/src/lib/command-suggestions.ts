@@ -36,7 +36,7 @@ export interface CommandSuggestion {
 
 export function extractCommandTokens(id: string): string[] {
   const tokens: string[] = [];
-  for (const token of id.split(":")) {
+  for (const token of id.split(":", maxCommandTokens + 1)) {
     if (tokens.length >= maxCommandTokens || !safeTokenPattern.test(token)) {
       break;
     }
@@ -58,8 +58,13 @@ function prefixDistance(tokens: readonly string[], commandId: string): number | 
   let total = 0;
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i] ?? "";
-    const segmentDistance = distance(token, segments[i] ?? "");
-    if (segmentDistance > tokenThreshold(token)) {
+    const segment = segments[i] ?? "";
+    const maxForSegment = Math.min(tokenThreshold(token), maxSuggestionDistance - total);
+    if (Math.abs(token.length - segment.length) > maxForSegment) {
+      return null;
+    }
+    const segmentDistance = distance(token, segment);
+    if (segmentDistance > maxForSegment) {
       return null;
     }
     total += segmentDistance;

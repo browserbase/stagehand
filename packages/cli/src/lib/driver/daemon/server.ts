@@ -19,7 +19,7 @@ interface RunDriverDaemonOptions {
   target: ConnectionTarget;
 }
 
-type ShutdownDaemon = () => Promise<void>;
+type ShutdownDaemon = (triggerSocket?: net.Socket) => Promise<void>;
 
 export async function runDriverDaemon({ session, target }: RunDriverDaemonOptions): Promise<void> {
   await ensureRuntimeDir();
@@ -29,11 +29,25 @@ export async function runDriverDaemon({ session, target }: RunDriverDaemonOption
   const socketPath = getSocketPath(session);
   const manager = new DriverSessionManager(session, target);
   const server = net.createServer();
+  const activeSockets = new Set<net.Socket>();
   let shutdownPromise: Promise<void> | null = null;
 
-  const shutdown = (): Promise<void> => {
+  const shutdown: ShutdownDaemon = (triggerSocket): Promise<void> => {
     shutdownPromise ??= (async () => {
-      await closeServer(server);
+      const closing = closeServer(server);
+      for (const socket of activeSockets) {
+        if (socket !== triggerSocket) {
+          socket.destroy();
+        }
+      }
+      if (triggerSocket && !triggerSocket.destroyed) {
+        const forceClose = setTimeout(() => {
+          triggerSocket.destroy();
+        }, 200);
+        forceClose.unref();
+        triggerSocket.once("close", () => clearTimeout(forceClose));
+      }
+      await closing;
       await manager.close();
       await cleanupDaemonFiles(session);
     })();
@@ -41,6 +55,10 @@ export async function runDriverDaemon({ session, target }: RunDriverDaemonOption
   };
 
   server.on("connection", (socket) => {
+    activeSockets.add(socket);
+    socket.once("close", () => {
+      activeSockets.delete(socket);
+    });
     void handleConnection(socket, manager, shutdown);
   });
 
@@ -100,13 +118,13 @@ async function handleConnection(
     void handleLine(line, socket, manager)
       .then(async (shouldShutdown) => {
         await endSocket(socket);
-        if (shouldShutdown) await shutdown();
+        reader.close();
+        socket.resume();
+        if (shouldShutdown) await shutdown(socket);
       })
       .catch(() => {
-        socket.destroy();
-      })
-      .finally(() => {
         reader.close();
+        socket.destroy();
       });
   });
 }
@@ -209,7 +227,7 @@ function endSocket(socket: net.Socket): Promise<void> {
   });
 }
 
-function formatError(error: unknown): {
+export function formatError(error: unknown): {
   code?: string;
   error: string;
   httpStatus?: number;
@@ -231,5 +249,10 @@ function formatError(error: unknown): {
     };
   }
 
-  return { error: error instanceof Error ? error.message : String(error) };
+  try {
+    const message = error instanceof Error ? error.message : String(error);
+    return { error: typeof message === "string" ? message : "Unknown error" };
+  } catch {
+    return { error: "Unknown error" };
+  }
 }

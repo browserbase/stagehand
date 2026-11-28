@@ -10,6 +10,7 @@ export async function collectForwardedEnv(
   const keys = (await getRemote()).forwardedEnvKeys();
   const forwardedEnv: ForwardedEnv = {};
   for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(env, key)) continue;
     const value = env[key];
     if (typeof value === "string" && value.length > 0) {
       forwardedEnv[key] = value;
@@ -26,10 +27,7 @@ export function forwardedEnvSignature(forwardedEnv: ForwardedEnv | undefined): s
   if (entries.length === 0) return "";
   const hash = createHash("sha256");
   for (const [key, value] of entries) {
-    hash.update(key);
-    hash.update("\0");
-    hash.update(value);
-    hash.update("\0");
+    hash.update(`${Buffer.byteLength(key)}:${key}\0${Buffer.byteLength(value)}:${value}\0`);
   }
   return hash.digest("hex");
 }

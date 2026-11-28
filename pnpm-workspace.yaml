@@ -74,6 +74,7 @@ catalog:
   "@browserbasehq/sdk-functions": 1.0.2
   cross-spawn: ^7.0.6
   "@types/cross-spawn": ^6.0.6
+  fast-check: 4.11.0
 catalogs:
   eve:
     ai: ^7.0.172
