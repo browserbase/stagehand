@@ -60,6 +60,7 @@
     "@browserbasehq/stagehand-browser-api": "workspace:*",
     "@browserbasehq/stagehand-protocol": "workspace:*",
     "@types/node": "catalog:",
+    "fast-check": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

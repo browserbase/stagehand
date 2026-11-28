@@ -100,6 +100,7 @@ export class CdpConnection implements CDPSessionLike {
   public readonly id: string | null = null;
   transportCloseHandlers = new Set<(why: string) => void>();
   private readonly telemetryScopes = new Map<symbol, CdpTelemetryLogger[]>();
+  private terminated = false;
 
   get connected(): boolean {
     return this.transport.connected;
@@ -125,24 +126,30 @@ export class CdpConnection implements CDPSessionLike {
     readonly logger: CdpTelemetryLogger,
   ) {
     this.transport.onClose((event) => {
+      this.terminated = true;
       const why = `socket-close code=${String(event.code)} reason=${event.reason}`;
       this.rejectAllInflight(why);
       this.emitTransportClosed(why);
     });
 
     this.transport.onError((error) => {
+      this.terminated = true;
       const why = `socket-error ${error.message}`;
       this.rejectAllInflight(why);
       this.emitTransportClosed(why);
     });
     this.transport.onMessage((data) => {
       this.messageQueue = this.messageQueue
-        .then(() => this.onMessage(data))
+        .then(() => {
+          if (this.terminated) return;
+          this.onMessage(data);
+        })
         .catch((error: unknown) => {
+          this.terminated = true;
           const why = `socket-message-error ${error instanceof Error ? error.message : String(error)}`;
           this.rejectAllInflight(why);
           this.emitTransportClosed(why);
-          void this.transport.close();
+          void this.transport.close().catch(() => {});
         });
     });
   }
@@ -213,7 +220,12 @@ export class CdpConnection implements CDPSessionLike {
     });
     // Prevent unhandledRejection if a session detaches before the caller awaits.
     void p.catch(() => {});
-    this.transport.send(JSON.stringify(payload));
+    try {
+      this.transport.send(JSON.stringify(payload));
+    } catch (error) {
+      this.inflight.delete(id);
+      throw error;
+    }
     return p as Promise<R>;
   }
 
@@ -225,7 +237,9 @@ export class CdpConnection implements CDPSessionLike {
 
   off<P = unknown>(event: string, handler: (params: P) => void): void {
     const set = this.eventHandlers.get(event);
-    if (set) set.delete(handler as EventHandler);
+    if (!set) return;
+    set.delete(handler as EventHandler);
+    if (set.size === 0) this.eventHandlers.delete(event);
   }
 
   async close(): Promise<void> {
@@ -271,6 +285,16 @@ export class CdpConnection implements CDPSessionLike {
         );
       }
     }
+  }
+
+  detachSession(
+    sessionId: string,
+    targetId: string | null = this.sessionToTarget.get(sessionId) ?? null,
+  ): void {
+    this.rejectSessionPendingWork(sessionId, targetId);
+    this.clearSessionEventHandlers(sessionId);
+    this.sessions.delete(sessionId);
+    this.sessionToTarget.delete(sessionId);
   }
 
   getSession(sessionId: string): CdpSession | undefined {
@@ -370,19 +394,16 @@ export class CdpConnection implements CDPSessionLike {
         }
         this.sessionToTarget.set(p.sessionId, p.targetInfo.targetId);
       } else if (msg.method === "Target.detachedFromTarget") {
-        const p = (msg as { params: Protocol.Target.DetachedFromTargetEvent }).params;
-        this.rejectSessionPendingWork(p.sessionId, p.targetId ?? null);
-        this.clearSessionEventHandlers(p.sessionId);
-        this.sessions.delete(p.sessionId);
-        this.sessionToTarget.delete(p.sessionId);
+        const p = (msg as { params: { sessionId: string; targetId?: string } }).params;
+        this.detachSession(
+          p.sessionId,
+          p.targetId ?? this.sessionToTarget.get(p.sessionId) ?? null,
+        );
       } else if (msg.method === "Target.targetDestroyed") {
         const p = (msg as { params: { targetId: string } }).params;
-        for (const [sessionId, targetId] of this.sessionToTarget.entries()) {
+        for (const [sessionId, targetId] of Array.from(this.sessionToTarget.entries())) {
           if (targetId === p.targetId) {
-            this.rejectSessionPendingWork(sessionId, p.targetId);
-            this.clearSessionEventHandlers(sessionId);
-            this.sessions.delete(sessionId);
-            this.sessionToTarget.delete(sessionId);
+            this.detachSession(sessionId, p.targetId);
           }
         }
       }
@@ -404,14 +425,12 @@ export class CdpConnection implements CDPSessionLike {
           // Some browsers emit these via a parent session rather than the root
           // connection; fan-out keeps target tracking consistent.
           if (method.startsWith("Target.")) {
-            const handlers = this.eventHandlers.get(method);
-            if (handlers) for (const h of handlers) h(params);
+            this.emitHandlers(this.eventHandlers.get(method), params);
           }
           return;
         }
 
-        const handlers = this.eventHandlers.get(method);
-        if (handlers) for (const h of handlers) h(params);
+        this.emitHandlers(this.eventHandlers.get(method), params);
       };
 
       dispatch();
@@ -445,6 +464,20 @@ export class CdpConnection implements CDPSessionLike {
     });
     // Prevent unhandledRejection if a session detaches before the caller awaits.
     void p.catch(() => {});
+    try {
+      this.transport.send(JSON.stringify(payload));
+    } catch (error) {
+      this.inflight.delete(id);
+      const rejection = error instanceof Error ? error : new Error(String(error));
+      for (const waiter of Array.from(this.sessionDispatchWaiters)) {
+        if (waiter.sessionId !== sessionId) continue;
+        if (waiter.method !== method) continue;
+        if (waiter.match && !waiter.match(params)) continue;
+        waiter.reject(rejection);
+        break;
+      }
+      throw error;
+    }
     for (const waiter of Array.from(this.sessionDispatchWaiters)) {
       if (waiter.sessionId !== sessionId) continue;
       if (waiter.method !== method) continue;
@@ -452,7 +485,6 @@ export class CdpConnection implements CDPSessionLike {
       waiter.resolve();
       break;
     }
-    this.transport.send(JSON.stringify(payload));
     return p as Promise<R>;
   }
 
@@ -466,13 +498,28 @@ export class CdpConnection implements CDPSessionLike {
   _offSessionEvent(sessionId: string, event: string, handler: EventHandler): void {
     const key = `${sessionId}:${event}`;
     const set = this.eventHandlers.get(key);
-    if (set) set.delete(handler);
+    if (!set) return;
+    set.delete(handler);
+    if (set.size === 0) this.eventHandlers.delete(key);
   }
 
   _dispatchToSession(sessionId: string, event: string, params: unknown): void {
     const key = `${sessionId}:${event}`;
-    const handlers = this.eventHandlers.get(key);
-    if (handlers) for (const h of handlers) h(params);
+    this.emitHandlers(this.eventHandlers.get(key), params);
+  }
+
+  private emitHandlers(handlers: Set<EventHandler> | undefined, params: unknown): void {
+    if (!handlers) return;
+    for (const h of Array.from(handlers)) {
+      if (!handlers.has(h)) continue;
+      try {
+        h(params);
+      } catch (error) {
+        this.logger.error("CDP event listener threw", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
   }
 }
 
@@ -495,9 +542,13 @@ export class CdpSession implements CDPSessionLike {
   }
 
   async close(): Promise<void> {
-    await this.root.send<void>("Target.detachFromTarget", {
-      sessionId: this.id,
-    });
+    try {
+      await this.root.send<void>("Target.detachFromTarget", {
+        sessionId: this.id,
+      });
+    } finally {
+      this.root.detachSession(this.id);
+    }
   }
 
   dispatch(event: string, params: unknown): void {

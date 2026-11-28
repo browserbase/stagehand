@@ -107,7 +107,7 @@ export class RPCClient {
         let dispatched = false;
         let aborted = false;
         const notifyAbort = () => {
-          if (this.closed) return;
+          if (this.closed || !this.clientConnected) return;
           try {
             void Promise.resolve(options.onAbort?.(id, signal?.reason)).catch(() => {});
           } catch {}
@@ -126,7 +126,14 @@ export class RPCClient {
           abort();
           return (await response) as z.output<Method["result"]>;
         }
-        const dispatch = this.runtime.send(request).then(
+        let sendPromise: Promise<void>;
+        try {
+          sendPromise = this.runtime.send(request);
+        } catch (error) {
+          this.rejectPending(id, asError(error));
+          return (await response) as z.output<Method["result"]>;
+        }
+        const dispatch = sendPromise.then(
           () => {
             dispatched = true;
             if (aborted) notifyAbort();
@@ -198,6 +205,8 @@ export class RPCClient {
   }
 
   async receive(raw: unknown, runtimeAttachments?: { callback?: unknown }): Promise<void> {
+    if (this.closed) return;
+
     const wireInput = JSONRPCWireInputSchema.safeParse(raw);
     if (!wireInput.success) {
       await this.sendError(null, JSONRPCErrorCodes.parseError, "Parse error");
