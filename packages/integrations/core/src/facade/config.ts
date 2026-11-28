@@ -112,7 +112,12 @@ export function stagehandFacadeConfigFromEnv(env: FacadeEnv = process.env): Stag
               ...(extensionId !== undefined ? { extensionId } : {}),
             },
           }
-        : { type: "local", launchOptions: { headless: false } },
+        : {
+            type: "local",
+            launchOptions: {
+              headless: booleanEnv(env.STAGEHAND_HEADLESS, "STAGEHAND_HEADLESS") ?? true,
+            },
+          },
     stagehand,
     quietWait,
     ...(artifactRoot !== undefined ? { artifactRoot } : {}),
