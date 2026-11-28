@@ -32,6 +32,14 @@ export type DeepagentsSessionConfig = {
   resultSchema?: Record<string, unknown>;
   killGraceMs?: number;
   streamDrainMs?: number;
+  /**
+   * Starts this program instead of the bundled Python runner. It must speak the
+   * runner's protocol: the task as one JSON object on stdin, then one JSON event
+   * per stdout line. `name` replaces "deepagents" in log categories and messages.
+   */
+  program?: { command: string; args?: string[]; name: string };
+  /** Fields added to the stdin task after the runner's own. */
+  extraInput?: Record<string, unknown>;
 };
 
 export type DeepagentsTokenUsage = {
@@ -164,6 +172,9 @@ export async function runDeepagentsSession(input: {
   let stderrTask: Promise<void> | undefined;
   const killGraceMs = positiveInteger(input.session.killGraceMs, 5_000);
   const streamDrainMs = positiveInteger(input.session.streamDrainMs, killGraceMs);
+  const program = input.session.program;
+  const logCategory = program?.name ?? "deepagents";
+  const processName = program?.name ?? "deepagents runner";
   const sendSignal = (signal: NodeJS.Signals): void => {
     try {
       handle?.kill(signal);
@@ -181,11 +192,14 @@ export async function runDeepagentsSession(input: {
   const forwardAbort = (): void => beginTermination();
 
   try {
-    const runnerDir = resolveDeepagentsRunnerDir(input.session.runnerDir);
-    const command = input.session.uvCommand ?? process.env.STAGEHAND_DEEPAGENTS_UV ?? "uv";
+    const command = program
+      ? { command: program.command, args: [...(program.args ?? [])] }
+      : {
+          command: input.session.uvCommand ?? process.env.STAGEHAND_DEEPAGENTS_UV ?? "uv",
+          args: buildDeepagentsRunnerArgs(resolveDeepagentsRunnerDir(input.session.runnerDir)),
+        };
     handle = (input.spawn ?? spawnDeepagentsProcess)({
-      command,
-      args: buildDeepagentsRunnerArgs(runnerDir),
+      ...command,
       ...(input.session.cwd && { cwd: input.session.cwd }),
       env: input.session.env ?? inheritedEnv(),
     });
@@ -203,6 +217,7 @@ export async function runDeepagentsSession(input: {
         recursion_limit: positiveInteger(input.session.recursionLimit, 100),
         max_tool_steps: positiveInteger(input.session.maxToolSteps, 50),
         result_schema: input.session.resultSchema ?? null,
+        ...input.session.extraInput,
       }),
     );
 
@@ -216,7 +231,7 @@ export async function runDeepagentsSession(input: {
         throw error;
       },
     );
-    stderrTask = readStderr(handle.stderr, input.logger);
+    stderrTask = readStderr(handle.stderr, input.logger, logCategory);
     stdoutTask = (async () => {
       const lines = createInterface({ input: handle!.stdout, crlfDelay: Infinity });
       for await (const line of lines) {
@@ -227,7 +242,7 @@ export async function runDeepagentsSession(input: {
           event = parsed;
         } catch {
           input.logger.log({
-            category: "deepagents",
+            category: logCategory,
             message: `non-JSON stdout: ${clip(sanitizeErrorMessage(line), 500)}`,
             level: 1,
           });
@@ -235,7 +250,7 @@ export async function runDeepagentsSession(input: {
         }
         if (shouldSanitizeEvent(event)) event = deepSanitizeEvent(event);
         events.push(event);
-        logDeepagentsEvent(input.logger, event);
+        logDeepagentsEvent(input.logger, event, logCategory);
         if (event.type === "final") {
           sawFinal = true;
           if (typeof event.text === "string") finalMessage = event.text;
@@ -249,7 +264,7 @@ export async function runDeepagentsSession(input: {
             errorKind === "tool_step_budget" || errorKind === "recursion_limit";
           if (!isTerminalKind) {
             errorKind = typeof event.kind === "string" ? event.kind : "exception";
-            stopReason = typeof event.message === "string" ? event.message : "deepagents error";
+            stopReason = typeof event.message === "string" ? event.message : `${logCategory} error`;
           }
         }
         if (event.type === "tool_result" && typeof event.name === "string") {
@@ -270,14 +285,13 @@ export async function runDeepagentsSession(input: {
     await drainStreams(handle, [stdoutTask, stderrTask], streamDrainMs);
     if (exitCode === null && !stopReason) {
       stopReason = exitSignal
-        ? `deepagents runner terminated by ${exitSignal}`
-        : "deepagents runner exited without an exit code";
+        ? `${processName} terminated by ${exitSignal}`
+        : `${processName} exited without an exit code`;
     } else if (exitCode !== 0 && !stopReason) {
-      stopReason = `deepagents runner exited with code ${exitCode}`;
+      stopReason = `${processName} exited with code ${exitCode}`;
     }
     if (exitCode === 0 && (!sawFinal || !sawUsage) && !stopReason) {
-      stopReason =
-        "deepagents runner exited without a terminal final/usage event (output truncated?)";
+      stopReason = `${processName} exited without a terminal final/usage event (output truncated?)`;
     }
   } catch (error) {
     iterationError = sanitizeErrorMessage(stringifyError(error));
@@ -289,8 +303,8 @@ export async function runDeepagentsSession(input: {
     }
     if (handle) await drainStreams(handle, [stdoutTask, stderrTask], streamDrainMs);
     input.logger.warn({
-      category: "deepagents",
-      message: `Deep Agents stopped before a normal result: ${stopReason}`,
+      category: logCategory,
+      message: `${program?.name ?? "Deep Agents"} stopped before a normal result: ${stopReason}`,
       level: 0,
       auxiliary: { error: { value: stopReason, type: "string" } },
     });
@@ -325,10 +339,14 @@ function inheritedEnv(): Record<string, string> {
   return env;
 }
 
-async function readStderr(stream: NodeJS.ReadableStream, logger: HarnessLogger): Promise<void> {
+async function readStderr(
+  stream: NodeJS.ReadableStream,
+  logger: HarnessLogger,
+  category: string,
+): Promise<void> {
   const lines = createInterface({ input: stream, crlfDelay: Infinity });
   for await (const line of lines) {
-    logger.log({ category: "deepagents", message: sanitizeErrorMessage(line), level: 1 });
+    logger.log({ category, message: sanitizeErrorMessage(line), level: 1 });
   }
 }
 
@@ -376,7 +394,11 @@ export function buildDeepagentsTranscript(events: DeepagentsEvent[]): string {
     .join("\n");
 }
 
-export function logDeepagentsEvent(logger: HarnessLogger, event: DeepagentsEvent): void {
+export function logDeepagentsEvent(
+  logger: HarnessLogger,
+  event: DeepagentsEvent,
+  category = "deepagents",
+): void {
   const type = String(event.type ?? "unknown");
   const level = harnessEventLogLevel(type, {
     isError: type === "error" || (type === "tool_result" && event.ok === false),
@@ -385,7 +407,7 @@ export function logDeepagentsEvent(logger: HarnessLogger, event: DeepagentsEvent
   if (level === undefined) return;
   const summary = summarizeDeepagentsEvent(event);
   logger.log({
-    category: "deepagents",
+    category,
     message: sanitizeErrorMessage(summary.message),
     level,
     auxiliary: {

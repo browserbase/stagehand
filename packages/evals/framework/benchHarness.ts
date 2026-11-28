@@ -24,6 +24,12 @@ import { runEveAgent } from "./eveRunner.js";
 import { EVE_TOOL_SURFACES, prepareEveToolAdapter } from "./eveToolAdapter.js";
 import { runDeepagentsAgent } from "./deepagentsRunner.js";
 import { DEEPAGENTS_TOOL_SURFACES, prepareDeepagentsToolAdapter } from "./deepagentsToolAdapter.js";
+import {
+  KARPO_BROWSER_MODEL,
+  KARPO_BROWSER_TOOL_SURFACES,
+  prepareKarpoBrowserToolAdapter,
+  runKarpoBrowserAgent,
+} from "./karpoBrowserRunner.js";
 import { runFxAgent } from "./fxRunner.js";
 import { FX_TOOL_SURFACES, prepareFxToolAdapter } from "./fxToolAdapter.js";
 import { runCursorAgent } from "./cursorRunner.js";
@@ -358,6 +364,14 @@ export const geminiCuaHarness = defineExternalHarness({
   runAgent: runGeminiCuaAgent,
 });
 
+export const karpoBrowserHarness = defineExternalHarness({
+  harness: "karpo_browser",
+  supportedToolSurfaces: KARPO_BROWSER_TOOL_SURFACES,
+  defaultModels: [KARPO_BROWSER_MODEL],
+  prepareToolAdapter: prepareKarpoBrowserToolAdapter,
+  runAgent: runKarpoBrowserAgent,
+});
+
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
   ["claude_code", claudeCodeHarness],
@@ -370,6 +384,7 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["cursor", cursorHarness],
   ["claude_cua", claudeCuaHarness],
   ["gemini_cua", geminiCuaHarness],
+  ["karpo_browser", karpoBrowserHarness],
 ]);
 
 export function registerBenchHarness(harness: BenchHarness): () => void {

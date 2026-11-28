@@ -5,6 +5,11 @@ where supported; `stagehand_facade_legacy` remains explicitly selectable. Provid
 adapters translate their protocols to that shared runtime. They do not start a
 second browser or implement a separate Playwright facade.
 
+karpo-browser is the exception: it calls the `stagehand_facade` mount once, then drives
+the same Browserbase session over its own CDP connection and reports each step it
+takes on the page as a tool call, so the runner records the page after it. See
+[its README](../../integrations/karpo-browser/README.md).
+
 ## Prompt and execution configuration
 
 The eval runner owns the no-clarification policy in `evalSystemPrompt.ts`. It is
@@ -20,13 +25,14 @@ historical harness default. Only positive safe integers are accepted.
 and requested reasoning settings where supported. Equal budget numbers do not
 mean equal work:
 
-| Harness                                 | Counted unit          |
-| --------------------------------------- | --------------------- |
-| Codex, Cursor, DeepAgents               | Tool calls            |
-| Eve                                     | Successful tool calls |
-| Mastra                                  | Model steps           |
-| fx                                      | Agent steps           |
-| Claude Code, Pi, Claude CUA, Gemini CUA | Turns                 |
+| Harness                                 | Counted unit                        |
+| --------------------------------------- | ----------------------------------- |
+| Codex, Cursor, DeepAgents               | Tool calls                          |
+| Eve                                     | Successful tool calls               |
+| Mastra                                  | Model steps                         |
+| fx                                      | Agent steps                         |
+| karpo-browser                           | Page steps it reports as tool calls |
+| Claude Code, Pi, Claude CUA, Gemini CUA | Turns                               |
 
 These are execution limits, not comparable measures of model efficiency.
 
