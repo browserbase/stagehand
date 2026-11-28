@@ -64,3 +64,6 @@ packages/examples/cookbooks/*/*/out/
 
 # Screenshots saved by facade run code (default artifact root)
 stagehand-artifacts/
+
+# Lean 4 Lake build artifacts
+proofs/.lake/
