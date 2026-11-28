@@ -26,6 +26,9 @@ export interface PageSummary {
 
 export interface DriverStatus extends BrowserbaseIdentity {
   browserConnected: boolean;
+  /** Why the browser disconnected, if the browser died under the daemon. */
+  disconnectReason?: string;
+  /** Why the most recent browser start failed, while that failure is still cached. */
   initError?: string;
   initialized: boolean;
   mode: ConnectionTarget["kind"];

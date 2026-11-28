@@ -15,8 +15,19 @@ import {
   PRIVATE_FILE_MODE,
 } from "./paths.js";
 import { collectForwardedEnv } from "./forwarded-env.js";
-import { isProcessAlive } from "./process.js";
+import { isDaemonProcess, isProcessAlive, killProcess } from "./process.js";
 import { ResponseSchema, type DriverRequest } from "./protocol.js";
+
+/**
+ * Result from tryDriverStatus. null means unreachable, DriverStatus means
+ * healthy, and the sentinel means the daemon is alive but status failed.
+ */
+interface StatusFailedSentinel {
+  kind: "status_failed";
+  session: string;
+}
+
+type TryDriverStatusResult = DriverStatus | StatusFailedSentinel | null;
 
 interface EnsureDaemonOptions {
   session: string;
@@ -36,8 +47,11 @@ const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 export async function ensureDriverDaemon({ session, target }: EnsureDaemonOptions): Promise<void> {
   await ensureRuntimeDir();
   const existing = await tryDriverStatus(session);
-  if (existing) {
+  if (existing && existing !== null && !isStatusFailedSentinel(existing)) {
     assertCompatibleTarget(session, existing, target);
+    return;
+  }
+  if (isStatusFailedSentinel(existing)) {
     return;
   }
 
@@ -50,13 +64,16 @@ export async function ensureDriverDaemon({ session, target }: EnsureDaemonOption
 
   try {
     const afterLock = await tryDriverStatus(session);
-    if (afterLock) {
+    if (afterLock && !isStatusFailedSentinel(afterLock)) {
       assertCompatibleTarget(session, afterLock, target);
+      return;
+    }
+    if (isStatusFailedSentinel(afterLock)) {
       return;
     }
     if (await isDaemonPidAlive(session)) {
       fail(
-        `Driver daemon session "${session}" is running but not responding. Run browse stop --session ${session} --force to clean it up.`,
+        `Driver daemon session "${session}" is alive but cannot respond to status (the browser may have crashed or the session closed). Run browse stop --session ${session} --force to terminate the daemon.`,
         1,
         { resultCode: "daemon_unresponsive" },
       );
@@ -66,6 +83,15 @@ export async function ensureDriverDaemon({ session, target }: EnsureDaemonOption
   } finally {
     await releaseLock(session);
   }
+}
+
+function isStatusFailedSentinel(result: TryDriverStatusResult): result is StatusFailedSentinel {
+  return (
+    result !== null &&
+    typeof result === "object" &&
+    "kind" in result &&
+    result.kind === "status_failed"
+  );
 }
 
 export async function openViaDaemon(
@@ -97,7 +123,11 @@ export async function runDriverCommandViaDaemon(
 }
 
 export async function getDriverStatus(session: string): Promise<DriverStatus | null> {
-  return tryDriverStatus(session);
+  const result = await tryDriverStatus(session);
+  if (isStatusFailedSentinel(result)) {
+    return null;
+  }
+  return result;
 }
 
 export async function stopDriverDaemon(
@@ -105,11 +135,31 @@ export async function stopDriverDaemon(
   force = false,
 ): Promise<{ stopped: boolean }> {
   const status = await tryDriverStatus(session);
+
   if (!status) {
     if (force) {
-      await cleanupDaemonFiles(session);
+      const killed = await forceKillDaemon(session);
+      return { stopped: killed };
     }
     return { stopped: false };
+  }
+
+  if (isStatusFailedSentinel(status)) {
+    if (force) {
+      const killed = await forceKillDaemon(session);
+      return { stopped: killed };
+    }
+    try {
+      return await sendDriverRequest<{ stopped: boolean }>(session, {
+        id: requestId(),
+        type: "stop",
+      });
+    } catch (error) {
+      if (error instanceof CommandFailure && error.telemetry.resultCode === "daemon_not_running") {
+        return { stopped: false };
+      }
+      throw error;
+    }
   }
 
   try {
@@ -128,8 +178,48 @@ export async function stopDriverDaemon(
       return { stopped: false };
     }
     if (!force) throw error;
+    const killed = await forceKillDaemon(session);
+    return { stopped: killed };
+  }
+}
+
+async function forceKillDaemon(session: string): Promise<boolean> {
+  await ensureRuntimeDir();
+  try {
+    const contents = await fs.readFile(getPidPath(session), "utf8");
+    const pid = Number(contents.trim());
+    if (!Number.isInteger(pid) || pid <= 0) {
+      await cleanupDaemonFiles(session);
+      return false;
+    }
+    if (!isProcessAlive(pid)) {
+      await cleanupDaemonFiles(session);
+      return false;
+    }
+    if (!isDaemonProcess(pid, session)) {
+      await cleanupDaemonFiles(session);
+      return false;
+    }
+    const killed = killProcess(pid);
+    if (killed) {
+      await waitForProcessExit(pid, 5_000);
+    }
     await cleanupDaemonFiles(session);
-    return { stopped: true };
+    return killed;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      await cleanupDaemonFiles(session);
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (!isProcessAlive(pid)) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }
 
@@ -146,7 +236,7 @@ export function assertCompatibleTarget(
   );
 }
 
-async function tryDriverStatus(session: string): Promise<DriverStatus | null> {
+async function tryDriverStatus(session: string): Promise<TryDriverStatusResult> {
   if (!(await isSocketConnectable(getSocketPath(session), 500))) {
     await cleanupStaleDaemonFiles(session);
     return null;
@@ -159,6 +249,9 @@ async function tryDriverStatus(session: string): Promise<DriverStatus | null> {
     });
   } catch (error) {
     if (isRuntimeDirFailure(error)) throw error;
+    if (error instanceof CommandFailure && error.telemetry.resultCode !== "daemon_not_running") {
+      return { kind: "status_failed", session };
+    }
     await cleanupStaleDaemonFiles(session);
     return null;
   }
@@ -319,7 +412,8 @@ async function cleanupStoppedDaemonFiles(session: string): Promise<void> {
   if (!locked) return;
   try {
     const status = await tryDriverStatus(session);
-    if (status?.session === session) return;
+    if (status && !isStatusFailedSentinel(status) && status.session === session) return;
+    if (isStatusFailedSentinel(status) && status.session === session) return;
     await cleanupDaemonFiles(session, { includeLock: false });
   } finally {
     await releaseLock(session);

@@ -14,6 +14,8 @@ import {
 } from "./paths.js";
 import { parseRequest, serializeResponse, type DriverRequest } from "./protocol.js";
 
+const SHUTDOWN_DEADLINE_MS = 5_000;
+
 interface RunDriverDaemonOptions {
   session: string;
   target: ConnectionTarget;
@@ -29,18 +31,42 @@ export async function runDriverDaemon({ session, target }: RunDriverDaemonOption
   const socketPath = getSocketPath(session);
   const manager = new DriverSessionManager(session, target);
   const server = net.createServer();
+  const sockets = new Set<net.Socket>();
   let shutdownPromise: Promise<void> | null = null;
 
   const shutdown = (): Promise<void> => {
     shutdownPromise ??= (async () => {
-      await closeServer(server);
-      await manager.close();
+      let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+      let timedOut = false;
+      const deadline = new Promise<void>((resolve) => {
+        deadlineTimer = setTimeout(() => {
+          timedOut = true;
+          for (const socket of sockets) socket.destroy();
+          resolve();
+        }, SHUTDOWN_DEADLINE_MS);
+      });
+      await Promise.race([
+        (async () => {
+          await closeServer(server);
+          await manager.close();
+        })(),
+        deadline,
+      ])
+        .catch(() => undefined)
+        .finally(() => {
+          if (deadlineTimer) clearTimeout(deadlineTimer);
+        });
       await cleanupDaemonFiles(session);
+      if (timedOut) {
+        process.exit(1);
+      }
     })();
     return shutdownPromise;
   };
 
   server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
     void handleConnection(socket, manager, shutdown);
   });
 

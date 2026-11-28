@@ -1580,6 +1580,158 @@ describe("driver foundation", () => {
     expect((manager as unknown as { stagehand: unknown }).stagehand).not.toBeNull();
     expect((manager as unknown as { context: unknown }).context).not.toBeNull();
   });
+
+  it("status() resolves browserConnected:false when RPC client is closed", async () => {
+    const manager = new DriverSessionManager("rpc-closed", {
+      headless: true,
+      kind: "managed-local",
+    });
+    const rpcError = new Error("RPC client is closed");
+    const context = {
+      activePage: vi.fn().mockImplementation(() => {
+        throw rpcError;
+      }),
+      pages: vi.fn().mockImplementation(() => {
+        throw rpcError;
+      }),
+    };
+    Object.assign(manager, { stagehand: { close: vi.fn() }, context });
+
+    const status = await manager.status();
+
+    expect(status.browserConnected).toBe(false);
+    expect(status.initialized).toBe(false);
+    expect(status.disconnectReason).toContain("RPC client is closed");
+  });
+
+  it("execute() throws browser_disconnected for non-open commands after disconnect", async () => {
+    const manager = new DriverSessionManager("disconnected-eval", {
+      headless: true,
+      kind: "managed-local",
+    });
+    manager.markDisconnected("Chrome closed");
+
+    await expect(manager.execute("snapshot", {})).rejects.toMatchObject({
+      code: "browser_disconnected",
+      message: expect.stringContaining("disconnected"),
+    });
+  });
+
+  it("open() clears disconnectReason before re-initializing", async () => {
+    const manager = new DriverSessionManager("reconnect-open", {
+      headless: true,
+      kind: "managed-local",
+    });
+    manager.markDisconnected("Chrome closed");
+
+    expect((manager as unknown as { disconnectReason: string | undefined }).disconnectReason).toBe(
+      "Chrome closed",
+    );
+
+    const mockPage = {
+      pageId: "new-page",
+      title: vi.fn().mockResolvedValue("Test"),
+      url: vi.fn().mockResolvedValue("https://example.com"),
+    };
+    const context = {
+      activePage: vi.fn().mockResolvedValue(mockPage),
+      newPage: vi.fn().mockResolvedValue(mockPage),
+      pages: vi.fn().mockResolvedValue([mockPage]),
+      setActivePage: vi.fn().mockResolvedValue(undefined),
+    };
+    Object.assign(manager, { stagehand: { close: vi.fn() }, context });
+
+    let disconnectReasonDuringInit: string | undefined = "not-checked";
+    const ensureInitializedSpy = vi
+      .spyOn(manager as unknown as { ensureInitialized: () => Promise<void> }, "ensureInitialized")
+      .mockImplementation(async () => {
+        disconnectReasonDuringInit = (
+          manager as unknown as { disconnectReason: string | undefined }
+        ).disconnectReason;
+      });
+
+    try {
+      await manager.open("https://example.com");
+    } catch {
+      // Expected to fail when actually trying to navigate
+    }
+    expect(ensureInitializedSpy).toHaveBeenCalled();
+    expect(disconnectReasonDuringInit).toBeUndefined();
+  });
+
+  it("status() resolves within ~2.5s when page.title() never resolves", async () => {
+    const manager = new DriverSessionManager("slow-title", {
+      headless: true,
+      kind: "managed-local",
+    });
+    const neverResolve = new Promise<string>(() => {});
+    const page = {
+      pageId: "slow-page",
+      title: vi.fn().mockReturnValue(neverResolve),
+      url: vi.fn().mockResolvedValue("https://example.com"),
+    };
+    const context = {
+      activePage: vi.fn().mockResolvedValue(page),
+      pages: vi.fn().mockResolvedValue([page]),
+    };
+    Object.assign(manager, { stagehand: { close: vi.fn() }, context });
+
+    const start = Date.now();
+    const status = await manager.status();
+    const elapsed = Date.now() - start;
+
+    expect(elapsed).toBeLessThan(2_500);
+    expect(status.browserConnected).toBe(true);
+    expect(status.title).toBe("");
+  });
+
+  it("status() detects RPC-closed error from page.url() probe and marks disconnected", async () => {
+    const manager = new DriverSessionManager("url-rpc-closed", {
+      headless: true,
+      kind: "managed-local",
+    });
+    const rpcError = new Error("RPC client is closed");
+    const page = {
+      pageId: "rpc-page",
+      title: vi.fn().mockResolvedValue("Test"),
+      url: vi.fn().mockRejectedValue(rpcError),
+    };
+    const context = {
+      activePage: vi.fn().mockResolvedValue(page),
+      pages: vi.fn().mockResolvedValue([page]),
+    };
+    Object.assign(manager, { stagehand: { close: vi.fn() }, context });
+
+    const status = await manager.status();
+
+    expect(status.browserConnected).toBe(false);
+    expect(status.initialized).toBe(false);
+    expect(status.disconnectReason).toContain("RPC client is closed");
+  });
+
+  it("status() detects RPC-closed error from page.title() probe and marks disconnected", async () => {
+    const manager = new DriverSessionManager("title-rpc-closed", {
+      headless: true,
+      kind: "managed-local",
+    });
+    const rpcError = new Error("Target closed");
+    const page = {
+      pageId: "rpc-page",
+      title: vi.fn().mockRejectedValue(rpcError),
+      url: vi.fn().mockResolvedValue("https://example.com"),
+    };
+    const context = {
+      activePage: vi.fn().mockResolvedValue(page),
+      pages: vi.fn().mockResolvedValue([page]),
+    };
+    Object.assign(manager, { stagehand: { close: vi.fn() }, context });
+
+    const status = await manager.status();
+
+    expect(status.browserConnected).toBe(false);
+    expect(status.initialized).toBe(false);
+    expect(status.disconnectReason).toContain("Target closed");
+  });
 });
 
 function restoreEnv(key: string, value: string | undefined): void {
