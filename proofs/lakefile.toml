@@ -1,0 +1,6 @@
+name = "stagehand-proofs"
+version = "0.1.0"
+defaultTargets = ["StagehandProofs"]
+
+[[lean_lib]]
+name = "StagehandProofs"

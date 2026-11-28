@@ -11,9 +11,9 @@ const defaultOpaqueKeys = new Set([
   "userMetadata",
 ]);
 
-// camelcase-keys cannot recover consecutive API acronyms from snake_case on its own.
 const apiAcronymWireKeys: Readonly<Record<string, string>> = {
   base_url: "base_URL",
+  ignore_https_errors: "ignore_HTTPS_errors",
   prefer_css_page_size: "prefer_CSS_page_size",
 };
 
@@ -31,29 +31,13 @@ export function wireSchema<TSchema extends z.ZodType>(
   schema: TSchema,
   options: WireCasingOptions = {},
 ): z.ZodType<z.output<TSchema>, unknown> {
-  return z.preprocess(
-    (value) =>
-      isCaseable(value)
-        ? camelcaseKeys(preserveApiAcronyms(value, options.opaqueKeys), {
-            deep: true,
-            preserveConsecutiveUppercase: true,
-            stopPaths: findOpaquePaths(value, options),
-          })
-        : value,
-    schema,
-  );
+  const wireOpaqueKeys = resolveWireOpaqueKeys(options);
+  return z.preprocess((value) => fromWireTree(value, wireOpaqueKeys), schema);
 }
 
 export function encodeWireValue(value: unknown, options: WireCasingOptions = {}) {
   const opaqueKeys = resolveOpaqueKeys(options);
-  return z.json().parse(
-    isCaseable(value)
-      ? snakecaseKeys(value, {
-          deep: true,
-          shouldRecurse: (key) => !opaqueKeys.has(String(key)),
-        })
-      : value,
-  );
+  return z.json().parse(toWireTree(value, opaqueKeys));
 }
 
 export function toWireJsonSchema(
@@ -63,7 +47,7 @@ export function toWireJsonSchema(
   if (Array.isArray(value)) {
     return value.map((entry) => toWireJsonSchema(entry, preservedPropertyNames));
   }
-  if (!isRecord(value)) return value;
+  if (!isPlainRecord(value)) return value;
 
   const renamed = Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [
@@ -73,10 +57,10 @@ export function toWireJsonSchema(
   );
   const properties = value.properties;
 
-  if (isRecord(properties)) {
+  if (isPlainRecord(properties)) {
     renamed.properties = Object.fromEntries(
       Object.entries(properties).map(([key, entry]) => [
-        preservedPropertyNames.has(key) ? key : toWirePropertyName(key),
+        preservedPropertyNames.has(key) ? key : toWireKey(key),
         toWireJsonSchema(entry, preservedPropertyNames),
       ]),
     );
@@ -85,44 +69,68 @@ export function toWireJsonSchema(
   if (Array.isArray(value.required)) {
     renamed.required = value.required
       .filter((key): key is string => typeof key === "string")
-      .map((key) => (preservedPropertyNames.has(key) ? key : toWirePropertyName(key)));
+      .map((key) => (preservedPropertyNames.has(key) ? key : toWireKey(key)));
+  }
+
+  if (isPlainRecord(value.dependentRequired)) {
+    renamed.dependentRequired = Object.fromEntries(
+      Object.entries(value.dependentRequired).map(([key, dependencies]) => [
+        preservedPropertyNames.has(key) ? key : toWireKey(key),
+        Array.isArray(dependencies)
+          ? dependencies
+              .filter((dependency): dependency is string => typeof dependency === "string")
+              .map((dependency) =>
+                preservedPropertyNames.has(dependency) ? dependency : toWireKey(dependency),
+              )
+          : toWireJsonSchema(dependencies, preservedPropertyNames),
+      ]),
+    );
   }
 
   return renamed;
 }
 
-function toWirePropertyName(key: string): string {
-  if (key.startsWith("$") || key.startsWith("_")) return key;
+function toWireKey(key: string): string {
+  if (key.startsWith("$") || key.startsWith("_") || key === "constructor") return key;
   return Object.keys(snakecaseKeys({ [key]: null }, { deep: false }))[0] ?? key;
 }
 
-function findOpaquePaths(value: unknown, options: WireCasingOptions = {}): string[] {
-  const paths: string[] = [];
-  const opaqueKeys = new Set(
+function fromWireKey(key: string): string {
+  if (key.startsWith("$") || key.startsWith("_") || key === "constructor") return key;
+  const mapped = Object.hasOwn(apiAcronymWireKeys, key) ? apiAcronymWireKeys[key]! : key;
+  return (
     Object.keys(
-      snakecaseKeys(Object.fromEntries([...resolveOpaqueKeys(options)].map((key) => [key, null]))),
-    ),
+      camelcaseKeys({ [mapped]: null }, { deep: false, preserveConsecutiveUppercase: true }),
+    )[0] ?? mapped
   );
+}
 
-  function visit(entry: unknown, path: string): void {
-    if (Array.isArray(entry)) {
-      entry.forEach((item) => visit(item, path));
-      return;
-    }
-    if (!isRecord(entry)) return;
-
-    for (const [key, child] of Object.entries(entry)) {
-      const childPath = path ? `${path}.${key}` : key;
-      if (opaqueKeys.has(key)) {
-        paths.push(childPath);
-      } else {
-        visit(child, childPath);
-      }
-    }
+function toWireTree(value: unknown, opaqueKeys: ReadonlySet<string>): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => toWireTree(entry, opaqueKeys));
   }
+  if (!isPlainRecord(value)) return value;
 
-  visit(value, "");
-  return paths;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [
+      toWireKey(key),
+      opaqueKeys.has(key) ? child : toWireTree(child, opaqueKeys),
+    ]),
+  );
+}
+
+function fromWireTree(value: unknown, wireOpaqueKeys: ReadonlySet<string>): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => fromWireTree(entry, wireOpaqueKeys));
+  }
+  if (!isPlainRecord(value)) return value;
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [
+      fromWireKey(key),
+      wireOpaqueKeys.has(key) ? child : fromWireTree(child, wireOpaqueKeys),
+    ]),
+  );
 }
 
 function resolveOpaqueKeys(options: WireCasingOptions): Set<string> {
@@ -133,38 +141,17 @@ function resolveOpaqueKeys(options: WireCasingOptions): Set<string> {
   return opaqueKeys;
 }
 
-function preserveApiAcronyms(
-  value: Record<string, unknown> | Record<string, unknown>[],
-  additionalOpaqueKeys: readonly string[] = [],
-): Record<string, unknown> | Record<string, unknown>[] {
-  const opaqueKeys = new Set(
-    Object.keys(
-      snakecaseKeys(
-        Object.fromEntries(
-          [...defaultOpaqueKeys, ...additionalOpaqueKeys].map((key) => [key, null]),
-        ),
-      ),
-    ),
-  );
-
-  function visit(entry: unknown): unknown {
-    if (Array.isArray(entry)) return entry.map(visit);
-    if (!isRecord(entry)) return entry;
-    return Object.fromEntries(
-      Object.entries(entry).map(([key, child]) => [
-        Object.hasOwn(apiAcronymWireKeys, key) ? apiAcronymWireKeys[key] : key,
-        opaqueKeys.has(key) ? child : visit(child),
-      ]),
-    );
+function resolveWireOpaqueKeys(options: WireCasingOptions): Set<string> {
+  const wireOpaqueKeys = new Set<string>();
+  for (const key of resolveOpaqueKeys(options)) {
+    wireOpaqueKeys.add(toWireKey(key));
+    wireOpaqueKeys.add(key);
   }
-
-  return visit(value) as Record<string, unknown> | Record<string, unknown>[];
+  return wireOpaqueKeys;
 }
 
-function isCaseable(value: unknown): value is Record<string, unknown> | Record<string, unknown>[] {
-  return isRecord(value) || (Array.isArray(value) && value.every(isRecord));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }

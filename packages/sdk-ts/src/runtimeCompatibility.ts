@@ -125,6 +125,10 @@ function compatibilityDetail(
       return `Server protocol ${serverVersion} is older than client requirement ${clientVersion}`;
     case "protocol-prerelease-mismatch":
       return `Protocol prereleases must match exactly: client ${clientVersion}, server ${serverVersion}`;
+    default: {
+      const exhaustive: never = reason;
+      return exhaustive;
+    }
   }
 }
 
