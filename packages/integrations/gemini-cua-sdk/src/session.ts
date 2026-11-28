@@ -259,23 +259,29 @@ async function generateWithRetry(
 }
 
 function isTransientError(error: unknown): boolean {
-  const value = error as {
-    status?: unknown;
-    statusCode?: unknown;
-    code?: unknown;
-    message?: unknown;
-  };
-  const status = Number(value.status ?? value.statusCode ?? value.code);
+  if (error === null || error === undefined) return false;
+  const value =
+    typeof error === "object"
+      ? (error as {
+          status?: unknown;
+          statusCode?: unknown;
+          code?: unknown;
+          message?: unknown;
+        })
+      : undefined;
+  const status = Number(value?.status ?? value?.statusCode ?? value?.code);
   return (
     status === 429 ||
     (status >= 500 && status <= 599) ||
-    /network|timeout|fetch failed|econn/iu.test(String(value.message ?? error))
+    /network|timeout|fetch failed|econn/iu.test(String(value?.message ?? error))
   );
 }
 
 function readUsage(meta: Record<string, unknown>): GeminiCuaUsage {
   const number = (key: string) =>
-    typeof meta[key] === "number" && Number.isFinite(meta[key]) ? Number(meta[key]) : 0;
+    typeof meta[key] === "number" && Number.isFinite(meta[key]) && meta[key] >= 0
+      ? Number(meta[key])
+      : 0;
   const reasoning = number("thoughtsTokenCount");
   return {
     input: number("promptTokenCount"),

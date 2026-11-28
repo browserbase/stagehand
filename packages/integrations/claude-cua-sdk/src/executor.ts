@@ -549,11 +549,22 @@ await batchStagehand.page.scroll(Math.round(__vp.w / 2), Math.round(__vp.h / 2),
     if (!Array.isArray(region) || region.length < 4) {
       throw new Error('"region" must be [x0, y0, x1, y1].');
     }
-    const [x0, y0, x1, y1] = region.map((v, i) => asNumber(v, `region[${i}]`)) as number[];
+    const [x0, y0, x1, y1] = region
+      .slice(0, 4)
+      .map((v, i) => asNumber(v, `region[${i}]`)) as number[];
     const width = x1! - x0!;
     const height = y1! - y0!;
-    if (width <= 0 || height <= 0) {
-      throw new Error("zoom region must have positive width and height.");
+    if (
+      x0! < 0 ||
+      y0! < 0 ||
+      !Number.isFinite(width) ||
+      !Number.isFinite(height) ||
+      width <= 0 ||
+      height <= 0
+    ) {
+      throw new Error(
+        "zoom region must have nonnegative origin and finite positive width and height.",
+      );
     }
     const base64 = await this.options.tools.run(
       `const __bytes = await page.screenshot({ type: "png", clip: { x: ${x0}, y: ${y0}, width: ${width}, height: ${height} } });
@@ -730,7 +741,8 @@ function parseModifiers(raw: unknown): string[] {
   const parts: string[] = Array.isArray(raw) ? raw.map(String) : String(raw).split(/[+\s,]+/);
   const names = new Set<string>();
   for (const part of parts) {
-    const mapped = KEY_NAMES[part.trim().toLowerCase()];
+    const lower = part.trim().toLowerCase();
+    const mapped = Object.hasOwn(KEY_NAMES, lower) ? KEY_NAMES[lower] : undefined;
     if (!mapped || !["Control", "Alt", "Meta", "Shift"].includes(mapped)) {
       throw new Error(`Unknown modifier key "${part}".`);
     }
@@ -755,8 +767,8 @@ export function chordToPlaywrightKey(chord: string): string {
   if (building) keys.push(building);
   return keys
     .map((key) => {
-      const mapped = KEY_NAMES[key.toLowerCase()];
-      if (mapped) return mapped;
+      const lower = key.toLowerCase();
+      if (Object.hasOwn(KEY_NAMES, lower)) return KEY_NAMES[lower]!;
       if (/^f\d{1,2}$/iu.test(key)) return key.toUpperCase();
       return key;
     })
@@ -805,7 +817,12 @@ function truncateText(text: string, max = MAX_TEXT_RESULT_CHARS): string {
 }
 
 function asNumber(value: unknown, field: string): number {
-  const n = typeof value === "string" ? Number(value) : (value as number);
+  const n =
+    typeof value === "string"
+      ? value.trim() === ""
+        ? Number.NaN
+        : Number(value)
+      : (value as number);
   if (typeof n !== "number" || !Number.isFinite(n)) {
     throw new Error(`Invalid or missing numeric field "${field}".`);
   }

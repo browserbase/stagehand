@@ -55,6 +55,7 @@
     "@types/node": "catalog:",
     "ai": "catalog:eve",
     "eve": "catalog:eve",
+    "fast-check": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },

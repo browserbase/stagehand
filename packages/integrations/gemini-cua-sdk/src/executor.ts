@@ -44,8 +44,10 @@ const KEY_NAMES: Record<string, string> = {
 };
 
 export function denormalizeCoordinate(value: unknown, size: number): number {
+  if (!Number.isFinite(size) || size <= 0) return 0;
   const number = typeof value === "number" && Number.isFinite(value) ? value : 0;
-  return Math.floor((Math.max(0, Math.min(999, number)) / 1000) * size);
+  const scaled = Math.floor((Math.max(0, Math.min(999, number)) / 1000) * size);
+  return scaled === 0 ? 0 : scaled;
 }
 
 export class GeminiCuaExecutor implements GeminiToolExecutor {
@@ -224,14 +226,18 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
       return { text: "Scrolled." };
     }
     const [x, y] = this.requiredCoordinate(input);
-    const amount =
-      typeof input.magnitude === "number"
-        ? input.magnitude
-        : typeof input.magnitude_in_pixels === "number"
-          ? input.magnitude_in_pixels
-          : name === "scroll"
-            ? 300
-            : 800;
+    const rawAmount = input.magnitude !== undefined ? input.magnitude : input.magnitude_in_pixels;
+    let amount: number;
+    if (rawAmount === undefined) {
+      amount = name === "scroll" ? 300 : 800;
+    } else if (typeof rawAmount === "number" && Number.isFinite(rawAmount) && rawAmount >= 0) {
+      amount = rawAmount;
+    } else {
+      return {
+        text: "Error: scroll magnitude must be a finite nonnegative number.",
+        isError: true,
+      };
+    }
     const deltaX = direction === "left" ? -amount : direction === "right" ? amount : 0;
     const deltaY = direction === "up" ? -amount : direction === "down" ? amount : 0;
     await this.runWithTabs(`await batchStagehand.page.scroll(${x}, ${y}, ${deltaX}, ${deltaY});`);
@@ -240,7 +246,13 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
 
   private async navigate(input: Record<string, unknown>): Promise<GeminiToolResult> {
     const url = String(input.url ?? "").trim();
-    if (!/^https?:\/\//u.test(url))
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return { text: "Error: navigate requires an http(s) URL.", isError: true };
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:")
       return { text: "Error: navigate requires an http(s) URL.", isError: true };
     await this.runWithTabs(
       `await page.goto(${JSON.stringify(url)}, { waitUntil: "domcontentloaded" });`,
@@ -282,7 +294,10 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
   private chord(value: unknown): string {
     return String(value)
       .split("+")
-      .map((part) => KEY_NAMES[part.toLowerCase()] ?? part)
+      .map((part) => {
+        const lower = part.toLowerCase();
+        return Object.hasOwn(KEY_NAMES, lower) ? KEY_NAMES[lower]! : part;
+      })
       .join("+");
   }
 

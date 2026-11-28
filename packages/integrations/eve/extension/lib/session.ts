@@ -292,13 +292,16 @@ function trackRelease(
   pendingReleases: Set<StagehandSessionRelease>,
 ): StagehandSessionRelease {
   let inFlight: Promise<void> | undefined;
+  let released = false;
   const trackedRelease = (): Promise<void> => {
+    if (released) return Promise.resolve();
     if (inFlight) return inFlight;
     pendingReleases.add(trackedRelease);
     inFlight = Promise.resolve()
       .then(releaseSession)
       .then(
         () => {
+          released = true;
           pendingReleases.delete(trackedRelease);
           inFlight = undefined;
         },

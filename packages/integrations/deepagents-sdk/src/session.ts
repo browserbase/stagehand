@@ -223,7 +223,7 @@ export async function runDeepagentsSession(input: {
         let event: DeepagentsEvent;
         try {
           const parsed: unknown = JSON.parse(line);
-          if (!isRecord(parsed)) throw new Error("not an object");
+          if (!isRecord(parsed) || Array.isArray(parsed)) throw new Error("not an object");
           event = parsed;
         } catch {
           input.logger.log({
@@ -360,11 +360,11 @@ export function extractDeepagentsTokenUsage(
   return {
     reported:
       event?.reported !== false && [event?.input_tokens, event?.output_tokens].some(isTokenCount),
-    inputTokens: toFiniteNumber(event?.input_tokens),
-    outputTokens: toFiniteNumber(event?.output_tokens),
-    cacheReadInputTokens: toFiniteNumber(event?.cache_read_input_tokens),
-    reasoningOutputTokens: toFiniteNumber(event?.reasoning_output_tokens),
-    totalTokens: toFiniteNumber(event?.total_tokens),
+    inputTokens: toNonNegativeFiniteNumber(event?.input_tokens),
+    outputTokens: toNonNegativeFiniteNumber(event?.output_tokens),
+    cacheReadInputTokens: toNonNegativeFiniteNumber(event?.cache_read_input_tokens),
+    reasoningOutputTokens: toNonNegativeFiniteNumber(event?.reasoning_output_tokens),
+    totalTokens: toNonNegativeFiniteNumber(event?.total_tokens),
   };
 }
 
@@ -543,6 +543,11 @@ export function toFiniteNumber(value: unknown): number {
         ? Number(value)
         : 0;
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toNonNegativeFiniteNumber(value: unknown): number {
+  const parsed = toFiniteNumber(value);
+  return parsed > 0 ? parsed : 0;
 }
 
 function isTokenCount(value: unknown): boolean {

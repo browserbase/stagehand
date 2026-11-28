@@ -59,6 +59,7 @@
     "@types/node": "catalog:",
     "chalk": "^5.4.1",
     "esbuild": "catalog:",
+    "fast-check": "catalog:",
     "gray-matter": "^4.0.3",
     "string-comparison": "^1.3.0",
     "vite": "catalog:",

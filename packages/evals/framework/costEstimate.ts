@@ -70,7 +70,9 @@ export function resolveBilledCost({
     return {
       cost_usd: reportedCostUsd,
       cost_source: "reported",
-      billing_channel: REPORTED_CHANNEL[harness] ?? `${harness}_reported`,
+      billing_channel: Object.hasOwn(REPORTED_CHANNEL, harness)
+        ? REPORTED_CHANNEL[harness]!
+        : `${harness}_reported`,
     };
   }
   const provider = providerOf(model);
@@ -193,7 +195,7 @@ const PROVIDER_ALIASES: Record<string, string[]> = {
 export function modelPriceCandidates(model: string): string[] {
   let id = model.trim();
   while (id.startsWith("gateway/")) id = id.slice("gateway/".length);
-  id = HARNESS_DEFAULT_MODELS[id] ?? id;
+  id = Object.hasOwn(HARNESS_DEFAULT_MODELS, id) ? HARNESS_DEFAULT_MODELS[id]! : id;
   const slash = id.indexOf("/");
   const provider = slash >= 0 ? id.slice(0, slash) : undefined;
   const name = slash >= 0 ? id.slice(slash + 1) : id;
@@ -206,7 +208,9 @@ export function modelPriceCandidates(model: string): string[] {
     names.add(undated.replace(/-preview$/u, ""));
   }
 
-  const providers = provider ? [provider, ...(PROVIDER_ALIASES[provider] ?? [])] : [];
+  const providers = provider
+    ? [provider, ...(Object.hasOwn(PROVIDER_ALIASES, provider) ? PROVIDER_ALIASES[provider]! : [])]
+    : [];
   const candidates: string[] = [];
   for (const candidateName of names) {
     for (const candidateProvider of providers)

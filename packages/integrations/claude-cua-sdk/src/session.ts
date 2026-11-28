@@ -403,7 +403,12 @@ export function compressTranscriptImages(
       });
     }
   }
-  const excess = images.length - Math.max(0, keep);
+  const keepCount = Number.isFinite(keep)
+    ? Math.max(0, Math.floor(keep))
+    : keep === Number.POSITIVE_INFINITY
+      ? images.length
+      : 0;
+  const excess = images.length - keepCount;
   for (let i = 0; i < excess; i += 1) {
     const { blocks, index } = images[i]!;
     blocks[index] = { type: "text", text: IMAGE_PLACEHOLDER };
@@ -426,7 +431,7 @@ function nonNegative(value: number | null | undefined): number {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function stringifyError(value: unknown): string {

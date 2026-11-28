@@ -307,16 +307,18 @@ export function extractPiTokenUsage(events: PiEvent[]): PiTokenUsage {
     if (message.role !== "assistant" || !isRecord(message.usage)) continue;
     const usage = message.usage;
     total.reported ||= [usage.input, usage.output].some(isTokenCount);
-    total.inputTokens += toFiniteNumber(usage.input);
-    total.outputTokens += toFiniteNumber(usage.output);
-    total.cacheReadTokens += toFiniteNumber(usage.cacheRead);
-    total.cacheWriteTokens += toFiniteNumber(usage.cacheWrite);
-    total.totalTokens += toFiniteNumber(usage.totalTokens);
+    total.inputTokens = addClampedNonNegative(total.inputTokens, usage.input);
+    total.outputTokens = addClampedNonNegative(total.outputTokens, usage.output);
+    total.cacheReadTokens = addClampedNonNegative(total.cacheReadTokens, usage.cacheRead);
+    total.cacheWriteTokens = addClampedNonNegative(total.cacheWriteTokens, usage.cacheWrite);
+    total.totalTokens = addClampedNonNegative(total.totalTokens, usage.totalTokens);
     if (usage.reasoning !== undefined) {
       sawReasoning = true;
-      reasoningTokens += toFiniteNumber(usage.reasoning);
+      reasoningTokens = addClampedNonNegative(reasoningTokens, usage.reasoning);
     }
-    if (isRecord(usage.cost)) total.costUsd += toFiniteNumber(usage.cost.total);
+    if (isRecord(usage.cost)) {
+      total.costUsd = addClampedNonNegative(total.costUsd, usage.cost.total);
+    }
   }
   return { ...total, ...(sawReasoning && { reasoningTokens }) };
 }
@@ -551,6 +553,16 @@ export function toFiniteNumber(value: unknown): number {
         ? Number(value)
         : 0;
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toNonNegativeFiniteNumber(value: unknown): number {
+  const parsed = toFiniteNumber(value);
+  return parsed > 0 ? parsed : 0;
+}
+
+function addClampedNonNegative(total: number, value: unknown): number {
+  const sum = total + toNonNegativeFiniteNumber(value);
+  return Number.isFinite(sum) ? sum : Number.MAX_VALUE;
 }
 
 function isTokenCount(value: unknown): boolean {
