@@ -189,10 +189,15 @@ export type FacadeBundle = ReturnType<typeof facadeBundle>;
  * `ensure_ascii=False`).
  */
 export function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (Array.isArray(value)) {
+    return `[${Array.from(value, (entry) => canonicalJson(entry) ?? "null").join(",")}]`;
+  }
   if (value !== null && typeof value === "object") {
     const entries = Object.entries(value)
-      .filter(([, entry]) => entry !== undefined)
+      .filter(
+        ([, entry]) =>
+          entry !== undefined && typeof entry !== "function" && typeof entry !== "symbol",
+      )
       .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
     return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`).join(",")}}`;
   }

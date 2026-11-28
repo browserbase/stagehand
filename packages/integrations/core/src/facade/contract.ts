@@ -223,7 +223,7 @@ export const STALE_SNAPSHOT_ID_ERROR =
   'Snapshot ID "${id}" is stale or not actionable; call snapshot again.';
 
 export function staleSnapshotIdError(id: string): string {
-  return STALE_SNAPSHOT_ID_ERROR.replace("${id}", id);
+  return STALE_SNAPSHOT_ID_ERROR.replace("${id}", () => id);
 }
 
 export const SCREENSHOT_ARTIFACT_PATH_ERROR =
@@ -244,7 +244,7 @@ export const SCREENSHOT_ARTIFACT_WRITE_ERROR =
   "Screenshot artifact could not be written (${cause}).";
 
 export function screenshotArtifactWriteError(cause: string): string {
-  return SCREENSHOT_ARTIFACT_WRITE_ERROR.replace("${cause}", cause);
+  return SCREENSHOT_ARTIFACT_WRITE_ERROR.replace("${cause}", () => cause);
 }
 /**
  * Directory under the current working directory that screenshot artifacts are
@@ -307,7 +307,7 @@ export const BROWSER_SESSION_LOST_ERROR =
 export const SESSION_LOST_TELEMETRY_PREFIX = "stagehand_facade_session_lost ";
 
 export function browserSessionLostError(cause: string): string {
-  return BROWSER_SESSION_LOST_ERROR.replace("${cause}", cause);
+  return BROWSER_SESSION_LOST_ERROR.replace("${cause}", () => cause);
 }
 
 export function isBrowserSessionLostError(message: string): boolean {

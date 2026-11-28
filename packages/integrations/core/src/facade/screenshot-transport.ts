@@ -20,8 +20,9 @@ export function screenshotBase64BudgetFromArgs(args: string[]): number | undefin
   const value = args.find((arg) => arg.startsWith(SCREENSHOT_BUDGET_FLAG));
   if (value === undefined) return undefined;
 
-  const budget = Number(value.slice(SCREENSHOT_BUDGET_FLAG.length));
-  if (!Number.isSafeInteger(budget) || budget < 1_024) {
+  const raw = value.slice(SCREENSHOT_BUDGET_FLAG.length);
+  const budget = Number(raw);
+  if (!/^\d+$/u.test(raw) || !Number.isSafeInteger(budget) || budget < 1_024) {
     throw new Error(`${SCREENSHOT_BUDGET_FLAG} must be an integer of at least 1024.`);
   }
   return budget;
@@ -58,29 +59,47 @@ export async function captureScreenshotWithinBase64Budget(
   );
 }
 
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
 export function imageDimensions(
   image: StagehandFacadeScreenshot,
 ): { width: number; height: number } | undefined {
   const bytes = Buffer.from(image.data, "base64");
   if (image.mimeType === "image/png") {
-    if (bytes.length < 24 || bytes.toString("ascii", 1, 4) !== "PNG") return undefined;
+    if (
+      bytes.length < 24 ||
+      !bytes.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE) ||
+      bytes.toString("ascii", 12, 16) !== "IHDR"
+    ) {
+      return undefined;
+    }
     return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
   }
-  // JPEG: walk the marker segments to the first SOFn (C0–CF except C4, C8, CC).
   if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return undefined;
   let offset = 2;
-  while (offset + 9 <= bytes.length) {
+  while (offset < bytes.length) {
     if (bytes[offset] !== 0xff) return undefined;
-    const marker = bytes[offset + 1]!;
-    if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) {
-      offset += 2;
+    while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
+    if (offset >= bytes.length) return undefined;
+    const marker = bytes[offset]!;
+    offset += 1;
+    if (marker === 0xd9 || marker === 0xda) return undefined;
+    if (
+      marker === 0x00 ||
+      marker === 0xd8 ||
+      (marker >= 0xd0 && marker <= 0xd7) ||
+      marker === 0x01
+    ) {
       continue;
     }
-    const length = bytes.readUInt16BE(offset + 2);
+    if (offset + 2 > bytes.length) return undefined;
+    const length = bytes.readUInt16BE(offset);
+    if (length < 2 || offset + length > bytes.length) return undefined;
     if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
-      return { height: bytes.readUInt16BE(offset + 5), width: bytes.readUInt16BE(offset + 7) };
+      if (length < 7) return undefined;
+      return { height: bytes.readUInt16BE(offset + 3), width: bytes.readUInt16BE(offset + 5) };
     }
-    offset += 2 + length;
+    offset += length;
   }
   return undefined;
 }

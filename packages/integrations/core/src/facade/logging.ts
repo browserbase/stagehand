@@ -2,30 +2,205 @@ import { closeSync, constants, openSync, writeSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { StagehandFacadeConfigError } from "./config.js";
 import { sanitizeErrorMessage } from "../harness/redact.js";
+import { sliceUtf16Safe, stringifyError } from "../harness/values.js";
 import type { FacadeEnv } from "./contract.js";
 
-export function redactToolLog(value: unknown, maxChars = 16_000): unknown {
-  const seen = new WeakSet<object>();
-  const text =
-    JSON.stringify(value, (key, item: unknown) => {
-      if (/^(?:authorization|cookie|password|secret|token|api[_-]?key|signingKey)$/i.test(key))
-        return "[redacted]";
-      if (key === "data" && typeof item === "string")
-        return `[binary omitted: ${item.length} characters]`;
-      if (typeof item === "string")
-        return sanitizeErrorMessage(item).replace(
-          /((?:password|api[_-]?key|secret|token)\s*[:=]\s*["']?)[^\s"',;}]+/gi,
-          "$1[redacted]",
-        );
-      if (typeof item === "bigint") return String(item);
-      if (item && typeof item === "object") {
-        if (seen.has(item)) return "[Circular]";
-        seen.add(item);
+const SENSITIVE_KEY_PATTERN =
+  /^(?:authorization|cookie|password|secret|token|api[_-]?key|signing[_-]?key)$/i;
+const BINARY_OMITTED_PATTERN = /^\[binary omitted: \d+ characters\]$/;
+const MAX_LOG_DEPTH = 64;
+
+function omitBinaryData(value: string): string {
+  return BINARY_OMITTED_PATTERN.test(value)
+    ? value
+    : `[binary omitted: ${value.length} characters]`;
+}
+
+function readProperty(target: object, key: string): { ok: true; value: unknown } | { ok: false } {
+  try {
+    return { ok: true, value: (target as Record<string, unknown>)[key] };
+  } catch {
+    return { ok: false };
+  }
+}
+
+function redactLogString(text: string): string {
+  return sanitizeErrorMessage(text)
+    .replace(
+      /((?:authorization|cookie|password|api[_-]?key|signing[_-]?key|secret|token)["']?\s*[:=]\s*)(["'])(?:(?:\\.|(?!\2)[^\\\r\n])*(\2)|[^\r\n]*)/gi,
+      (_match, prefix: string, quote: string, close: string | undefined) =>
+        `${prefix}${quote}[redacted]${close ?? ""}`,
+    )
+    .replace(/((?:authorization|cookie)["']?[ \t]*[:=][ \t]*)(?!["'\s])[^\r\n]+/gi, "$1[redacted]")
+    .replace(
+      /((?:password|api[_-]?key|signing[_-]?key|secret|token)["']?[ \t]*[:=][ \t]*)[^\s"',;}]+/gi,
+      "$1[redacted]",
+    );
+}
+
+function defineOwnField(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}
+
+function sanitizeLogValue(value: unknown, ancestors: Set<object>, depth: number): unknown {
+  if (value === null || value === undefined || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") return redactLogString(value);
+  if (typeof value === "bigint") return String(value);
+  if (typeof value !== "object") return undefined;
+
+  if (ancestors.has(value)) return "[Circular]";
+  if (depth >= MAX_LOG_DEPTH) return "[MaxDepth]";
+
+  ancestors.add(value);
+  try {
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? null : value.toISOString();
+    }
+    if (value instanceof RegExp) {
+      return redactLogString(String(value));
+    }
+    if (value instanceof Error) {
+      const serialized: Record<string, unknown> = {};
+      for (const metaKey of ["name", "message"] as const) {
+        const prop = readProperty(value, metaKey);
+        if (!prop.ok) {
+          defineOwnField(serialized, metaKey, "[Unreadable]");
+        } else {
+          const sanitized = sanitizeLogValue(prop.value, ancestors, depth + 1);
+          if (sanitized !== undefined) defineOwnField(serialized, metaKey, sanitized);
+        }
       }
-      return item;
-    }) ?? "null";
-  return text.length > maxChars
-    ? { preview: text.slice(0, maxChars), truncated: true, characters: text.length }
+      const stackProp = readProperty(value, "stack");
+      if (!stackProp.ok) {
+        defineOwnField(serialized, "stack", "[Unreadable]");
+      } else if (typeof stackProp.value === "string") {
+        defineOwnField(serialized, "stack", redactLogString(stackProp.value));
+      }
+      const causeProp = readProperty(value, "cause");
+      if (!causeProp.ok) {
+        defineOwnField(serialized, "cause", "[Unreadable]");
+      } else if (causeProp.value !== undefined) {
+        defineOwnField(
+          serialized,
+          "cause",
+          sanitizeLogValue(causeProp.value, ancestors, depth + 1),
+        );
+      }
+      for (const key of Object.keys(value)) {
+        const redactedKey = redactLogString(key);
+        if (SENSITIVE_KEY_PATTERN.test(key)) {
+          defineOwnField(serialized, redactedKey, "[redacted]");
+          continue;
+        }
+        const prop = readProperty(value, key);
+        if (!prop.ok) {
+          defineOwnField(serialized, redactedKey, "[Unreadable]");
+          continue;
+        }
+        if (key === "data" && typeof prop.value === "string") {
+          defineOwnField(serialized, redactedKey, omitBinaryData(prop.value));
+          continue;
+        }
+        const sanitized = sanitizeLogValue(prop.value, ancestors, depth + 1);
+        if (sanitized !== undefined) defineOwnField(serialized, redactedKey, sanitized);
+      }
+      return serialized;
+    }
+    if (value instanceof Map) {
+      const entries: unknown[] = [];
+      for (const [entryKey, entryVal] of value.entries()) {
+        const safeKey = sanitizeLogValue(entryKey, ancestors, depth + 1);
+        const safeVal =
+          typeof entryKey === "string" && SENSITIVE_KEY_PATTERN.test(entryKey)
+            ? "[redacted]"
+            : entryKey === "data" && typeof entryVal === "string"
+              ? omitBinaryData(entryVal)
+              : sanitizeLogValue(entryVal, ancestors, depth + 1);
+        entries.push([
+          safeKey === undefined ? null : safeKey,
+          safeVal === undefined ? null : safeVal,
+        ]);
+      }
+      return entries;
+    }
+    if (value instanceof Set) {
+      const items: unknown[] = [];
+      for (const entry of value.values()) {
+        const sanitized = sanitizeLogValue(entry, ancestors, depth + 1);
+        items.push(sanitized === undefined ? null : sanitized);
+      }
+      return items;
+    }
+    if (Array.isArray(value)) {
+      const items: unknown[] = [];
+      for (let index = 0; index < value.length; index += 1) {
+        let entry: unknown;
+        try {
+          entry = value[index];
+        } catch {
+          items.push("[Unreadable]");
+          continue;
+        }
+        const sanitized = sanitizeLogValue(entry, ancestors, depth + 1);
+        items.push(sanitized === undefined ? null : sanitized);
+      }
+      return items;
+    }
+
+    let toJsonMethod: unknown;
+    try {
+      toJsonMethod = (value as { toJSON?: unknown }).toJSON;
+    } catch {
+      toJsonMethod = undefined;
+    }
+    if (typeof toJsonMethod === "function") {
+      try {
+        const converted = (toJsonMethod as () => unknown).call(value);
+        if (converted !== value) {
+          return sanitizeLogValue(converted, ancestors, depth + 1);
+        }
+      } catch {}
+    }
+
+    const output: Record<string, unknown> = {};
+    for (const key of Object.keys(value)) {
+      const redactedKey = redactLogString(key);
+      if (SENSITIVE_KEY_PATTERN.test(key)) {
+        defineOwnField(output, redactedKey, "[redacted]");
+        continue;
+      }
+      let item: unknown;
+      try {
+        item = (value as Record<string, unknown>)[key];
+      } catch {
+        defineOwnField(output, redactedKey, "[Unreadable]");
+        continue;
+      }
+      if (key === "data" && typeof item === "string") {
+        defineOwnField(output, redactedKey, omitBinaryData(item));
+        continue;
+      }
+      const sanitized = sanitizeLogValue(item, ancestors, depth + 1);
+      if (sanitized !== undefined) defineOwnField(output, redactedKey, sanitized);
+    }
+    return output;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
+export function redactToolLog(value: unknown, maxChars = 16_000): unknown {
+  const limit = Number.isFinite(maxChars) ? Math.max(0, Math.floor(maxChars)) : 0;
+  const sanitized = sanitizeLogValue(value, new Set<object>(), 0);
+  const text = JSON.stringify(sanitized) ?? "null";
+  return text.length > limit
+    ? { preview: sliceUtf16Safe(text, limit), truncated: true, characters: text.length }
     : JSON.parse(text);
 }
 
@@ -51,14 +226,19 @@ export function createFacadeLogger(env: FacadeEnv = process.env) {
     );
   const emit = (event: string, details: Record<string, unknown>) => {
     if (level === "off") return;
-    const line =
-      JSON.stringify({
-        timestamp: new Date().toISOString(),
-        session,
-        pid: process.pid,
-        event,
-        ...details,
-      }) + "\n";
+    const record = {
+      timestamp: new Date().toISOString(),
+      session,
+      pid: process.pid,
+      event,
+      ...details,
+    };
+    let line: string;
+    try {
+      line = JSON.stringify(record) + "\n";
+    } catch {
+      line = JSON.stringify(sanitizeLogValue(record, new Set<object>(), 0)) + "\n";
+    }
     try {
       if (descriptor !== undefined) writeSync(descriptor, line);
       else process.stderr.write(line);
@@ -108,7 +288,10 @@ export function createFacadeLogger(env: FacadeEnv = process.env) {
           name,
           durationMs: Math.round(performance.now() - started),
           status: "error",
-          error: redactToolLog(String(error), parsedLimit),
+          error: redactToolLog(
+            typeof error === "object" && error !== null ? error : stringifyError(error),
+            parsedLimit,
+          ),
         });
         throw error;
       }

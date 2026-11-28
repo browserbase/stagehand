@@ -45,4 +45,4 @@ testpaths = ["tests"]
 strict = true
 
 [dependency-groups]
-dev = ["pytest==9.0.3", "pytest-asyncio==1.3.0", "ruff==0.15.7", "ty==0.0.82"]
+dev = ["hypothesis>=6,<7", "pytest==9.0.3", "pytest-asyncio==1.3.0", "ruff==0.15.7", "ty==0.0.82"]
