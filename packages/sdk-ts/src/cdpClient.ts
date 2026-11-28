@@ -383,6 +383,9 @@ export class CDPClient {
           "Exactly one of localExtensionDir, extensionDir, extensionId, or preloadedExtension is required",
         );
       }
+
+      // Stale service worker detection: when reconnecting to a browser that may have
+      // kept an old service worker from a previous SDK version, detect and reload.
       const attachServiceWorker = async (excludeTargetId?: string) => {
         const serviceWorker = await waitForServiceWorker(client, {
           extensionId,
@@ -432,6 +435,7 @@ export class CDPClient {
         });
       }
 
+      // Set up the attached session for RPC.
       client.sessionId = attached.sessionId;
       client.attachedServiceWorker = {
         targetId: serviceWorker.targetId,
@@ -450,11 +454,65 @@ export class CDPClient {
         attached.sessionId,
         signal,
       );
-      await waitForRuntimeReady(client, attached.sessionId, {
-        runtimeRequirement: options.runtimeRequirement,
-        allowFallbackInstall: options.allowFallbackInstall,
-        signal,
-      });
+
+      // Verify runtime compatibility.
+      // When connecting to a browser with an old extension (localExtensionDir case with default
+      // runtime requirement), replace it with the bundled extension and retry on incompatibility.
+      // We only auto-replace when using the default requirement because a custom runtimeRequirement
+      // indicates the caller explicitly needs a specific version that may not be in the bundle.
+      // Note: This auto-replace only works for local browsers. For remote browsers (e.g., Browserbase
+      // via --cdp), loadUnpackedExtension will fail because the local path isn't accessible remotely.
+      try {
+        await waitForRuntimeReady(client, attached.sessionId, {
+          runtimeRequirement: options.runtimeRequirement,
+          allowFallbackInstall: options.allowFallbackInstall,
+          signal,
+        });
+      } catch (error) {
+        if (
+          options.localExtensionDir &&
+          !options.runtimeRequirement &&
+          error instanceof StagehandRuntimeIncompatibleError
+        ) {
+          // Detach from the incompatible extension's service worker before replacing it.
+          if (client.sessionId) {
+            await client
+              .sendCommand(
+                "Target.detachFromTarget",
+                { sessionId: client.sessionId },
+                undefined,
+                signal,
+              )
+              .catch(() => undefined);
+            client.sessionId = undefined;
+            client.attachedServiceWorker = undefined;
+          }
+          // Load the bundled extension, replacing the old one (same path = replace).
+          // If this fails (e.g., remote browser can't access local path), re-throw
+          // the original incompatibility error with context about the failed replacement.
+          try {
+            extensionId = await loadUnpackedExtension(client, options.localExtensionDir, signal);
+            await attachAndVerifyExtension(client, extensionId, options);
+          } catch (replacementError) {
+            // Preserve cancellation so callers can recognize an aborted connection.
+            if (signal.aborted) throw replacementError;
+            // Wrap the original incompatibility error with replacement failure info.
+            // This allows callers to check for replacement failure via error.cause.
+            const enhancedError = new StagehandRuntimeIncompatibleError(error.compatibility);
+            const replacementMessage =
+              replacementError instanceof Error
+                ? replacementError.message
+                : String(replacementError);
+            enhancedError.message =
+              error.message + ` Automatic extension replacement failed: ${replacementMessage}.`;
+            (enhancedError as { replacementError?: unknown }).replacementError = replacementError;
+            throw enhancedError;
+          }
+        } else {
+          throw error;
+        }
+      }
+
       if (options.clientLifecycle) {
         await client.registerClient(options.clientLifecycle, signal);
       }
@@ -699,6 +757,56 @@ export class CDPClient {
     }
     this.pending.clear();
   }
+}
+
+/**
+ * Attach to an extension's service worker and verify the runtime is compatible.
+ * Throws `StagehandRuntimeIncompatibleError` if the runtime version doesn't match.
+ */
+async function attachAndVerifyExtension(
+  client: CDPClient,
+  extensionId: string,
+  options: CDPClientOptions,
+): Promise<void> {
+  const { signal } = options;
+  const serviceWorker = await waitForServiceWorker(client, {
+    extensionId,
+    urlIncludes: options.serviceWorkerUrlIncludes,
+    signal,
+  });
+  const attached = await client.sendCommand<{ sessionId: string }>(
+    "Target.attachToTarget",
+    {
+      targetId: serviceWorker.targetId,
+      flatten: true,
+    },
+    undefined,
+    signal,
+  );
+
+  client.sessionId = attached.sessionId;
+  client.attachedServiceWorker = {
+    targetId: serviceWorker.targetId,
+    title: serviceWorker.title,
+    url: serviceWorker.url,
+    extensionId,
+  };
+
+  await client.sendCommand("Runtime.enable", {}, attached.sessionId, signal).catch(() => {
+    throwIfAborted(signal);
+    return undefined;
+  });
+  await client.sendCommand(
+    "Runtime.addBinding",
+    { name: STAGEHAND_SEND_TO_HOST_BINDING },
+    attached.sessionId,
+    signal,
+  );
+  await waitForRuntimeReady(client, attached.sessionId, {
+    runtimeRequirement: options.runtimeRequirement,
+    allowFallbackInstall: options.allowFallbackInstall,
+    signal,
+  });
 }
 
 type CDPWebSocketFactory = (url: string, headers?: Record<string, string>) => WebSocket;
@@ -1093,6 +1201,26 @@ export async function loadUnpackedExtension(
         "This Chrome build does not support Extensions.loadUnpacked. Preload the Stagehand extension and connect using a Chrome build that supports Extensions.getExtensions.",
         { cause: error },
       );
+    }
+
+    // Chrome returns "File path cannot be resolved" when it can't access the local path.
+    // This happens when connecting to a remote browser via CDP - the browser can't see
+    // the local filesystem. Provide a clearer error message.
+    if (
+      error &&
+      typeof error === "object" &&
+      "message" in error &&
+      typeof error.message === "string" &&
+      error.message.includes("File path cannot be resolved")
+    ) {
+      const pathError = new Error(
+        "The browser cannot access the local extension path. " +
+          "For remote browsers, create the session with the extension bundled (default for `browse cloud sessions create`), " +
+          "or use `--extension-id` to specify a pre-uploaded extension.",
+        { cause: error },
+      );
+      (pathError as Error & { code: string }).code = "extension_path_inaccessible";
+      throw pathError;
     }
 
     throw error;

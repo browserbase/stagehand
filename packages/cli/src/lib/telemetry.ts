@@ -238,12 +238,34 @@ function commandCompletedProperties(
     error_code: completion.success
       ? null
       : (completion.recordedError?.code ?? inferErrorCode(completion.error)),
+    error_message: completion.success ? null : truncateErrorMessage(completion.error),
     result_code: resultCode,
     http_status: failureTelemetry?.httpStatus ?? runTelemetry.httpStatus ?? null,
     request_had_http_response:
       failureTelemetry?.requestHadHttpResponse ?? runTelemetry.requestHadHttpResponse ?? null,
     skill_id: runTelemetry.skillId ?? null,
   };
+}
+
+const ERROR_MESSAGE_MAX_LENGTH = 200;
+
+function truncateErrorMessage(error: Error | undefined): string | null {
+  if (!error) return null;
+  const message = redactSensitiveInfo(error.message || String(error));
+  if (message.length <= ERROR_MESSAGE_MAX_LENGTH) return message;
+  return message.slice(0, ERROR_MESSAGE_MAX_LENGTH - 3) + "...";
+}
+
+function redactSensitiveInfo(message: string): string {
+  return (
+    message
+      // Redact URL credentials (user:pass@host)
+      .replace(/\/\/[^:@/\s]+:[^@/\s]+@/g, "//[REDACTED]@")
+      // Redact query string values (keep keys for debugging)
+      .replace(/([?&][^=&\s]+)=[^&\s]*/g, "$1=[REDACTED]")
+      // Redact common secret patterns
+      .replace(/\b(api[_-]?key|token|secret|password|credential)s?[=:]\s*\S+/gi, "$1=[REDACTED]")
+  );
 }
 
 function fallbackResultCode(success: boolean, errorType: CliTelemetryErrorType | null): string {

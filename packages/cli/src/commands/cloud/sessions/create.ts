@@ -9,6 +9,7 @@ import {
 } from "../../../lib/cloud/api.js";
 import { resolveContextRefOrFail } from "../../../lib/cloud/contexts-resolve.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
+import { uploadStagehandExtension } from "../../../lib/cloud/stagehand-extension.js";
 import { fail } from "../../../lib/errors.js";
 import { getCliVersion, resolveInstallId, toMetadataValue } from "../../../lib/identity.js";
 import { BrowseCommand } from "../../../base.js";
@@ -185,8 +186,14 @@ export default class SessionsCreate extends BrowseCommand {
       helpValue: "<WxH>",
     }),
     "extension-id": Flags.string({
-      description: "Chrome extension ID to load.",
+      description: "Chrome extension ID to load. Overrides --stagehand-extension.",
       helpValue: "<id>",
+    }),
+    "stagehand-extension": Flags.boolean({
+      description:
+        "Automatically upload the bundled Stagehand extension. Use --no-stagehand-extension to skip.",
+      default: true,
+      allowNo: true,
     }),
   };
 
@@ -202,7 +209,24 @@ export default class SessionsCreate extends BrowseCommand {
         stdin: flags.stdin,
       });
       const flagBody = buildSessionCreateBody(flags);
-      const body = deepMerge(jsonBody, flagBody);
+      let body = deepMerge(jsonBody, flagBody);
+
+      // Auto-provision the Stagehand extension unless --extension-id is provided
+      // or --no-stagehand-extension is set. This ensures later `--cdp` attaches
+      // find a compatible runtime instead of failing with an incompatibility error.
+      // On upload failure, warn and continue - session creation shouldn't fail
+      // just because extension upload failed.
+      const hasExplicitExtension =
+        flags["extension-id"] ||
+        body.extensionId ||
+        (body.browserSettings as Record<string, unknown> | undefined)?.extensionId;
+      if (!hasExplicitExtension && flags["stagehand-extension"]) {
+        const result = await uploadStagehandExtension(client);
+        if (result) {
+          body = deepMerge(body, { extensionId: result.extensionId });
+        }
+      }
+
       await applyCliAttribution(body);
       outputJson(await client.sessions.create(body));
     });

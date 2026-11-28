@@ -1,4 +1,9 @@
-import { localBrowser, Stagehand, type StagehandBrowser } from "@browserbasehq/stagehand";
+import {
+  localBrowser,
+  Stagehand,
+  StagehandRuntimeIncompatibleError,
+  type StagehandBrowser,
+} from "@browserbasehq/stagehand";
 
 import {
   emptyRefMaps,
@@ -408,6 +413,12 @@ async function safeTitle(page: DriverPage): Promise<string> {
   }
 }
 
+/**
+ * Turn raw `stagehand.init()` failures into typed, actionable errors. Remote
+ * failures are classified by the remote capability (401/403/etc.); a missing
+ * local Chrome gets install/escape-hatch guidance. Runtime incompatibility
+ * gets a typed code. Anything else is rethrown unchanged.
+ */
 async function describeInitError(error: unknown, target: ConnectionTarget): Promise<unknown> {
   if (error instanceof DriverError) return error;
 
@@ -421,6 +432,44 @@ async function describeInitError(error: unknown, target: ConnectionTarget): Prom
       cause: error,
       code: "no_chrome_found",
     });
+  }
+
+  if (error instanceof StagehandRuntimeIncompatibleError) {
+    // Check if this error includes a replacement failure. This can happen when:
+    // - Remote browser: can't access the local extension path
+    // - Local browser: Chrome rejected Extensions.loadUnpacked for other reasons
+    const hasReplacementError = "replacementError" in error && error.replacementError !== undefined;
+    if (hasReplacementError) {
+      return new DriverError(
+        `Incompatible Stagehand extension and automatic replacement failed. ` +
+          `The browser has ${error.serverInfo.name}/${error.serverInfo.version} ` +
+          `but this CLI requires protocol ${error.clientProtocolVersion}. ` +
+          `${error.remediation} If this is a remote browser, the extension must be installed at session creation time.`,
+        { cause: error, code: "runtime_incompatible_replace_failed" },
+      );
+    }
+    return new DriverError(
+      `Incompatible Stagehand extension: ${error.detail}. ` +
+        `The browser has ${error.serverInfo.name}/${error.serverInfo.version} ` +
+        `but this CLI requires protocol ${error.clientProtocolVersion}. ${error.remediation}`,
+      { cause: error, code: "runtime_incompatible" },
+    );
+  }
+
+  // Handle extension path inaccessible error (e.g., remote browser can't see local path)
+  // Omit cause to avoid exposing remote CDP response details.
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "extension_path_inaccessible"
+  ) {
+    return new DriverError(
+      `The browser cannot access the local extension path. ` +
+        `For remote browsers, create the session with the bundled extension: ` +
+        `\`browse cloud sessions create\` (default) or use \`--extension-id\` to specify a pre-uploaded extension.`,
+      { code: "extension_path_inaccessible" },
+    );
   }
 
   return error;

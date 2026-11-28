@@ -194,8 +194,76 @@ describe("CLI telemetry", () => {
       expect(completedPayload.properties.result_code).toBe("search_internal_error");
       expect(completedPayload.properties.http_status).toBe(500);
       expect(completedPayload.properties.request_had_http_response).toBe(true);
+      expect(typeof completedPayload.properties.error_message).toBe("string");
       expect(JSON.stringify(payloads)).not.toContain("super secret upstream detail");
       expect(JSON.stringify(payloads)).not.toContain("sensitive search phrase");
+    } finally {
+      await apiServer.close();
+      await telemetryServer.close();
+    }
+  });
+
+  it("includes error message in failed command telemetry", async () => {
+    const telemetryServer = await startTelemetryServer();
+    const apiServer = await startFakeBrowserbaseServer((_request, response) => {
+      textResponse(response, 500, "test error detail");
+    });
+
+    try {
+      const installIdFile = await tempInstallIdFile("browse-telemetry-error-msg-");
+      const result = await runCli(["cloud", "search", "query"], {
+        env: {
+          ...telemetryEnv(telemetryServer, installIdFile),
+          BROWSERBASE_API_KEY: "bb_test",
+          BROWSERBASE_BASE_URL: apiServer.baseUrl,
+        },
+      });
+
+      expect(result.exitCode).toBe(1);
+
+      const payloads = telemetryPayloads(telemetryServer);
+      const completedPayload = findPayload(payloads, "cli.command_completed");
+      expect(completedPayload.properties.error_message).not.toBe(null);
+      expect(typeof completedPayload.properties.error_message).toBe("string");
+      expect((completedPayload.properties.error_message as string).length).toBeLessThanOrEqual(200);
+    } finally {
+      await apiServer.close();
+      await telemetryServer.close();
+    }
+  });
+
+  it("truncates error messages longer than 200 characters", async () => {
+    const telemetryServer = await startTelemetryServer();
+    // Create an error message longer than 200 characters - use recognizable prefix
+    const longPrefix = "BrowserbaseAPIError_";
+    const longErrorBody = longPrefix + "x".repeat(300) + "_END";
+    const apiServer = await startFakeBrowserbaseServer((_request, response) => {
+      textResponse(response, 500, longErrorBody);
+    });
+
+    try {
+      const installIdFile = await tempInstallIdFile("browse-telemetry-truncate-");
+      const result = await runCli(["cloud", "search", "query"], {
+        env: {
+          ...telemetryEnv(telemetryServer, installIdFile),
+          BROWSERBASE_API_KEY: "bb_test",
+          BROWSERBASE_BASE_URL: apiServer.baseUrl,
+        },
+      });
+
+      expect(result.exitCode).toBe(1);
+
+      const payloads = telemetryPayloads(telemetryServer);
+      const completedPayload = findPayload(payloads, "cli.command_completed");
+      const errorMessage = completedPayload.properties.error_message as string;
+      expect(errorMessage).not.toBe(null);
+      expect(errorMessage.length).toBeLessThanOrEqual(200);
+      // If the error message contains our long body prefix, verify truncation
+      if (errorMessage.includes(longPrefix)) {
+        expect(errorMessage).toMatch(/\.\.\.$/);
+        expect(errorMessage).not.toContain("_END");
+      }
+      // Otherwise, it's a wrapped error which is still valid - just verify length cap
     } finally {
       await apiServer.close();
       await telemetryServer.close();

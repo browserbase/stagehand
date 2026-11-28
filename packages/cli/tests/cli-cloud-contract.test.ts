@@ -1805,6 +1805,172 @@ describe("cloud API contracts", () => {
     expect(result.stderr).toContain("Provide a file path or use --stagehand");
   });
 
+  it("sessions create uploads the Stagehand extension by default", async () => {
+    const expectedArchive = Buffer.from(await getExtensionArchive());
+    let extensionUploadCount = 0;
+
+    await withServer(
+      async (request, response) => {
+        if (request.method === "POST" && request.path === "/v1/extensions") {
+          extensionUploadCount++;
+          jsonResponse(response, 200, { id: "ext_auto_stagehand" });
+        } else if (request.method === "POST" && request.path === "/v1/sessions") {
+          jsonResponse(response, 200, { id: "sess_123", connectUrl: "ws://example.com" });
+        } else {
+          textResponse(response, 404, "Not Found");
+        }
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "sessions",
+          "create",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+
+        // Should have uploaded the extension first
+        expect(extensionUploadCount).toBe(1);
+        const uploadRequest = requests.find((r) => r.path === "/v1/extensions");
+        expect(uploadRequest).toBeDefined();
+        expect(uploadRequest?.method).toBe("POST");
+        expect(uploadRequest?.headers["content-type"]).toContain("multipart/form-data");
+        expect(uploadRequest?.bodyText).toContain('filename="stagehand-extension.zip"');
+        expect(uploadRequest?.bodyBuffer!.includes(expectedArchive)).toBe(true);
+
+        // Should have created the session with the extension ID
+        const sessionRequest = requests.find((r) => r.path === "/v1/sessions");
+        expect(sessionRequest).toBeDefined();
+        expect(sessionRequest?.method).toBe("POST");
+        expect(sessionRequest?.jsonBody).toMatchObject({ extensionId: "ext_auto_stagehand" });
+      },
+    );
+  });
+
+  it("sessions create skips extension upload when --extension-id is provided", async () => {
+    let extensionUploadCount = 0;
+
+    await withServer(
+      async (request, response) => {
+        if (request.method === "POST" && request.path === "/v1/extensions") {
+          extensionUploadCount++;
+          jsonResponse(response, 200, { id: "ext_should_not_upload" });
+        } else if (request.method === "POST" && request.path === "/v1/sessions") {
+          jsonResponse(response, 200, { id: "sess_123", connectUrl: "ws://example.com" });
+        } else {
+          textResponse(response, 404, "Not Found");
+        }
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "sessions",
+          "create",
+          "--extension-id",
+          "ext_user_provided",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+
+        // Should NOT have uploaded an extension
+        expect(extensionUploadCount).toBe(0);
+
+        // Should have created the session with the user-provided extension ID
+        const sessionRequest = requests.find((r) => r.path === "/v1/sessions");
+        expect(sessionRequest).toBeDefined();
+        expect(sessionRequest?.jsonBody).toMatchObject({ extensionId: "ext_user_provided" });
+      },
+    );
+  });
+
+  it("sessions create skips extension upload when --no-stagehand-extension is set", async () => {
+    let extensionUploadCount = 0;
+
+    await withServer(
+      async (request, response) => {
+        if (request.method === "POST" && request.path === "/v1/extensions") {
+          extensionUploadCount++;
+          jsonResponse(response, 200, { id: "ext_should_not_upload" });
+        } else if (request.method === "POST" && request.path === "/v1/sessions") {
+          jsonResponse(response, 200, { id: "sess_123", connectUrl: "ws://example.com" });
+        } else {
+          textResponse(response, 404, "Not Found");
+        }
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "sessions",
+          "create",
+          "--no-stagehand-extension",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+
+        // Should NOT have uploaded an extension
+        expect(extensionUploadCount).toBe(0);
+
+        // Should have created the session without an extension ID
+        const sessionRequest = requests.find((r) => r.path === "/v1/sessions");
+        expect(sessionRequest).toBeDefined();
+        expect(sessionRequest?.jsonBody?.extensionId).toBeUndefined();
+      },
+    );
+  });
+
+  it("sessions create continues without extension when upload fails", async () => {
+    await withServer(
+      async (request, response) => {
+        if (request.method === "POST" && request.path === "/v1/extensions") {
+          // Simulate extension upload failure
+          textResponse(response, 500, "Internal Server Error");
+        } else if (request.method === "POST" && request.path === "/v1/sessions") {
+          jsonResponse(response, 200, { id: "sess_123", connectUrl: "ws://example.com" });
+        } else {
+          textResponse(response, 404, "Not Found");
+        }
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([
+          "cloud",
+          "sessions",
+          "create",
+          "--api-key",
+          "test-key",
+          "--base-url",
+          baseUrl,
+        ]);
+
+        // Session creation should succeed even though extension upload failed
+        expect(result.exitCode).toBe(0);
+
+        // Should have attempted extension upload
+        const uploadRequest = requests.find((r) => r.path === "/v1/extensions");
+        expect(uploadRequest).toBeDefined();
+
+        // Should have created session without extension ID
+        const sessionRequest = requests.find((r) => r.path === "/v1/sessions");
+        expect(sessionRequest).toBeDefined();
+        expect(sessionRequest?.jsonBody?.extensionId).toBeUndefined();
+
+        // Should have printed warning to stderr
+        expect(result.stderr).toContain("Warning: Stagehand extension upload failed");
+      },
+    );
+  });
+
   it.each([
     {
       args: ["cloud", "sessions", "list", "--q", "status:RUNNING"],
@@ -1821,7 +1987,14 @@ describe("cloud API contracts", () => {
       responseBody: { id: "sess_123" },
     },
     {
-      args: ["cloud", "sessions", "create", "--body", '{"keepAlive":true}'],
+      args: [
+        "cloud",
+        "sessions",
+        "create",
+        "--no-stagehand-extension",
+        "--body",
+        '{"keepAlive":true}',
+      ],
       expectedMethod: "POST",
       expectedPath: "/v1/sessions",
       expectedBody: { keepAlive: true },
@@ -2067,6 +2240,7 @@ describe("cloud API contracts", () => {
           "cloud",
           "sessions",
           "create",
+          "--no-stagehand-extension",
           "--body",
           '{"keepAlive":true,"browserSettings":{"context":{"id":"ctx_123"},"size":"regular"}}',
           "--size",
@@ -2101,12 +2275,12 @@ describe("cloud API contracts", () => {
   });
 
   it.each([
-    { name: "regular", args: ["--size", "regular"], size: "regular" },
-    { name: "xlarge", args: ["--size", "xlarge"], size: "xlarge" },
-    { name: "omitted", args: [], size: undefined },
+    { name: "regular", args: ["--no-stagehand-extension", "--size", "regular"], size: "regular" },
+    { name: "xlarge", args: ["--no-stagehand-extension", "--size", "xlarge"], size: "xlarge" },
+    { name: "omitted", args: ["--no-stagehand-extension"], size: undefined },
     {
       name: "body only",
-      args: ["--body", '{"browserSettings":{"size":"large"}}'],
+      args: ["--no-stagehand-extension", "--body", '{"browserSettings":{"size":"large"}}'],
       size: "large",
     },
   ])("sessions create forwards size: $name", async ({ args, size }) => {
@@ -2148,6 +2322,7 @@ describe("cloud API contracts", () => {
           "cloud",
           "sessions",
           "create",
+          "--no-stagehand-extension",
           "--size",
           "medium",
           "--api-key",
@@ -2173,6 +2348,7 @@ describe("cloud API contracts", () => {
           "cloud",
           "sessions",
           "create",
+          "--no-stagehand-extension",
           "--advanced-stealth",
           "--api-key",
           "test-key",
@@ -2202,7 +2378,16 @@ describe("cloud API contracts", () => {
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli(
-          ["cloud", "sessions", "create", "--api-key", "test-key", "--base-url", baseUrl],
+          [
+            "cloud",
+            "sessions",
+            "create",
+            "--no-stagehand-extension",
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ],
           { env: { BROWSERBASE_TELEMETRY_INSTALL_ID_FILE: installIdFile } },
         );
 
@@ -2230,6 +2415,9 @@ describe("cloud API contracts", () => {
           "cloud",
           "sessions",
           "create",
+          "--no-stagehand-extension",
+          // User-supplied metadata: a custom key is kept; an attempt to override
+          // browse_cli must lose to our authoritative attribution value.
           "--body",
           '{"userMetadata":{"env":"staging","browse_cli":"false"}}',
           "--api-key",
@@ -2261,6 +2449,7 @@ describe("cloud API contracts", () => {
             "cloud",
             "sessions",
             "create",
+            "--no-stagehand-extension",
             "--body",
             '{"userMetadata":{"install_id":"spoofed-id","env":"test"}}',
             "--api-key",

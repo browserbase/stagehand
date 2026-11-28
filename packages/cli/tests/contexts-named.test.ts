@@ -81,7 +81,15 @@ describe("named contexts (end to end through the CLI)", () => {
       });
 
       const session = await runCli(
-        ["cloud", "sessions", "create", "--context-id", "github", "--persist"],
+        [
+          "cloud",
+          "sessions",
+          "create",
+          "--no-stagehand-extension",
+          "--context-id",
+          "github",
+          "--persist",
+        ],
         { env },
       );
       expect(session.exitCode).toBe(0);
